@@ -24,11 +24,12 @@ export const register = async (req: Request, res: Response) => {
     const { email, password, name } = validatedData;
 
     // Check if user already exists
-    const existingUser = await db`
+    const existingUserResult = await db`
       SELECT id FROM users WHERE email = ${email}
     `;
 
-    if (existingUser.length > 0) {
+    const existingUsers = Array.isArray(existingUserResult) ? existingUserResult : existingUserResult.rows || [];
+    if (existingUsers.length > 0) {
       return res.status(400).json({
         status: 'error',
         message: 'User with this email already exists',
@@ -54,7 +55,7 @@ export const register = async (req: Request, res: Response) => {
       { expiresIn: '7d' }
     );
 
-    res.status(201).json({
+    return res.status(201).json({
       status: 'success',
       message: 'User created successfully',
       token,
@@ -74,7 +75,7 @@ export const register = async (req: Request, res: Response) => {
     }
 
     console.error('Registration error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       status: 'error',
       message: 'Failed to create user',
     });
@@ -119,7 +120,7 @@ export const login = async (req: Request, res: Response) => {
       { expiresIn: '7d' }
     );
 
-    res.json({
+    return res.json({
       status: 'success',
       message: 'Login successful',
       token,
@@ -139,7 +140,7 @@ export const login = async (req: Request, res: Response) => {
     }
 
     console.error('Login error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       status: 'error',
       message: 'Failed to login',
     });

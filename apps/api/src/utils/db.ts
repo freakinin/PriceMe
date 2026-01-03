@@ -39,10 +39,97 @@ export async function initializeDatabase() {
         description TEXT,
         category VARCHAR(100),
         batch_size INTEGER DEFAULT 1,
+        target_price DECIMAL(10, 2),
+        markup_percentage DECIMAL(5, 2),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `;
+
+    // Add missing columns if they don't exist (for existing tables)
+    // PostgreSQL doesn't support IF NOT EXISTS for ALTER TABLE ADD COLUMN, so we check first
+    try {
+      // Check and add sku column
+      const skuExists = await sql`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name='products' AND column_name='sku'
+      `;
+      const skuRows = Array.isArray(skuExists) ? skuExists : skuExists.rows || [];
+      if (skuRows.length === 0) {
+        console.log('Adding sku column to products table...');
+        await sql`ALTER TABLE products ADD COLUMN sku VARCHAR(100)`;
+        console.log('✅ Added sku column');
+      }
+
+      // Check and add description column
+      const descriptionExists = await sql`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name='products' AND column_name='description'
+      `;
+      const descriptionRows = Array.isArray(descriptionExists) ? descriptionExists : descriptionExists.rows || [];
+      if (descriptionRows.length === 0) {
+        console.log('Adding description column to products table...');
+        await sql`ALTER TABLE products ADD COLUMN description TEXT`;
+        console.log('✅ Added description column');
+      }
+
+      // Check and add category column
+      const categoryExists = await sql`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name='products' AND column_name='category'
+      `;
+      const categoryRows = Array.isArray(categoryExists) ? categoryExists : categoryExists.rows || [];
+      if (categoryRows.length === 0) {
+        console.log('Adding category column to products table...');
+        await sql`ALTER TABLE products ADD COLUMN category VARCHAR(100)`;
+        console.log('✅ Added category column');
+      }
+
+      // Check and add batch_size column
+      const batchSizeExists = await sql`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name='products' AND column_name='batch_size'
+      `;
+      const batchSizeRows = Array.isArray(batchSizeExists) ? batchSizeExists : batchSizeExists.rows || [];
+      if (batchSizeRows.length === 0) {
+        console.log('Adding batch_size column to products table...');
+        await sql`ALTER TABLE products ADD COLUMN batch_size INTEGER DEFAULT 1`;
+        console.log('✅ Added batch_size column');
+      }
+
+      // Check and add target_price column
+      const targetPriceExists = await sql`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name='products' AND column_name='target_price'
+      `;
+      const targetPriceRows = Array.isArray(targetPriceExists) ? targetPriceExists : targetPriceExists.rows || [];
+      if (targetPriceRows.length === 0) {
+        console.log('Adding target_price column to products table...');
+        await sql`ALTER TABLE products ADD COLUMN target_price DECIMAL(10, 2)`;
+        console.log('✅ Added target_price column');
+      }
+
+      // Check and add markup_percentage column
+      const markupExists = await sql`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name='products' AND column_name='markup_percentage'
+      `;
+      const markupRows = Array.isArray(markupExists) ? markupExists : markupExists.rows || [];
+      if (markupRows.length === 0) {
+        console.log('Adding markup_percentage column to products table...');
+        await sql`ALTER TABLE products ADD COLUMN markup_percentage DECIMAL(5, 2)`;
+        console.log('✅ Added markup_percentage column');
+      }
+    } catch (error: any) {
+      // Columns might already exist or table might not exist yet
+      console.log('Note: Migration check for products table columns:', error.message);
+    }
 
     // Create materials table
     await sql`

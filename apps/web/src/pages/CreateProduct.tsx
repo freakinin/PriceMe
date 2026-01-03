@@ -10,10 +10,13 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { ChevronRight, ChevronLeft, Plus, Trash2, Package, Users, DollarSign, Calculator, Info } from 'lucide-react';
 import { useSidebar } from '@/components/ui/sidebar';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import api from '@/lib/api';
 
 const step1Schema = z.object({
   name: z.string().min(1, 'Product name is required'),
   sku: z.string().optional(),
+  description: z.string().optional(),
+  category: z.string().optional(),
   batch_size: z.number().int().positive().min(1, 'Batch size must be at least 1').default(1),
   target_price: z.number().positive('Target price must be greater than 0').optional(),
   markup_percentage: z.number().nonnegative('Markup percentage must be 0 or greater').optional(),
@@ -146,17 +149,54 @@ export default function CreateProduct() {
     setIsSubmitting(true);
     const step1Data = step1Form.getValues();
     
-    // TODO: Call API to create product with materials, labor, and other costs
-    console.log('Product:', step1Data);
-    console.log('Materials:', materials);
-    console.log('Labor Costs:', laborCosts);
-    console.log('Other Costs:', otherCosts);
-    
-    // For now, just navigate back
-    setTimeout(() => {
-      setIsSubmitting(false);
+    try {
+      // Prepare materials data
+      const materialsData = materials.map(m => ({
+        name: m.name,
+        quantity: m.quantity,
+        unit: m.unit,
+        price_per_unit: m.price_per_unit,
+      }));
+
+      // Prepare labor costs data
+      const laborCostsData = laborCosts.map(l => ({
+        activity: l.activity,
+        time_spent_minutes: l.time_spent_minutes,
+        hourly_rate: l.hourly_rate,
+        per_unit: l.per_unit,
+      }));
+
+      // Prepare other costs data
+      const otherCostsData = otherCosts.map(o => ({
+        item: o.item,
+        quantity: o.quantity,
+        cost: o.cost,
+        per_unit: o.per_unit,
+      }));
+
+      // Call API to create product
+      await api.post('/products', {
+        name: step1Data.name,
+        sku: step1Data.sku,
+        description: step1Data.description,
+        category: step1Data.category,
+        batch_size: step1Data.batch_size,
+        target_price: step1Data.target_price,
+        markup_percentage: step1Data.markup_percentage,
+        materials: materialsData,
+        labor_costs: laborCostsData,
+        other_costs: otherCostsData,
+      });
+
+      // Navigate to products list
       navigate('/products');
-    }, 1000);
+    } catch (error: any) {
+      console.error('Error creating product:', error);
+      // TODO: Show error message to user
+      alert(error.response?.data?.message || 'Failed to create product. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Calculations

@@ -18,17 +18,6 @@ export const updateUserSettingsSchema = z.object({
   units: z.array(z.string()).min(1),
 });
 
-// Product schemas
-export const createProductSchema = z.object({
-  name: z.string().min(1),
-  sku: z.string().optional(),
-  description: z.string().optional(),
-  category: z.string().optional(),
-  batch_size: z.number().int().positive().default(1),
-});
-
-export const updateProductSchema = createProductSchema.partial();
-
 // Material schemas
 export const createMaterialSchema = z.object({
   name: z.string().min(1),
@@ -38,6 +27,42 @@ export const createMaterialSchema = z.object({
 });
 
 export const updateMaterialSchema = createMaterialSchema.partial();
+
+// Labor schemas
+export const createLaborSchema = z.object({
+  activity: z.string().min(1),
+  time_spent_minutes: z.number().int().positive(),
+  hourly_rate: z.number().nonnegative(),
+  per_unit: z.boolean().default(true),
+});
+
+export const updateLaborSchema = createLaborSchema.partial();
+
+// Other Cost schemas
+export const createOtherCostSchema = z.object({
+  item: z.string().min(1),
+  quantity: z.number().positive(),
+  cost: z.number().nonnegative(),
+  per_unit: z.boolean().default(true),
+});
+
+export const updateOtherCostSchema = createOtherCostSchema.partial();
+
+// Product schemas (must be defined after material, labor, and other cost schemas)
+export const createProductSchema = z.object({
+  name: z.string().min(1),
+  sku: z.string().optional(),
+  description: z.string().optional(),
+  category: z.string().optional(),
+  batch_size: z.number().int().positive().default(1),
+  target_price: z.number().positive().optional(),
+  markup_percentage: z.number().nonnegative().optional(),
+  materials: z.array(createMaterialSchema).optional(),
+  labor_costs: z.array(createLaborSchema).optional(),
+  other_costs: z.array(createOtherCostSchema).optional(),
+});
+
+export const updateProductSchema = createProductSchema.partial();
 
 // Pricing data schemas
 export const createPricingDataSchema = z.object({

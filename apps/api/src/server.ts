@@ -26,16 +26,18 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Health check route
-app.get('/health', (req, res) => {
+app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
 // API routes
 import authRoutes from './routes/auth.js';
+import productRoutes from './routes/products.js';
 app.use('/api/auth', authRoutes);
+app.use('/api/products', productRoutes);
 
 // API info route
-app.get('/api', (req, res) => {
+app.get('/api', (_req, res) => {
   res.json({ message: 'PriceMe API - Authentication endpoints available at /api/auth' });
 });
 
