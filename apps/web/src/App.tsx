@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AppLayout } from './components/AppLayout';
 import Home from './pages/Home';
 import AddProduct from './pages/AddProduct';
+import CreateProduct from './pages/CreateProduct';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import { useAuth } from './hooks/useAuth';
@@ -73,7 +74,7 @@ function App() {
           element={
             <ProtectedRoute>
               <AppLayout>
-                <AddProduct />
+                <CreateProduct />
               </AppLayout>
             </ProtectedRoute>
           }

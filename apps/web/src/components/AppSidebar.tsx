@@ -51,9 +51,9 @@ export function AppSidebar() {
                 <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground [&_svg]:size-4 group-data-[collapsible=icon]:rounded-full">
                   <Package />
                 </div>
-                <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">PriceMe</span>
-                  <span className="truncate text-xs group-data-[collapsible=icon]:hidden">Pricing Tool</span>
+                <div className="grid flex-1 text-left text-sm leading-tight text-sidebar-foreground" style={{ color: 'hsl(0 0% 98%)' }}>
+                  <span className="truncate font-semibold" style={{ color: 'hsl(0 0% 98%)' }}>PriceMe</span>
+                  <span className="truncate text-xs group-data-[collapsible=icon]:hidden" style={{ color: 'hsl(0 0% 98%)' }}>Pricing Tool</span>
                 </div>
               </Link>
             </SidebarMenuButton>
@@ -62,7 +62,7 @@ export function AppSidebar() {
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel className="group-data-[collapsible=icon]:hidden">
+          <SidebarGroupLabel className="group-data-[collapsible=icon]:hidden" style={{ color: 'hsl(0 0% 98%)' }}>
             Menu
           </SidebarGroupLabel>
           <SidebarGroupContent>
@@ -71,10 +71,10 @@ export function AppSidebar() {
                 const isActive = location.pathname === item.url;
                 return (
                   <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild isActive={isActive}>
-                      <Link to={item.url}>
-                        <item.icon className="h-4 w-4" />
-                        <span className="group-data-[collapsible=icon]:hidden">{item.title}</span>
+                    <SidebarMenuButton asChild isActive={isActive} className="text-sidebar-foreground" style={{ color: 'hsl(0 0% 98%)' }}>
+                      <Link to={item.url} style={{ color: 'hsl(0 0% 98%)' }}>
+                        <item.icon className="h-4 w-4 text-sidebar-foreground" style={{ color: 'hsl(0 0% 98%)' }} />
+                        <span className="group-data-[collapsible=icon]:hidden" style={{ color: 'hsl(0 0% 98%)' }}>{item.title}</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -87,14 +87,14 @@ export function AppSidebar() {
       <SidebarFooter className="border-t border-sidebar-border p-4">
         <SidebarMenu>
           <SidebarMenuItem>
-            <div className="flex items-center gap-2 px-2 py-1.5 text-sm text-muted-foreground group-data-[collapsible=icon]:hidden">
-              <span className="truncate">{user?.email || 'Not logged in'}</span>
+            <div className="flex items-center gap-2 px-2 py-1.5 text-sm text-sidebar-foreground/70 group-data-[collapsible=icon]:hidden" style={{ color: 'hsl(0 0% 85%)' }}>
+              <span className="truncate" style={{ color: 'hsl(0 0% 85%)' }}>{user?.email || 'Not logged in'}</span>
             </div>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton onClick={logout} className="text-destructive">
-              <LogOut className="h-4 w-4" />
-              <span className="group-data-[collapsible=icon]:hidden">Logout</span>
+            <SidebarMenuButton onClick={logout} className="text-sidebar-foreground hover:text-sidebar-accent-foreground hover:bg-sidebar-accent" style={{ color: 'hsl(0 0% 98%)' }}>
+              <LogOut className="h-4 w-4 text-sidebar-foreground" style={{ color: 'hsl(0 0% 98%)' }} />
+              <span className="group-data-[collapsible=icon]:hidden" style={{ color: 'hsl(0 0% 98%)' }}>Logout</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

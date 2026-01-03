@@ -14,7 +14,7 @@ const getPageTitle = (pathname: string, userName?: string): string => {
     return `Hi ${userName || 'Amir'}`;
   }
   const titles: Record<string, string> = {
-    '/products/add': 'Add Product',
+    '/products/add': 'Create Product',
     '/products': 'Products',
     '/settings': 'Settings',
   };
