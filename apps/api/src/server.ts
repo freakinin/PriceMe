@@ -4,6 +4,8 @@ import dotenv from 'dotenv';
 import { errorHandler } from './middleware/errorHandler.js';
 import { initializeDatabase } from './utils/db.js';
 
+// Load .env.local first, then .env
+dotenv.config({ path: '.env.local' });
 dotenv.config();
 
 const app = express();
@@ -28,9 +30,13 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// API routes will be added here
+// API routes
+import authRoutes from './routes/auth.js';
+app.use('/api/auth', authRoutes);
+
+// API info route
 app.get('/api', (req, res) => {
-  res.json({ message: 'API endpoint - routes coming soon' });
+  res.json({ message: 'PriceMe API - Authentication endpoints available at /api/auth' });
 });
 
 // Error handling middleware (must be last)
