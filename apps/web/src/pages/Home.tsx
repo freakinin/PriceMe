@@ -1,5 +1,4 @@
 import { useAuth } from '@/hooks/useAuth';
-import { PageHeader } from '@/components/PageHeader';
 import { Navigate } from 'react-router-dom';
 
 export default function Home() {
@@ -10,14 +9,11 @@ export default function Home() {
   }
 
   return (
-    <>
-      <PageHeader title={`Hi ${user?.name || 'Amir'}`} />
-      <div className="p-6">
-        <div className="text-muted-foreground">
-          Welcome to your pricing dashboard
-        </div>
+    <div className="p-6">
+      <div className="text-muted-foreground">
+        Welcome to your pricing dashboard
       </div>
-    </>
+    </div>
   );
 }
 
