@@ -9,6 +9,7 @@ PriceMe is a full-stack web application built with modern technologies to provid
 ## Technology Stack
 
 ### Frontend
+
 - **React 18** with **TypeScript**
 - **Vite** for fast development and building
 - **ShadCN UI** for beautiful, accessible components
@@ -18,6 +19,7 @@ PriceMe is a full-stack web application built with modern technologies to provid
 - **Axios** for API communication
 
 ### Backend
+
 - **Node.js** with **TypeScript**
 - **Express** web framework
 - **Vercel Postgres** (Neon) for database
@@ -26,6 +28,7 @@ PriceMe is a full-stack web application built with modern technologies to provid
 - **Zod** for validation
 
 ### Infrastructure
+
 - **Vercel** for hosting and database
 - **GitHub Actions** for CI/CD
 - **npm workspaces** for monorepo management
@@ -161,6 +164,7 @@ The frontend will be available at `http://localhost:5173` and the backend API at
 ### Available Scripts
 
 #### Root Level
+
 - `npm run dev` - Start both frontend and backend in development mode
 - `npm run build` - Build all packages
 - `npm run lint` - Lint all packages
@@ -169,12 +173,14 @@ The frontend will be available at `http://localhost:5173` and the backend API at
 - `npm run type-check` - Type check all TypeScript files
 
 #### Frontend (`apps/web`)
+
 - `npm run dev` - Start Vite dev server
 - `npm run build` - Build for production
 - `npm run preview` - Preview production build
 - `npm run lint` - Run ESLint
 
 #### Backend (`apps/api`)
+
 - `npm run dev` - Start server with hot reload (tsx watch)
 - `npm run build` - Compile TypeScript
 - `npm run start` - Start production server
@@ -197,6 +203,7 @@ npx shadcn@latest add [component-name]
 ```
 
 Example:
+
 ```bash
 npx shadcn@latest add button
 npx shadcn@latest add card
@@ -206,6 +213,7 @@ npx shadcn@latest add form
 ## Database Schema
 
 ### Users Table
+
 - `id` - Primary key
 - `email` - Unique email address
 - `password_hash` - Hashed password
@@ -214,6 +222,7 @@ npx shadcn@latest add form
 - `updated_at` - Timestamp
 
 ### Products Table
+
 - `id` - Primary key
 - `user_id` - Foreign key to users table
 - `name` - Product name
@@ -223,6 +232,7 @@ npx shadcn@latest add form
 - `updated_at` - Timestamp
 
 ### Pricing Data Table
+
 - `id` - Primary key
 - `product_id` - Foreign key to products table
 - `price` - Calculated price
@@ -252,10 +262,12 @@ Add all environment variables from `apps/api/.env.example` to your Vercel projec
 ## CI/CD
 
 GitHub Actions workflow (`.github/workflows/ci.yml`) runs on:
+
 - Push to `main` or `develop` branches
 - Pull requests to `main` or `develop` branches
 
 The workflow:
+
 1. Lints all code
 2. Type checks all TypeScript files
 3. Builds frontend and backend
@@ -271,6 +283,7 @@ The workflow:
 ## Next Steps
 
 This is the initial setup. Next steps include:
+
 - Implementing authentication (login/register)
 - Building product management UI
 - Implementing pricing algorithms
@@ -285,4 +298,3 @@ This is the initial setup. Next steps include:
 ## Support
 
 [Add support information here]
-

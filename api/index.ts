@@ -1,23 +1,23 @@
+// Vercel serverless function entry point
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
-import { errorHandler } from './middleware/errorHandler.js';
-import { initializeDatabase } from './utils/db.js';
-
-dotenv.config();
+import { errorHandler } from '../apps/api/src/middleware/errorHandler.js';
+import { initializeDatabase } from '../apps/api/src/utils/db.js';
 
 const app = express();
-const PORT = process.env.PORT || 3001;
 
-// Initialize database on startup
-initializeDatabase().catch((error) => {
-  console.error('Failed to initialize database:', error);
-  process.exit(1);
-});
+// Initialize database (only once, Vercel will cache this)
+let dbInitialized = false;
+if (!dbInitialized) {
+  initializeDatabase().catch((error) => {
+    console.error('Failed to initialize database:', error);
+  });
+  dbInitialized = true;
+}
 
 // Middleware
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: process.env.FRONTEND_URL || '*',
   credentials: true,
 }));
 app.use(express.json());
@@ -36,9 +36,5 @@ app.get('/api', (req, res) => {
 // Error handling middleware (must be last)
 app.use(errorHandler);
 
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
-});
-
+// Export as Vercel serverless function
 export default app;
-
