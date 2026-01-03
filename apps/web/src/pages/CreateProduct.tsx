@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ChevronRight, ChevronLeft, Plus, Trash2, Package, Users, DollarSign, Calculator, Info } from 'lucide-react';
 import { useSidebar } from '@/components/ui/sidebar';
@@ -98,7 +98,7 @@ export default function CreateProduct() {
     },
   });
 
-  const onStep1Submit = (data: Step1FormValues) => {
+  const onStep1Submit = (_data: Step1FormValues) => {
     setCurrentStep(2);
   };
 
