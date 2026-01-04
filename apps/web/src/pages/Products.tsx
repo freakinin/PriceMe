@@ -171,15 +171,13 @@ export default function Products() {
     }
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-  };
-
-  const formatCurrency = (value: number | null) => {
+  const formatCurrency = (value: string | number | null) => {
+    // Handle string input (from form fields)
+    if (typeof value === 'string') {
+      const numValue = parseFloat(value);
+      if (isNaN(numValue)) return '-';
+      value = numValue;
+    }
     if (value === null || value === undefined) return '-';
     return new Intl.NumberFormat('en-US', {
       style: 'currency',

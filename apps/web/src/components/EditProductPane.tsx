@@ -617,7 +617,7 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
     .filter(o => !o.per_unit)
     .reduce((sum, o) => sum + (o.total_cost || 0), 0);
   const totalOtherCostsPerProduct = otherCostsPerProduct + (batchSize > 0 ? otherCostsPerBatch / batchSize : 0);
-  const totalCostPerProduct = totalMaterialsCost + totalLaborCostPerProduct + totalOtherCostsPerProduct;
+  // const totalCostPerProduct = totalMaterialsCost + totalLaborCostPerProduct + totalOtherCostsPerProduct; // Unused for now
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
