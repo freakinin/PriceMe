@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo, useRef, ReactNode } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import type { ReactNode } from 'react';
 import { Plus, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown, Edit, Trash2, ExternalLink, Package, Eye, Info } from 'lucide-react';
 import {
   useReactTable,
@@ -713,10 +714,10 @@ export default function Materials() {
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
     onGlobalFilterChange: setGlobalFilter,
-    globalFilterFn: (row, columnId, filterValue) => {
+    globalFilterFn: (row, _columnId, filterValue) => {
       const material = row.original;
-      const searchValue = filterValue.toLowerCase();
-      return (
+      const searchValue = String(filterValue || '').toLowerCase();
+      return !!(
         material.name.toLowerCase().includes(searchValue) ||
         (material.supplier && material.supplier.toLowerCase().includes(searchValue)) ||
         (material.category && material.category.toLowerCase().includes(searchValue)) ||

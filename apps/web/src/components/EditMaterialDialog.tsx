@@ -28,7 +28,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useSettings } from '@/hooks/useSettings';
-import { formatCurrency, getCurrencySymbol } from '@/utils/currency';
+import { getCurrencySymbol } from '@/utils/currency';
 import api from '@/lib/api';
 import { useToast } from '@/components/ui/use-toast';
 import { Info } from 'lucide-react';
