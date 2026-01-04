@@ -81,3 +81,4 @@ Make sure these are set:
 - ✅ `JWT_SECRET` = (your generated secret)
 - ✅ `VITE_API_BASE_URL` = `https://price-me-six.vercel.app/api` ⬅️ **UPDATE THIS**
 
+

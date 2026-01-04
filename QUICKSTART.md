@@ -48,3 +48,4 @@ npx shadcn@latest add [component-name]
 2. Configure environment variables
 3. Start building features!
 
+

@@ -92,3 +92,4 @@ A pricing tool for physical products (handmade items) sold on Etsy, Shopify, etc
 - Validation: Zod schemas
 - Forms: React Hook Form
 
+

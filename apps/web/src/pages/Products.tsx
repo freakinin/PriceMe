@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import api from '@/lib/api';
+import EditProductPane from '@/components/EditProductPane';
 
 interface Product {
   id: number;
@@ -28,6 +29,7 @@ export default function Products() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [editingProductId, setEditingProductId] = useState<number | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -144,8 +146,6 @@ export default function Products() {
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
-                <TableHead>SKU</TableHead>
-                <TableHead>Batch Size</TableHead>
                 <TableHead>Target Price</TableHead>
                 <TableHead>Markup %</TableHead>
                 <TableHead>Created</TableHead>
@@ -156,10 +156,6 @@ export default function Products() {
               {products.map((product) => (
                 <TableRow key={product.id}>
                   <TableCell className="font-medium">{product.name}</TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {product.sku || '-'}
-                  </TableCell>
-                  <TableCell>{product.batch_size}</TableCell>
                   <TableCell>{formatCurrency(product.target_price)}</TableCell>
                   <TableCell>
                     {formatPercentage(product.markup_percentage)}
@@ -173,8 +169,7 @@ export default function Products() {
                         variant="ghost"
                         size="icon"
                         onClick={() => {
-                          // TODO: Navigate to edit page
-                          console.log('Edit product:', product.id);
+                          setEditingProductId(product.id);
                         }}
                       >
                         <Edit className="h-4 w-4" />
@@ -197,6 +192,21 @@ export default function Products() {
           </Table>
         </div>
       )}
+
+      {/* Edit Product Pane */}
+      <EditProductPane
+        productId={editingProductId}
+        open={editingProductId !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditingProductId(null);
+          }
+        }}
+        onSuccess={() => {
+          setEditingProductId(null);
+          fetchProducts(); // Refresh the products list
+        }}
+      />
     </div>
   );
 }
