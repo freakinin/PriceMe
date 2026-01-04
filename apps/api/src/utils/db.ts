@@ -24,10 +24,58 @@ export async function initializeDatabase() {
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE UNIQUE,
         currency VARCHAR(3) DEFAULT 'USD',
         units TEXT[] DEFAULT ARRAY['ml', 'pcs', 'g', 'oz', 'lb', 'kg']::TEXT[],
+        tax_percentage DECIMAL(5, 2) DEFAULT 0,
+        revenue_goal DECIMAL(12, 2),
+        labor_hourly_cost DECIMAL(10, 2),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `;
+
+    // Add new columns to user_settings if they don't exist
+    try {
+      // Check and add tax_percentage
+      const taxExists = await sql`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name='user_settings' AND column_name='tax_percentage'
+      `;
+      const taxRows = Array.isArray(taxExists) ? taxExists : taxExists.rows || [];
+      if (taxRows.length === 0) {
+        console.log('Adding tax_percentage column to user_settings table...');
+        await sql`ALTER TABLE user_settings ADD COLUMN tax_percentage DECIMAL(5, 2) DEFAULT 0`;
+        console.log('✅ Added tax_percentage column');
+      }
+
+      // Check and add revenue_goal
+      const revenueExists = await sql`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name='user_settings' AND column_name='revenue_goal'
+      `;
+      const revenueRows = Array.isArray(revenueExists) ? revenueExists : revenueExists.rows || [];
+      if (revenueRows.length === 0) {
+        console.log('Adding revenue_goal column to user_settings table...');
+        await sql`ALTER TABLE user_settings ADD COLUMN revenue_goal DECIMAL(12, 2)`;
+        console.log('✅ Added revenue_goal column');
+      }
+
+      // Check and add labor_hourly_cost
+      const laborExists = await sql`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name='user_settings' AND column_name='labor_hourly_cost'
+      `;
+      const laborRows = Array.isArray(laborExists) ? laborExists : laborExists.rows || [];
+      if (laborRows.length === 0) {
+        console.log('Adding labor_hourly_cost column to user_settings table...');
+        await sql`ALTER TABLE user_settings ADD COLUMN labor_hourly_cost DECIMAL(10, 2)`;
+        console.log('✅ Added labor_hourly_cost column');
+      }
+    } catch (error: any) {
+      console.error('Error adding columns to user_settings table:', error.message);
+      console.error('Error stack:', error.stack);
+    }
 
     // Create products table
     await sql`

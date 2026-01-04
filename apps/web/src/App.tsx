@@ -1,8 +1,10 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AppLayout } from './components/AppLayout';
+import { Toaster } from './components/ui/toaster';
 import Home from './pages/Home';
 import CreateProduct from './pages/CreateProduct';
 import Products from './pages/Products';
+import Settings from './pages/Settings';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import { useAuth } from './hooks/useAuth';
@@ -39,6 +41,7 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 function App() {
   return (
     <BrowserRouter>
+      <Toaster />
       <Routes>
         {/* Public routes */}
         <Route 
@@ -85,6 +88,16 @@ function App() {
             <ProtectedRoute>
               <AppLayout>
                 <CreateProduct />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <Settings />
               </AppLayout>
             </ProtectedRoute>
           }

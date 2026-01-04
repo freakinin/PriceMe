@@ -145,9 +145,74 @@ export const getProducts = async (req: AuthRequest, res: Response) => {
 
     const productsList = Array.isArray(products) ? products : products.rows || [];
 
+    // Calculate costs for each product
+    const productsWithCosts = await Promise.all(
+      productsList.map(async (product: any) => {
+        // Get materials
+        const materialsResult = await db`
+          SELECT total_cost, quantity, price_per_unit
+          FROM materials
+          WHERE product_id = ${product.id}
+        `;
+        const materials = Array.isArray(materialsResult) ? materialsResult : materialsResult.rows || [];
+        const totalMaterialsCost = materials.reduce((sum: number, m: any) => sum + Number(m.total_cost || 0), 0);
+
+        // Get labor costs
+        const laborResult = await db`
+          SELECT total_cost, per_unit
+          FROM labor_costs
+          WHERE product_id = ${product.id}
+        `;
+        const laborCosts = Array.isArray(laborResult) ? laborResult : laborResult.rows || [];
+        const laborPerProduct = laborCosts
+          .filter((l: any) => l.per_unit)
+          .reduce((sum: number, l: any) => sum + Number(l.total_cost || 0), 0);
+        const laborPerBatch = laborCosts
+          .filter((l: any) => !l.per_unit)
+          .reduce((sum: number, l: any) => sum + Number(l.total_cost || 0), 0);
+        const totalLaborCostPerProduct = laborPerProduct + (product.batch_size > 0 ? laborPerBatch / product.batch_size : 0);
+
+        // Get other costs
+        const otherCostsResult = await db`
+          SELECT total_cost, per_unit
+          FROM other_costs
+          WHERE product_id = ${product.id}
+        `;
+        const otherCosts = Array.isArray(otherCostsResult) ? otherCostsResult : otherCostsResult.rows || [];
+        const otherCostsPerProduct = otherCosts
+          .filter((o: any) => o.per_unit)
+          .reduce((sum: number, o: any) => sum + Number(o.total_cost || 0), 0);
+        const otherCostsPerBatch = otherCosts
+          .filter((o: any) => !o.per_unit)
+          .reduce((sum: number, o: any) => sum + Number(o.total_cost || 0), 0);
+        const totalOtherCostsPerProduct = otherCostsPerProduct + (product.batch_size > 0 ? otherCostsPerBatch / product.batch_size : 0);
+
+        // Calculate total cost per product
+        const productCost = totalMaterialsCost + totalLaborCostPerProduct + totalOtherCostsPerProduct;
+
+        // Calculate profit and profit margin
+        const targetPrice = product.target_price ? Number(product.target_price) : null;
+        const profit = targetPrice && productCost > 0 ? targetPrice - productCost : null;
+        const profitMargin = targetPrice && productCost > 0 && targetPrice > 0 
+          ? ((targetPrice - productCost) / targetPrice) * 100 
+          : null;
+        const costsPercentage = targetPrice && productCost > 0 && targetPrice > 0
+          ? (productCost / targetPrice) * 100
+          : null;
+
+        return {
+          ...product,
+          product_cost: productCost,
+          profit,
+          profit_margin: profitMargin,
+          costs_percentage: costsPercentage,
+        };
+      })
+    );
+
     return res.json({
       status: 'success',
-      data: productsList,
+      data: productsWithCosts,
     });
   } catch (error: any) {
     console.error('Get products error:', error);
