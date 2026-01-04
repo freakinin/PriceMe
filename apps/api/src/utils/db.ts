@@ -23,7 +23,7 @@ export async function initializeDatabase() {
         id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE UNIQUE,
         currency VARCHAR(3) DEFAULT 'USD',
-        units TEXT[] DEFAULT ARRAY['ml', 'pcs', 'g', 'oz', 'lb', 'kg']::TEXT[],
+        units TEXT[] DEFAULT ARRAY['ml', 'L', 'fl oz', 'pt', 'qt', 'gal', 'g', 'kg', 'oz', 'lb', 'mm', 'cm', 'm', 'in', 'ft', 'yd', 'm²', 'ft²', 'pcs', 'piece', 'unit', 'set', 'pack', 'box', 'roll', 'sheet', 'yard']::TEXT[],
         tax_percentage DECIMAL(5, 2) DEFAULT 0,
         revenue_goal DECIMAL(12, 2),
         labor_hourly_cost DECIMAL(10, 2),
@@ -233,6 +233,29 @@ export async function initializeDatabase() {
         currency VARCHAR(3) DEFAULT 'USD',
         calculation_method VARCHAR(50),
         calculation_data JSONB,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+
+    // Create user_materials table (centralized materials library)
+    await sql`
+      CREATE TABLE IF NOT EXISTS user_materials (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        name VARCHAR(255) NOT NULL,
+        price DECIMAL(10, 4) NOT NULL,
+        quantity DECIMAL(10, 4) NOT NULL DEFAULT 0,
+        unit VARCHAR(50) NOT NULL,
+        price_per_unit DECIMAL(10, 4) NOT NULL,
+        details TEXT,
+        supplier VARCHAR(255),
+        supplier_link VARCHAR(500),
+        stock_level DECIMAL(10, 4) DEFAULT 0,
+        reorder_point DECIMAL(10, 4) DEFAULT 0,
+        last_purchased_date DATE,
+        last_purchased_price DECIMAL(10, 4),
+        category VARCHAR(100),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );

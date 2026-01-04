@@ -13,6 +13,8 @@ import {
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import api from '@/lib/api';
+import { useSettings } from '@/hooks/useSettings';
+import { formatCurrency } from '@/utils/currency';
 import EditProductPane from '@/components/EditProductPane';
 
 // Inline editable cell component
@@ -137,6 +139,7 @@ interface Product {
 }
 
 export default function Products() {
+  const { settings } = useSettings();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -171,18 +174,8 @@ export default function Products() {
     }
   };
 
-  const formatCurrency = (value: string | number | null) => {
-    // Handle string input (from form fields)
-    if (typeof value === 'string') {
-      const numValue = parseFloat(value);
-      if (isNaN(numValue)) return '-';
-      value = numValue;
-    }
-    if (value === null || value === undefined) return '-';
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(value);
+  const formatCurrencyValue = (value: string | number | null) => {
+    return formatCurrency(value, settings.currency);
   };
 
   const formatPercentage = (value: number | null) => {
@@ -380,14 +373,14 @@ export default function Products() {
                         isEditing={isEditingPrice}
                         onEdit={() => setEditingField({ productId: product.id, field: 'target_price' })}
                         type="number"
-                        formatDisplay={formatCurrency}
+                        formatDisplay={formatCurrencyValue}
                       />
                     </TableCell>
                     <TableCell className="w-[130px]">
-                      {formatCurrency(product.product_cost)}
+                      {formatCurrencyValue(product.product_cost)}
                     </TableCell>
                     <TableCell className={`w-[110px] ${effectiveProfit && effectiveProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {formatCurrency(effectiveProfit)}
+                      {formatCurrencyValue(effectiveProfit)}
                     </TableCell>
                     <TableCell className={`w-[130px] ${effectiveProfitMargin && effectiveProfitMargin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                       {formatPercentage(effectiveProfitMargin)}
@@ -406,7 +399,7 @@ export default function Products() {
                       />
                     </TableCell>
                     <TableCell className={`w-[130px] ${profitFromQty && profitFromQty >= 0 ? 'text-green-600 font-medium' : profitFromQty ? 'text-red-600 font-medium' : ''}`}>
-                      {formatCurrency(profitFromQty)}
+                      {formatCurrencyValue(profitFromQty)}
                     </TableCell>
                     <TableCell className="text-right w-[100px]">
                       <div className="flex items-center justify-end gap-2">

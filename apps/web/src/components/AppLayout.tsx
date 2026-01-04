@@ -25,9 +25,12 @@ export function AppLayout({ children }: AppLayoutProps) {
   const location = useLocation();
   const { user } = useAuth();
   const pageTitle = getPageTitle(location.pathname, user?.name);
+  
+  // Close sidebar by default on Materials page
+  const defaultOpen = location.pathname !== '/materials';
 
   return (
-    <SidebarProvider>
+    <SidebarProvider defaultOpen={defaultOpen}>
       <AppSidebar />
       <main className="flex flex-1 flex-col overflow-hidden">
         <div className="flex h-16 items-center gap-4 border-b border-border bg-background px-6">

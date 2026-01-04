@@ -34,9 +34,11 @@ app.get('/health', (_req, res) => {
 import authRoutes from './routes/auth.js';
 import productRoutes from './routes/products.js';
 import settingsRoutes from './routes/settings.js';
+import materialsRoutes from './routes/materials.js';
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/materials', materialsRoutes);
 
 // API info route
 app.get('/api', (_req, res) => {

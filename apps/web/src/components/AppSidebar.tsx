@@ -1,4 +1,4 @@
-import { Home, PlusCircle, Package, Settings, LogOut } from 'lucide-react';
+import { Home, PlusCircle, Package, Settings, LogOut, Box } from 'lucide-react';
 import {
   Sidebar,
   SidebarContent,
@@ -29,6 +29,11 @@ const menuItems = [
     title: 'Products',
     url: '/products',
     icon: Package,
+  },
+  {
+    title: 'Materials',
+    url: '/materials',
+    icon: Box,
   },
   {
     title: 'Settings',

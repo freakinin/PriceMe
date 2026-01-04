@@ -15,6 +15,8 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import api from '@/lib/api';
+import { useSettings } from '@/hooks/useSettings';
+import { formatCurrency, getCurrencySymbol } from '@/utils/currency';
 
 const step1Schema = z.object({
   name: z.string().min(1, 'Product name is required'),
@@ -151,6 +153,7 @@ function EditableLaborRow({
   onSave: (data: LaborFormValues) => void; 
   onCancel: () => void;
 }) {
+  const { settings } = useSettings();
   const [activity, setActivity] = useState(labor.activity);
   const [timeSpent, setTimeSpent] = useState(labor.time_spent_minutes);
   const [hourlyRate, setHourlyRate] = useState(labor.hourly_rate);
@@ -191,7 +194,7 @@ function EditableLaborRow({
         />
       </td>
       <td className="p-2">
-        ${((timeSpent / 60) * hourlyRate).toFixed(2)}
+        {formatCurrency((timeSpent / 60) * hourlyRate, settings.currency)}
       </td>
       <td className="p-2">
         <Checkbox
@@ -232,6 +235,7 @@ function EditableOtherCostRow({
   onSave: (data: OtherCostFormValues) => void; 
   onCancel: () => void;
 }) {
+  const { settings } = useSettings();
   const [item, setItem] = useState(cost.item);
   const [quantity, setQuantity] = useState(cost.quantity);
   const [costValue, setCostValue] = useState(cost.cost);
@@ -272,7 +276,7 @@ function EditableOtherCostRow({
         />
       </td>
       <td className="p-2">
-        ${(quantity * costValue).toFixed(2)}
+        {formatCurrency(quantity * costValue, settings.currency)}
       </td>
       <td className="p-2">
         <Checkbox
@@ -312,6 +316,7 @@ interface EditProductPaneProps {
 }
 
 export default function EditProductPane({ productId, open, onOpenChange, onSuccess }: EditProductPaneProps) {
+  const { settings } = useSettings();
   const [currentStep, setCurrentStep] = useState(1);
   const [materials, setMaterials] = useState<MaterialFormValues[]>([]);
   const [laborCosts, setLaborCosts] = useState<LaborFormValues[]>([]);
@@ -764,7 +769,7 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
                         name="target_price"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel className="text-sm">Target Price ($)</FormLabel>
+                            <FormLabel className="text-sm">Target Price ({getCurrencySymbol(settings.currency)})</FormLabel>
                             <FormControl>
                               <Input 
                                 className="h-9"
@@ -938,7 +943,7 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
                                 <td className="p-2">{material.name}</td>
                                 <td className="p-2">{material.quantity}</td>
                                 <td className="p-2">{material.unit}</td>
-                                <td className="p-2">${material.price_per_unit.toFixed(2)}</td>
+                                <td className="p-2">{formatCurrency(material.price_per_unit, settings.currency)}</td>
                                 <td className="p-2 text-right">
                                   <div className="flex items-center justify-end gap-1">
                                     <Button
@@ -966,7 +971,7 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
                         <tfoot className="bg-slate-100 dark:bg-slate-800">
                           <tr>
                             <td colSpan={3} className="p-2 text-right text-xs font-medium">Total:</td>
-                            <td className="p-2 font-medium">${totalMaterialsCost.toFixed(2)}</td>
+                            <td className="p-2 font-medium">{formatCurrency(totalMaterialsCost, settings.currency)}</td>
                             <td></td>
                           </tr>
                         </tfoot>
@@ -1043,7 +1048,7 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
                         name="hourly_rate"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel className="text-sm">Hourly Rate ($) *</FormLabel>
+                            <FormLabel className="text-sm">Hourly Rate ({getCurrencySymbol(settings.currency)}) *</FormLabel>
                             <FormControl>
                               <Input 
                                 className="h-9"
@@ -1128,8 +1133,8 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
                               <tr key={index} className="border-t">
                                 <td className="p-2">{labor.activity}</td>
                                 <td className="p-2">{labor.time_spent_minutes} min</td>
-                                <td className="p-2">${labor.hourly_rate.toFixed(2)}</td>
-                                <td className="p-2">${(labor.total_cost || 0).toFixed(2)}</td>
+                                <td className="p-2">{formatCurrency(labor.hourly_rate, settings.currency)}</td>
+                                <td className="p-2">{formatCurrency(labor.total_cost || 0, settings.currency)}</td>
                                 <td className="p-2">{labor.per_unit ? 'Yes' : 'Batch'}</td>
                                 <td className="p-2 text-right">
                                   <div className="flex items-center justify-end gap-1">
@@ -1158,7 +1163,7 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
                         <tfoot className="bg-slate-100 dark:bg-slate-800">
                           <tr>
                             <td colSpan={4} className="p-2 text-right text-xs font-medium">Total:</td>
-                            <td className="p-2 font-medium">${totalLaborCostPerProduct.toFixed(2)}</td>
+                            <td className="p-2 font-medium">{formatCurrency(totalLaborCostPerProduct, settings.currency)}</td>
                             <td></td>
                           </tr>
                         </tfoot>
@@ -1235,7 +1240,7 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
                         name="cost"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel className="text-sm">Cost ($) *</FormLabel>
+                            <FormLabel className="text-sm">Cost ({getCurrencySymbol(settings.currency)}) *</FormLabel>
                             <FormControl>
                               <Input 
                                 className="h-9"
@@ -1299,8 +1304,8 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
                               <tr key={index} className="border-t">
                                 <td className="p-2">{cost.item}</td>
                                 <td className="p-2">{cost.quantity}</td>
-                                <td className="p-2">${cost.cost.toFixed(2)}</td>
-                                <td className="p-2">${(cost.total_cost || 0).toFixed(2)}</td>
+                                <td className="p-2">{formatCurrency(cost.cost, settings.currency)}</td>
+                                <td className="p-2">{formatCurrency(cost.total_cost || 0, settings.currency)}</td>
                                 <td className="p-2">{cost.per_unit ? 'Yes' : 'Batch'}</td>
                                 <td className="p-2 text-right">
                                   <div className="flex items-center justify-end gap-1">
@@ -1329,7 +1334,7 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
                         <tfoot className="bg-slate-100 dark:bg-slate-800">
                           <tr>
                             <td colSpan={3} className="p-2 text-right text-xs font-medium">Total:</td>
-                            <td className="p-2 font-medium">${totalOtherCostsPerProduct.toFixed(2)}</td>
+                            <td className="p-2 font-medium">{formatCurrency(totalOtherCostsPerProduct, settings.currency)}</td>
                             <td></td>
                           </tr>
                         </tfoot>

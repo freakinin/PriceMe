@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -11,6 +11,8 @@ import { ChevronRight, ChevronLeft, Plus, Trash2, Package, Users, DollarSign, Ca
 import { useSidebar } from '@/components/ui/sidebar';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import api from '@/lib/api';
+import { useSettings } from '@/hooks/useSettings';
+import { formatCurrency, getCurrencySymbol } from '@/utils/currency';
 
 const step1Schema = z.object({
   name: z.string().min(1, 'Product name is required'),
@@ -51,6 +53,7 @@ type OtherCostFormValues = z.infer<typeof otherCostSchema> & { total_cost?: numb
 export default function CreateProduct() {
   const navigate = useNavigate();
   const { state: sidebarState, isMobile } = useSidebar();
+  const { settings } = useSettings();
   const [currentStep, setCurrentStep] = useState(1);
   const [materials, setMaterials] = useState<MaterialFormValues[]>([]);
   const [laborCosts, setLaborCosts] = useState<LaborFormValues[]>([]);
@@ -86,7 +89,7 @@ export default function CreateProduct() {
     defaultValues: {
       activity: '',
       time_spent_minutes: 0,
-      hourly_rate: 0,
+      hourly_rate: settings.labor_hourly_cost || 0,
       per_unit: true,
     },
   });
@@ -100,6 +103,16 @@ export default function CreateProduct() {
       per_unit: true,
     },
   });
+
+  // Update hourly_rate default when settings are loaded (only if field is empty/zero)
+  useEffect(() => {
+    if (settings.labor_hourly_cost !== null && settings.labor_hourly_cost !== undefined) {
+      const currentValue = laborForm.getValues('hourly_rate');
+      if (currentValue === 0 || currentValue === null || currentValue === undefined) {
+        laborForm.setValue('hourly_rate', settings.labor_hourly_cost);
+      }
+    }
+  }, [settings.labor_hourly_cost]);
 
   const onStep1Submit = (_data: Step1FormValues) => {
     setCurrentStep(2);
@@ -365,7 +378,7 @@ export default function CreateProduct() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel className="flex items-center gap-1.5">
-                          Target Price ($) (Optional)
+                          Target Price ({getCurrencySymbol(settings.currency)}) (Optional)
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger asChild>
@@ -579,8 +592,8 @@ export default function CreateProduct() {
                               <td className="p-3">{material.name}</td>
                               <td className="p-3">{material.quantity}</td>
                               <td className="p-3">{material.unit}</td>
-                              <td className="p-3">${material.price_per_unit.toFixed(2)}</td>
-                              <td className="p-3 font-medium">${costPerProduct.toFixed(2)}</td>
+                              <td className="p-3">{formatCurrency(material.price_per_unit, settings.currency)}</td>
+                              <td className="p-3 font-medium">{formatCurrency(costPerProduct, settings.currency)}</td>
                               <td className="p-3 text-right">
                                 <Button
                                   variant="ghost"
@@ -597,7 +610,7 @@ export default function CreateProduct() {
                       <tfoot className="bg-slate-100 dark:bg-slate-800 font-semibold">
                         <tr>
                           <td colSpan={4} className="p-3 text-right">Total Cost Per Product:</td>
-                          <td className="p-3">${totalMaterialsCost.toFixed(2)}</td>
+                          <td className="p-3">{formatCurrency(totalMaterialsCost, settings.currency)}</td>
                           <td></td>
                         </tr>
                       </tfoot>
@@ -672,7 +685,7 @@ export default function CreateProduct() {
                       name="hourly_rate"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Hourly Rate ($) *</FormLabel>
+                          <FormLabel>Hourly Rate ({getCurrencySymbol(settings.currency)}) *</FormLabel>
                           <FormControl>
                             <Input 
                               type="number" 
@@ -754,8 +767,8 @@ export default function CreateProduct() {
                             <tr key={index} className="border-t">
                               <td className="p-3">{labor.activity}</td>
                               <td className="p-3">{labor.time_spent_minutes} min</td>
-                              <td className="p-3">${labor.hourly_rate.toFixed(2)}</td>
-                              <td className="p-3 font-medium">${totalCost.toFixed(2)}</td>
+                              <td className="p-3">{formatCurrency(labor.hourly_rate, settings.currency)}</td>
+                              <td className="p-3 font-medium">{formatCurrency(totalCost, settings.currency)}</td>
                               <td className="p-3">
                                 {labor.per_unit ? (
                                   <span className="text-sm text-muted-foreground">Yes</span>
@@ -779,7 +792,7 @@ export default function CreateProduct() {
                       <tfoot className="bg-slate-100 dark:bg-slate-800 font-semibold">
                         <tr>
                           <td colSpan={3} className="p-3 text-right">Total Labor Cost Per Product:</td>
-                          <td className="p-3">${totalLaborCostPerProduct.toFixed(2)}</td>
+                          <td className="p-3">{formatCurrency(totalLaborCostPerProduct, settings.currency)}</td>
                           <td colSpan={2}></td>
                         </tr>
                       </tfoot>
@@ -867,7 +880,7 @@ export default function CreateProduct() {
                       name="cost"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Cost ($) *</FormLabel>
+                          <FormLabel>Cost ({getCurrencySymbol(settings.currency)}) *</FormLabel>
                           <FormControl>
                             <Input 
                               type="number" 
@@ -949,8 +962,8 @@ export default function CreateProduct() {
                             <tr key={index} className="border-t">
                               <td className="p-3">{cost.item}</td>
                               <td className="p-3">{cost.quantity}</td>
-                              <td className="p-3">${cost.cost.toFixed(2)}</td>
-                              <td className="p-3 font-medium">${totalCost.toFixed(2)}</td>
+                              <td className="p-3">{formatCurrency(cost.cost, settings.currency)}</td>
+                              <td className="p-3 font-medium">{formatCurrency(totalCost, settings.currency)}</td>
                               <td className="p-3">
                                 {cost.per_unit ? (
                                   <span className="text-sm text-muted-foreground">Yes</span>
@@ -974,7 +987,7 @@ export default function CreateProduct() {
                       <tfoot className="bg-slate-100 dark:bg-slate-800 font-semibold">
                         <tr>
                           <td colSpan={3} className="p-3 text-right">Total Other Costs Per Product:</td>
-                          <td className="p-3">${totalOtherCostsPerProduct.toFixed(2)}</td>
+                          <td className="p-3">{formatCurrency(totalOtherCostsPerProduct, settings.currency)}</td>
                           <td colSpan={2}></td>
                         </tr>
                       </tfoot>
@@ -1026,21 +1039,21 @@ export default function CreateProduct() {
                 <Package className="h-4 w-4 text-muted-foreground" />
                 <div>
                   <div className="text-xs text-muted-foreground">Materials</div>
-                  <div className="text-base font-semibold">${totalMaterialsCost.toFixed(2)}</div>
+                  <div className="text-base font-semibold">{formatCurrency(totalMaterialsCost, settings.currency)}</div>
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 <Users className="h-4 w-4 text-muted-foreground" />
                 <div>
                   <div className="text-xs text-muted-foreground">Labor</div>
-                  <div className="text-base font-semibold">${totalLaborCostPerProduct.toFixed(2)}</div>
+                  <div className="text-base font-semibold">{formatCurrency(totalLaborCostPerProduct, settings.currency)}</div>
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 <DollarSign className="h-4 w-4 text-muted-foreground" />
                 <div>
                   <div className="text-xs text-muted-foreground">Other Costs</div>
-                  <div className="text-base font-semibold">${totalOtherCostsPerProduct.toFixed(2)}</div>
+                  <div className="text-base font-semibold">{formatCurrency(totalOtherCostsPerProduct, settings.currency)}</div>
                 </div>
               </div>
               <div className="h-10 w-px bg-border" />
@@ -1048,7 +1061,7 @@ export default function CreateProduct() {
                 <Calculator className="h-4 w-4 text-primary" />
                 <div>
                   <div className="text-xs text-muted-foreground">Total Cost (Per Product)</div>
-                  <div className="text-lg font-bold text-primary">${totalCostPerProduct.toFixed(2)}</div>
+                  <div className="text-lg font-bold text-primary">{formatCurrency(totalCostPerProduct, settings.currency)}</div>
                 </div>
               </div>
             </div>
@@ -1056,7 +1069,7 @@ export default function CreateProduct() {
               <div className="text-xs text-muted-foreground">
                 Total Batch Cost ({batchSize} products)
               </div>
-              <div className="text-xl font-bold text-primary">${totalBatchCost.toFixed(2)}</div>
+              <div className="text-xl font-bold text-primary">{formatCurrency(totalBatchCost, settings.currency)}</div>
             </div>
           </div>
         </div>

@@ -4,6 +4,7 @@ import { Toaster } from './components/ui/toaster';
 import Home from './pages/Home';
 import CreateProduct from './pages/CreateProduct';
 import Products from './pages/Products';
+import Materials from './pages/Materials';
 import Settings from './pages/Settings';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
@@ -88,6 +89,16 @@ function App() {
             <ProtectedRoute>
               <AppLayout>
                 <CreateProduct />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/materials"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <Materials />
               </AppLayout>
             </ProtectedRoute>
           }
