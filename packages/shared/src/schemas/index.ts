@@ -24,6 +24,7 @@ export const createMaterialSchema = z.object({
   quantity: z.number().positive(),
   unit: z.string().min(1),
   price_per_unit: z.number().nonnegative(),
+  user_material_id: z.number().int().positive().optional(),
 });
 
 export const updateMaterialSchema = createMaterialSchema.partial();

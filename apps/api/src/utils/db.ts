@@ -184,6 +184,7 @@ export async function initializeDatabase() {
       CREATE TABLE IF NOT EXISTS materials (
         id SERIAL PRIMARY KEY,
         product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
+        user_material_id INTEGER REFERENCES user_materials(id) ON DELETE SET NULL,
         name VARCHAR(255) NOT NULL,
         quantity DECIMAL(10, 4) NOT NULL,
         unit VARCHAR(50) NOT NULL,
@@ -193,6 +194,23 @@ export async function initializeDatabase() {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `;
+
+    // Add user_material_id column if it doesn't exist (migration)
+    try {
+      const userMaterialIdExists = await sql`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name='materials' AND column_name='user_material_id'
+      `;
+      const userMaterialIdRows = Array.isArray(userMaterialIdExists) ? userMaterialIdExists : userMaterialIdExists.rows || [];
+      if (userMaterialIdRows.length === 0) {
+        console.log('Adding user_material_id column to materials table...');
+        await sql`ALTER TABLE materials ADD COLUMN user_material_id INTEGER REFERENCES user_materials(id) ON DELETE SET NULL`;
+        console.log('✅ Added user_material_id column');
+      }
+    } catch (error: any) {
+      console.log('Note: Migration check for user_material_id column:', error.message);
+    }
 
     // Create labor_costs table
     await sql`

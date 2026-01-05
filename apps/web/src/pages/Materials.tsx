@@ -893,7 +893,7 @@ export default function Materials() {
         </div>
       )}
 
-      {/* Edit/Add Material Dialog */}
+      {/* Edit/Add Material Side Pane */}
       <EditMaterialDialog
         material={editingMaterial}
         open={editingMaterial !== null || isAddDialogOpen}
@@ -908,6 +908,7 @@ export default function Materials() {
           setIsAddDialogOpen(false);
           fetchMaterials();
         }}
+        existingCategories={getCategories()}
       />
     </div>
   );

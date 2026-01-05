@@ -13,6 +13,9 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import api from '@/lib/api';
 import { useSettings } from '@/hooks/useSettings';
 import { formatCurrency, getCurrencySymbol } from '@/utils/currency';
+import { MaterialSelector } from '@/components/MaterialSelector';
+import { MaterialNameInput } from '@/components/MaterialNameInput';
+import { useToast } from '@/components/ui/use-toast';
 
 const step1Schema = z.object({
   name: z.string().min(1, 'Product name is required'),
@@ -46,7 +49,7 @@ const otherCostSchema = z.object({
 });
 
 type Step1FormValues = z.infer<typeof step1Schema>;
-type MaterialFormValues = z.infer<typeof materialSchema> & { total_cost?: number };
+type MaterialFormValues = z.infer<typeof materialSchema> & { total_cost?: number; user_material_id?: number };
 type LaborFormValues = z.infer<typeof laborSchema> & { total_cost?: number };
 type OtherCostFormValues = z.infer<typeof otherCostSchema> & { total_cost?: number };
 
@@ -169,6 +172,7 @@ export default function CreateProduct() {
         quantity: m.quantity,
         unit: m.unit,
         price_per_unit: m.price_per_unit,
+        user_material_id: m.user_material_id,
       }));
 
       // Prepare labor costs data
@@ -460,7 +464,33 @@ export default function CreateProduct() {
               Enter material quantities for <strong>one product</strong>. The batch cost will be calculated automatically.
             </p>
           </div>
-          <div>
+          <div className="space-y-4">
+            <div>
+              <MaterialSelector
+                onSelect={(material, quantity) => {
+                  setMaterials([
+                    ...materials,
+                    {
+                      name: material.name,
+                      quantity: quantity,
+                      unit: material.unit,
+                      price_per_unit: material.price_per_unit,
+                      user_material_id: material.id,
+                    },
+                  ]);
+                  materialForm.reset();
+                }}
+              />
+            </div>
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">Or add manually</span>
+              </div>
+            </div>
+            <div>
               <Form {...materialForm}>
                 <form onSubmit={materialForm.handleSubmit(onAddMaterial)} className="space-y-4">
                   <div className="grid grid-cols-4 gap-4">
@@ -471,7 +501,27 @@ export default function CreateProduct() {
                         <FormItem>
                           <FormLabel>Material Name *</FormLabel>
                           <FormControl>
-                            <Input placeholder="e.g., Soy Wax" {...field} />
+                            <MaterialNameInput
+                              value={field.value || ''}
+                              onChange={(value) => {
+                                field.onChange(value);
+                              }}
+                              onMaterialSelect={(material) => {
+                                // Auto-fill unit and price_per_unit if material is selected
+                                materialForm.setValue('unit', material.unit);
+                                materialForm.setValue('price_per_unit', material.price_per_unit);
+                              }}
+                              onAddToLibrary={async (name) => {
+                                // Optionally add to library - for now just use the name
+                                // User can add it properly later from Materials page
+                                toast({
+                                  variant: 'success',
+                                  title: 'Note',
+                                  description: `Using "${name}". You can add it to your library later from the Materials page.`,
+                                });
+                              }}
+                              placeholder="Search or type material name..."
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -559,6 +609,7 @@ export default function CreateProduct() {
                   </Button>
                 </form>
               </Form>
+            </div>
           </div>
 
           {/* Materials List */}
@@ -592,7 +643,7 @@ export default function CreateProduct() {
                               <td className="p-3">{material.name}</td>
                               <td className="p-3">{material.quantity}</td>
                               <td className="p-3">{material.unit}</td>
-                              <td className="p-3">{formatCurrency(material.price_per_unit, settings.currency)}</td>
+                              <td className="p-3">{formatCurrency(Math.round(material.price_per_unit * 100) / 100, settings.currency)}</td>
                               <td className="p-3 font-medium">{formatCurrency(costPerProduct, settings.currency)}</td>
                               <td className="p-3 text-right">
                                 <Button

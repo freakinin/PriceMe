@@ -5,13 +5,13 @@ import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
 import {
   Form,
   FormControl,
@@ -33,6 +33,7 @@ import api from '@/lib/api';
 import { useToast } from '@/components/ui/use-toast';
 import { Info } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { CategoryCombobox } from '@/components/CategoryCombobox';
 
 const materialSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -75,6 +76,7 @@ interface EditMaterialDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
+  existingCategories: string[];
 }
 
 const DEFAULT_UNITS = [
@@ -95,6 +97,7 @@ export default function EditMaterialDialog({
   open,
   onOpenChange,
   onSuccess,
+  existingCategories,
 }: EditMaterialDialogProps) {
   const { settings } = useSettings();
   const { toast } = useToast();
@@ -209,20 +212,20 @@ export default function EditMaterialDialog({
   const units = [...new Set([...DEFAULT_UNITS, ...userUnits])].sort();
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className="w-full sm:max-w-2xl overflow-y-auto" side="right">
+        <SheetHeader>
+          <SheetTitle>
             {material ? 'Edit Material' : 'Add New Material'}
-          </DialogTitle>
-          <DialogDescription>
+          </SheetTitle>
+          <SheetDescription>
             {material 
               ? 'Update the material information below.'
               : 'Fill in the details to add a new material to your inventory.'}
-          </DialogDescription>
-        </DialogHeader>
+          </SheetDescription>
+        </SheetHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 mt-6">
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
@@ -244,7 +247,15 @@ export default function EditMaterialDialog({
                   <FormItem>
                     <FormLabel>Category</FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder="e.g., Fabric, Hardware" />
+                      <CategoryCombobox
+                        value={field.value || ''}
+                        onChange={field.onChange}
+                        existingCategories={existingCategories}
+                        onCreateCategory={(newCategory) => {
+                          // The category will be added to the list when the material is saved
+                          field.onChange(newCategory);
+                        }}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -496,7 +507,7 @@ export default function EditMaterialDialog({
               />
             </div>
 
-            <DialogFooter>
+            <SheetFooter className="mt-6">
               <Button
                 type="button"
                 variant="outline"
@@ -507,11 +518,11 @@ export default function EditMaterialDialog({
               <Button type="submit" disabled={saving}>
                 {saving ? 'Saving...' : material ? 'Update' : 'Create'}
               </Button>
-            </DialogFooter>
+            </SheetFooter>
           </form>
         </Form>
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   );
 }
 
