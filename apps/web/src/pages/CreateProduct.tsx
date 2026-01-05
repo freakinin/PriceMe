@@ -57,6 +57,7 @@ export default function CreateProduct() {
   const navigate = useNavigate();
   const { state: sidebarState, isMobile } = useSidebar();
   const { settings } = useSettings();
+  const { toast } = useToast();
   const [currentStep, setCurrentStep] = useState(1);
   const [materials, setMaterials] = useState<MaterialFormValues[]>([]);
   const [laborCosts, setLaborCosts] = useState<LaborFormValues[]>([]);
