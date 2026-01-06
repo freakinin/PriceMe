@@ -59,7 +59,7 @@ const otherCostSchema = z.object({
 });
 
 type Step1FormValues = z.infer<typeof step1Schema>;
-type MaterialFormValues = z.infer<typeof materialSchema> & { total_cost?: number; user_material_id?: number };
+type MaterialFormValues = z.infer<typeof materialSchema> & { total_cost?: number; user_material_id?: number; width?: number; length?: number; units_made?: number };
 type LaborFormValues = z.infer<typeof laborSchema> & { total_cost?: number };
 type OtherCostFormValues = z.infer<typeof otherCostSchema> & { total_cost?: number };
 
