@@ -130,6 +130,24 @@ export function MaterialNameInput({
     }
   };
 
+  const handleInputBlur = () => {
+    // Close popover when input loses focus
+    // Use setTimeout to allow click events on popover items to fire first
+    setTimeout(() => {
+      // Check if the newly focused element is inside the popover
+      const activeElement = document.activeElement;
+      const popoverContent = document.querySelector('[data-radix-popover-content]');
+      
+      // If focus moved to popover content, don't close (user is clicking on a suggestion)
+      if (popoverContent && activeElement && popoverContent.contains(activeElement)) {
+        return;
+      }
+      
+      // Otherwise, close the popover (user clicked outside or tabbed away)
+      setOpen(false);
+    }, 200);
+  };
+
   const handleInputClick = () => {
     // Keep popover open when clicking on input
     if (searchQuery.length > 0) {
@@ -143,18 +161,14 @@ export function MaterialNameInput({
       handleAddToLibrary();
     } else if (e.key === 'Escape') {
       setOpen(false);
+      inputRef.current?.blur();
     }
   };
 
   return (
     <Popover open={open && searchQuery.length > 0} onOpenChange={(isOpen) => {
-      // Simple: set open state, but prevent closing if there's text
-      if (isOpen) {
-        setOpen(true);
-      } else if (searchQuery.length === 0) {
-        setOpen(false);
-      }
-      // If trying to close but search has text, ignore the close
+      // Allow closing when clicking outside
+      setOpen(isOpen);
     }}>
       <PopoverTrigger asChild>
         <div className="relative">
@@ -163,6 +177,7 @@ export function MaterialNameInput({
             value={value}
             onChange={handleInputChange}
             onFocus={handleInputFocus}
+            onBlur={handleInputBlur}
             onClick={handleInputClick}
             onKeyDown={handleKeyDown}
             placeholder={placeholder}
@@ -186,7 +201,10 @@ export function MaterialNameInput({
           const inputElement = inputRef.current;
           if (inputElement && (target === inputElement || inputElement.contains(target))) {
             e.preventDefault();
+            return;
           }
+          // Explicitly close when clicking outside
+          setOpen(false);
         }}
       >
         {searchQuery.length > 0 && (

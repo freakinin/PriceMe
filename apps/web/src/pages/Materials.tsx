@@ -407,7 +407,7 @@ export default function Materials() {
         },
       },
       {
-        accessorKey: 'price',
+        accessorKey: 'price_per_unit',
         header: ({ column }) => {
           return (
             <Button
@@ -416,7 +416,7 @@ export default function Materials() {
               className="h-8 -ml-3"
               onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
             >
-              Price
+              Price/Unit
               {column.getIsSorted() === 'asc' ? (
                 <ArrowUp className="ml-2 h-3 w-3" />
               ) : column.getIsSorted() === 'desc' ? (
@@ -431,13 +431,13 @@ export default function Materials() {
           const material = row.original;
           return (
             <EditableCell
-              value={material.price}
+              value={material.price_per_unit}
               onSave={async (value) => {
-                const newPrice = value as number;
-                const newPricePerUnit = material.quantity > 0 ? newPrice / material.quantity : 0;
+                const newPricePerUnit = value as number;
+                const newPrice = newPricePerUnit * material.quantity;
                 await updateMaterial(material.id, {
-                  price: newPrice,
                   price_per_unit: newPricePerUnit,
+                  price: newPrice,
                 });
               }}
               type="number"
@@ -456,10 +456,10 @@ export default function Materials() {
               value={material.quantity}
               onSave={async (value) => {
                 const newQuantity = value as number;
-                const newPricePerUnit = newQuantity > 0 ? material.price / newQuantity : 0;
+                const newPrice = material.price_per_unit * newQuantity;
                 await updateMaterial(material.id, {
                   quantity: newQuantity,
-                  price_per_unit: newPricePerUnit,
+                  price: newPrice,
                 });
               }}
               type="number"
@@ -485,7 +485,7 @@ export default function Materials() {
         },
       },
       {
-        accessorKey: 'price_per_unit',
+        accessorKey: 'price',
         header: ({ column }) => {
           return (
             <Button
@@ -494,7 +494,7 @@ export default function Materials() {
               className="h-8 -ml-3"
               onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
             >
-              Price/Unit
+              Total Price
               {column.getIsSorted() === 'asc' ? (
                 <ArrowUp className="ml-2 h-3 w-3" />
               ) : column.getIsSorted() === 'desc' ? (
@@ -506,10 +506,10 @@ export default function Materials() {
           );
         },
         cell: ({ row }) => {
-          const pricePerUnit = row.getValue('price_per_unit') as number;
+          const material = row.original;
           return (
-            <div className="text-sm">
-              {formatCurrency(pricePerUnit, settings.currency)}
+            <div className="text-sm px-2 py-1">
+              {formatCurrency(material.price, settings.currency)}
             </div>
           );
         },

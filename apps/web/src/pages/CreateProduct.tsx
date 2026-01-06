@@ -29,9 +29,15 @@ const step1Schema = z.object({
 
 const materialSchema = z.object({
   name: z.string().min(1, 'Material name is required'),
-  quantity: z.number().positive('Quantity must be greater than 0'),
+  quantity: z.preprocess(
+    (val) => (val === '' || val === null || val === undefined ? 0 : Number(val)),
+    z.number().positive('Quantity must be greater than 0')
+  ),
   unit: z.string().min(1, 'Unit is required'),
-  price_per_unit: z.number().nonnegative('Price must be 0 or greater'),
+  price_per_unit: z.preprocess(
+    (val) => (val === '' || val === null || val === undefined ? 0 : Number(val)),
+    z.number().nonnegative('Price must be 0 or greater')
+  ),
 });
 
 const laborSchema = z.object({
@@ -510,7 +516,9 @@ export default function CreateProduct() {
                               onMaterialSelect={(material) => {
                                 // Auto-fill unit and price_per_unit if material is selected
                                 materialForm.setValue('unit', material.unit);
-                                materialForm.setValue('price_per_unit', material.price_per_unit);
+                                // Round to 2 decimal places to avoid trailing zeros
+                                const roundedPricePerUnit = Math.round(material.price_per_unit * 100) / 100;
+                                materialForm.setValue('price_per_unit', roundedPricePerUnit);
                               }}
                               onAddToLibrary={async (name) => {
                                 // Optionally add to library - for now just use the name
@@ -540,7 +548,16 @@ export default function CreateProduct() {
                               step="0.01"
                               placeholder="0"
                               {...field}
-                              onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                              value={field.value || ''}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                if (value === '' || value === null || value === undefined) {
+                                  field.onChange(0);
+                                } else {
+                                  const numValue = parseFloat(value);
+                                  field.onChange(isNaN(numValue) ? 0 : numValue);
+                                }
+                              }}
                             />
                           </FormControl>
                           <FormMessage />
@@ -596,7 +613,22 @@ export default function CreateProduct() {
                               step="0.01"
                               placeholder="0.00"
                               {...field}
-                              onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                              value={field.value ?? ''}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                if (value === '' || value === null || value === undefined) {
+                                  field.onChange(0);
+                                } else {
+                                  const numValue = parseFloat(value);
+                                  if (!isNaN(numValue)) {
+                                    // Round to 2 decimal places to avoid trailing zeros
+                                    const rounded = Math.round(numValue * 100) / 100;
+                                    field.onChange(rounded);
+                                  } else {
+                                    field.onChange(0);
+                                  }
+                                }
+                              }}
                             />
                           </FormControl>
                           <FormMessage />
@@ -644,7 +676,7 @@ export default function CreateProduct() {
                               <td className="p-3">{material.name}</td>
                               <td className="p-3">{material.quantity}</td>
                               <td className="p-3">{material.unit}</td>
-                              <td className="p-3">{formatCurrency(Math.round(material.price_per_unit * 100) / 100, settings.currency)}</td>
+                              <td className="p-3">{formatCurrency(material.price_per_unit, settings.currency)}</td>
                               <td className="p-3 font-medium">{formatCurrency(costPerProduct, settings.currency)}</td>
                               <td className="p-3 text-right">
                                 <Button

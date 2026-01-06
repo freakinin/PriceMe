@@ -124,16 +124,16 @@ export default function EditMaterialDialog({
 
   useEffect(() => {
     if (material && open) {
-      const price = material.price || 0;
+      const pricePerUnit = material.price_per_unit || 0;
       const quantity = material.quantity || 0;
-      const calculatedPricePerUnit = quantity > 0 ? price / quantity : (material.price_per_unit || 0);
+      const calculatedPrice = pricePerUnit * quantity;
       
       form.reset({
         name: material.name || '',
-        price: price,
+        price: calculatedPrice,
         quantity: quantity,
         unit: material.unit || '',
-        price_per_unit: calculatedPricePerUnit,
+        price_per_unit: pricePerUnit,
         details: material.details || '',
         supplier: material.supplier || '',
         supplier_link: material.supplier_link || '',
@@ -166,14 +166,15 @@ export default function EditMaterialDialog({
     try {
       setSaving(true);
       
-      // Ensure price_per_unit is calculated
-      const price = data.price || 0;
+      // Calculate price from price_per_unit * quantity
+      const pricePerUnit = data.price_per_unit || 0;
       const quantity = data.quantity || 0;
-      const calculatedPricePerUnit = quantity > 0 ? price / quantity : 0;
+      const calculatedPrice = pricePerUnit * quantity;
       
       const submitData = {
         ...data,
-        price_per_unit: data.price_per_unit || calculatedPricePerUnit,
+        price: calculatedPrice,
+        price_per_unit: pricePerUnit,
       };
       
       if (material) {
@@ -266,10 +267,10 @@ export default function EditMaterialDialog({
             <div className="grid grid-cols-3 gap-4">
               <FormField
                 control={form.control}
-                name="price"
+                name="price_per_unit"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Price ({getCurrencySymbol(settings.currency)}) *</FormLabel>
+                    <FormLabel>Price per Unit ({getCurrencySymbol(settings.currency)}) *</FormLabel>
                     <FormControl>
                       <Input
                         type="number"
@@ -278,13 +279,11 @@ export default function EditMaterialDialog({
                         {...field}
                         value={field.value || ''}
                         onChange={(e) => {
-                          const price = e.target.value ? parseFloat(e.target.value) : 0;
-                          field.onChange(price);
-                          // Auto-calculate price per unit
+                          const pricePerUnit = e.target.value ? parseFloat(e.target.value) : 0;
+                          field.onChange(pricePerUnit);
+                          // Auto-calculate total price
                           const quantity = form.getValues('quantity') || 0;
-                          if (quantity > 0) {
-                            form.setValue('price_per_unit', parseFloat((price / quantity).toFixed(4)));
-                          }
+                          form.setValue('price', parseFloat((pricePerUnit * quantity).toFixed(2)));
                         }}
                       />
                     </FormControl>
@@ -308,13 +307,9 @@ export default function EditMaterialDialog({
                         onChange={(e) => {
                           const quantity = e.target.value ? parseFloat(e.target.value) : 0;
                           field.onChange(quantity);
-                          // Auto-calculate price per unit
-                          const price = form.getValues('price') || 0;
-                          if (quantity > 0) {
-                            form.setValue('price_per_unit', parseFloat((price / quantity).toFixed(4)));
-                          } else {
-                            form.setValue('price_per_unit', 0);
-                          }
+                          // Auto-calculate total price
+                          const pricePerUnit = form.getValues('price_per_unit') || 0;
+                          form.setValue('price', parseFloat((pricePerUnit * quantity).toFixed(2)));
                         }}
                       />
                     </FormControl>
@@ -350,10 +345,10 @@ export default function EditMaterialDialog({
 
             <FormField
               control={form.control}
-              name="price_per_unit"
+              name="price"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Price per Unit ({getCurrencySymbol(settings.currency)}) *</FormLabel>
+                  <FormLabel>Total Price ({getCurrencySymbol(settings.currency)})</FormLabel>
                   <FormControl>
                     <Input
                       type="number"
@@ -367,7 +362,7 @@ export default function EditMaterialDialog({
                   </FormControl>
                   <FormMessage />
                   <p className="text-xs text-muted-foreground">
-                    Automatically calculated from Price ÷ Quantity
+                    Automatically calculated from Price per Unit × Quantity
                   </p>
                 </FormItem>
               )}
