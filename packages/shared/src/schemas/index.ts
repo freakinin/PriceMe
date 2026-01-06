@@ -25,9 +25,31 @@ export const createMaterialSchema = z.object({
   unit: z.string().min(1),
   price_per_unit: z.number().nonnegative(),
   user_material_id: z.number().int().positive().optional(),
+  units_made: z.number().positive().default(1),
 });
 
 export const updateMaterialSchema = createMaterialSchema.partial();
+
+// User Material schemas (for centralized materials library)
+export const createUserMaterialSchema = z.object({
+  name: z.string().min(1),
+  price: z.number().nonnegative(),
+  quantity: z.number().nonnegative(),
+  unit: z.string().min(1),
+  price_per_unit: z.number().nonnegative(),
+  width: z.number().nonnegative().optional(),
+  length: z.number().nonnegative().optional(),
+  details: z.string().optional(),
+  supplier: z.string().optional(),
+  supplier_link: z.string().url().optional().or(z.literal('')),
+  stock_level: z.number().nonnegative().optional(),
+  reorder_point: z.number().nonnegative().optional(),
+  last_purchased_date: z.string().optional(),
+  last_purchased_price: z.number().nonnegative().optional(),
+  category: z.string().optional(),
+});
+
+export const updateUserMaterialSchema = createUserMaterialSchema.partial();
 
 // Labor schemas
 export const createLaborSchema = z.object({

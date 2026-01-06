@@ -35,6 +35,16 @@ import { Info } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { CategoryCombobox } from '@/components/CategoryCombobox';
 
+// Helper function to format numbers for display (remove trailing zeros)
+const formatNumberForInput = (val: number | null | undefined): string => {
+  if (val === null || val === undefined) return '';
+  const num = typeof val === 'number' ? val : parseFloat(String(val));
+  if (isNaN(num)) return '';
+  // Round to 2 decimal places and remove trailing zeros
+  const rounded = Math.round(num * 100) / 100;
+  return rounded % 1 === 0 ? rounded.toString() : rounded.toString().replace(/\.?0+$/, '');
+};
+
 const materialSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   price: z.preprocess(
@@ -42,13 +52,37 @@ const materialSchema = z.object({
     z.number().nonnegative('Price must be 0 or greater')
   ),
   quantity: z.preprocess(
-    (val) => (val === '' || val === null ? 0 : Number(val)),
+    (val) => {
+      if (val === '' || val === null || val === undefined) return 0;
+      const num = typeof val === 'string' ? parseFloat(val) : Number(val);
+      return isNaN(num) ? 0 : num;
+    },
     z.number().nonnegative('Quantity must be 0 or greater')
   ),
   unit: z.string().min(1, 'Unit is required'),
   price_per_unit: z.preprocess(
-    (val) => (val === '' || val === null ? 0 : Number(val)),
+    (val) => {
+      if (val === '' || val === null || val === undefined) return 0;
+      const num = typeof val === 'string' ? parseFloat(val) : Number(val);
+      return isNaN(num) ? 0 : num;
+    },
     z.number().nonnegative('Price per unit must be 0 or greater').optional()
+  ),
+  width: z.preprocess(
+    (val) => {
+      if (val === '' || val === null || val === undefined) return undefined;
+      const num = typeof val === 'string' ? parseFloat(val) : Number(val);
+      return isNaN(num) ? undefined : num;
+    },
+    z.number().nonnegative('Width must be 0 or greater').optional()
+  ),
+  length: z.preprocess(
+    (val) => {
+      if (val === '' || val === null || val === undefined) return undefined;
+      const num = typeof val === 'string' ? parseFloat(val) : Number(val);
+      return isNaN(num) ? undefined : num;
+    },
+    z.number().nonnegative('Length must be 0 or greater').optional()
   ),
   details: z.string().optional(),
   supplier: z.string().optional(),
@@ -92,6 +126,13 @@ const DEFAULT_UNITS = [
   'pcs', 'piece', 'unit', 'set', 'pack', 'box', 'roll', 'sheet', 'yard'
 ];
 
+// Units that should show width/length dimensions
+const DIMENSION_UNITS = ['m²', 'ft²', 'sheet', 'roll', 'yard', 'mm', 'cm', 'm', 'in', 'ft', 'yd'];
+
+const shouldShowDimensions = (unit: string): boolean => {
+  return DIMENSION_UNITS.includes(unit);
+};
+
 export default function EditMaterialDialog({
   material,
   open,
@@ -134,6 +175,8 @@ export default function EditMaterialDialog({
         quantity: quantity,
         unit: material.unit || '',
         price_per_unit: pricePerUnit,
+        width: material.width || undefined,
+        length: material.length || undefined,
         details: material.details || '',
         supplier: material.supplier || '',
         supplier_link: material.supplier_link || '',
@@ -150,6 +193,8 @@ export default function EditMaterialDialog({
         quantity: 0,
         unit: '',
         price_per_unit: 0,
+        width: undefined,
+        length: undefined,
         details: '',
         supplier: '',
         supplier_link: '',
@@ -226,7 +271,10 @@ export default function EditMaterialDialog({
           </SheetDescription>
         </SheetHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 mt-6">
+          <form 
+            onSubmit={form.handleSubmit(onSubmit)} 
+            className="space-y-4 mt-6"
+          >
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
@@ -277,7 +325,7 @@ export default function EditMaterialDialog({
                         step="0.01"
                         placeholder="0.00"
                         {...field}
-                        value={field.value || ''}
+                        value={formatNumberForInput(field.value)}
                         onChange={(e) => {
                           const pricePerUnit = e.target.value ? parseFloat(e.target.value) : 0;
                           field.onChange(pricePerUnit);
@@ -303,7 +351,7 @@ export default function EditMaterialDialog({
                         step="0.01"
                         placeholder="0"
                         {...field}
-                        value={field.value || ''}
+                        value={formatNumberForInput(field.value)}
                         onChange={(e) => {
                           const quantity = e.target.value ? parseFloat(e.target.value) : 0;
                           field.onChange(quantity);
@@ -343,6 +391,81 @@ export default function EditMaterialDialog({
               />
             </div>
 
+            {shouldShowDimensions(form.watch('unit')) && (
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="width"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Width ({form.watch('unit') === 'm²' || form.watch('unit') === 'ft²' ? form.watch('unit').replace('²', '') : form.watch('unit') || 'mm'})</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          placeholder="0"
+                          {...field}
+                          value={formatNumberForInput(field.value)}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            if (value === '') {
+                              field.onChange(undefined);
+                            } else {
+                              const num = parseFloat(value);
+                              field.onChange(isNaN(num) ? undefined : num);
+                            }
+                          }}
+                          onBlur={(e) => {
+                            const value = e.target.value;
+                            if (value === '') {
+                              field.onChange(undefined);
+                            }
+                            field.onBlur();
+                          }}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="length"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Length ({form.watch('unit') === 'm²' || form.watch('unit') === 'ft²' ? form.watch('unit').replace('²', '') : form.watch('unit') || 'mm'})</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          placeholder="0"
+                          {...field}
+                          value={formatNumberForInput(field.value)}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            if (value === '') {
+                              field.onChange(undefined);
+                            } else {
+                              const num = parseFloat(value);
+                              field.onChange(isNaN(num) ? undefined : num);
+                            }
+                          }}
+                          onBlur={(e) => {
+                            const value = e.target.value;
+                            if (value === '') {
+                              field.onChange(undefined);
+                            }
+                            field.onBlur();
+                          }}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            )}
+
             <FormField
               control={form.control}
               name="price"
@@ -355,7 +478,7 @@ export default function EditMaterialDialog({
                       step="0.01"
                       placeholder="0.00"
                       {...field}
-                      value={field.value || ''}
+                      value={formatNumberForInput(field.value)}
                       readOnly
                       className="bg-muted"
                     />
@@ -424,7 +547,7 @@ export default function EditMaterialDialog({
                         step="0.01"
                         placeholder="0"
                         {...field}
-                        value={field.value || ''}
+                        value={formatNumberForInput(field.value)}
                         onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : 0)}
                       />
                     </FormControl>
@@ -456,7 +579,7 @@ export default function EditMaterialDialog({
                         step="0.01"
                         placeholder="0"
                         {...field}
-                        value={field.value || ''}
+                        value={formatNumberForInput(field.value)}
                         onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : 0)}
                       />
                     </FormControl>
@@ -474,7 +597,14 @@ export default function EditMaterialDialog({
                   <FormItem>
                     <FormLabel>Last Purchased Date</FormLabel>
                     <FormControl>
-                      <Input type="date" {...field} />
+                      <Input 
+                        type="date" 
+                        {...field}
+                        value={field.value ? (typeof field.value === 'string' ? field.value.split('T')[0] : new Date(field.value).toISOString().split('T')[0]) : ''}
+                        onChange={(e) => {
+                          field.onChange(e.target.value || undefined);
+                        }}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -492,7 +622,7 @@ export default function EditMaterialDialog({
                         step="0.01"
                         placeholder="0.00"
                         {...field}
-                        value={field.value || ''}
+                        value={formatNumberForInput(field.value)}
                         onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : undefined)}
                       />
                     </FormControl>
@@ -510,7 +640,10 @@ export default function EditMaterialDialog({
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={saving}>
+              <Button 
+                type="submit" 
+                disabled={saving}
+              >
                 {saving ? 'Saving...' : material ? 'Update' : 'Create'}
               </Button>
             </SheetFooter>

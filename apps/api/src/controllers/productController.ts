@@ -51,10 +51,11 @@ export const createProduct = async (req: AuthRequest, res: Response) => {
     // Insert materials if provided
     if (materials && materials.length > 0) {
       for (const material of materials) {
-        const totalCost = material.quantity * material.price_per_unit;
+        const unitsMade = material.units_made || 1;
+        const totalCost = (material.quantity * material.price_per_unit) / unitsMade;
         await db`
-          INSERT INTO materials (product_id, user_material_id, name, quantity, unit, price_per_unit, total_cost)
-          VALUES (${productId}, ${material.user_material_id || null}, ${material.name}, ${material.quantity}, ${material.unit}, ${material.price_per_unit}, ${totalCost})
+          INSERT INTO materials (product_id, user_material_id, name, quantity, unit, price_per_unit, units_made, total_cost)
+          VALUES (${productId}, ${material.user_material_id || null}, ${material.name}, ${material.quantity}, ${material.unit}, ${material.price_per_unit}, ${unitsMade}, ${totalCost})
         `;
       }
     }
@@ -259,7 +260,7 @@ export const getProduct = async (req: AuthRequest, res: Response) => {
 
     // Get materials
     const materialsResult = await db`
-      SELECT id, user_material_id, name, quantity, unit, price_per_unit, total_cost
+      SELECT id, user_material_id, name, quantity, unit, price_per_unit, units_made, total_cost
       FROM materials
       WHERE product_id = ${productId}
       ORDER BY created_at ASC
@@ -359,10 +360,11 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
     // Insert new materials if provided
     if (materials && materials.length > 0) {
       for (const material of materials) {
-        const totalCost = material.quantity * material.price_per_unit;
+        const unitsMade = material.units_made || 1;
+        const totalCost = (material.quantity * material.price_per_unit) / unitsMade;
         await db`
-          INSERT INTO materials (product_id, user_material_id, name, quantity, unit, price_per_unit, total_cost)
-          VALUES (${productId}, ${material.user_material_id || null}, ${material.name}, ${material.quantity}, ${material.unit}, ${material.price_per_unit}, ${totalCost})
+          INSERT INTO materials (product_id, user_material_id, name, quantity, unit, price_per_unit, units_made, total_cost)
+          VALUES (${productId}, ${material.user_material_id || null}, ${material.name}, ${material.quantity}, ${material.unit}, ${material.price_per_unit}, ${unitsMade}, ${totalCost})
         `;
       }
     }

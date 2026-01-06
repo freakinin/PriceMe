@@ -20,8 +20,20 @@ interface UserMaterial {
   quantity: number;
   unit: string;
   price_per_unit: number;
+  width?: number;
+  length?: number;
   category?: string;
 }
+
+const formatMaterialSize = (material: UserMaterial): string => {
+  if (material.width && material.length) {
+    const unit = material.unit === 'm²' || material.unit === 'ft²' 
+      ? material.unit.replace('²', '') 
+      : material.unit;
+    return `${material.width} × ${material.length} ${unit}`;
+  }
+  return '';
+};
 
 interface MaterialSelectorProps {
   onSelect: (material: UserMaterial, quantity: number) => void;
@@ -128,6 +140,9 @@ export function MaterialSelector({ onSelect, disabled }: MaterialSelectorProps) 
                         )}
                       </div>
                       <div className="text-sm text-muted-foreground mt-1">
+                        {formatMaterialSize(material) && (
+                          <span className="mr-2">{formatMaterialSize(material)}</span>
+                        )}
                         {formatCurrency(material.price_per_unit, settings.currency)} / {material.unit}
                         {material.quantity > 0 && (
                           <span className="ml-2">
@@ -175,4 +190,5 @@ export function MaterialSelector({ onSelect, disabled }: MaterialSelectorProps) 
     </Popover>
   );
 }
+
 

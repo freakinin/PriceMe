@@ -53,6 +53,8 @@ interface Material {
   quantity: number;
   unit: string;
   price_per_unit: number;
+  width?: number;
+  length?: number;
   details?: string;
   supplier?: string;
   supplier_link?: string;

@@ -42,9 +42,19 @@ const step1Schema = z.object({
 
 const materialSchema = z.object({
   name: z.string().min(1, 'Material name is required'),
-  quantity: z.number().positive('Quantity must be greater than 0'),
+  quantity: z.preprocess(
+    (val) => (val === '' || val === null || val === undefined ? 0 : Number(val)),
+    z.number().positive('Quantity must be greater than 0')
+  ),
   unit: z.string().min(1, 'Unit is required'),
-  price_per_unit: z.number().nonnegative('Price must be 0 or greater'),
+  price_per_unit: z.preprocess(
+    (val) => (val === '' || val === null || val === undefined ? 0 : Number(val)),
+    z.number().nonnegative('Price must be 0 or greater')
+  ),
+  units_made: z.preprocess(
+    (val) => (val === '' || val === null || val === undefined ? 1 : Number(val)),
+    z.number().positive('Units made must be greater than 0')
+  ),
 });
 
 const laborSchema = z.object({
@@ -66,6 +76,22 @@ type MaterialFormValues = z.infer<typeof materialSchema> & { total_cost?: number
 type LaborFormValues = z.infer<typeof laborSchema> & { total_cost?: number; id?: number };
 type OtherCostFormValues = z.infer<typeof otherCostSchema> & { total_cost?: number; id?: number };
 
+// Helper function to format numbers and remove trailing zeros
+const formatNumberDisplay = (val: string | number | null | undefined): string => {
+  if (val === null || val === undefined) return '-';
+  let num: number;
+  if (typeof val === 'number') {
+    num = val;
+  } else {
+    num = parseFloat(val);
+    if (isNaN(num)) return val.toString();
+  }
+  // Remove trailing zeros: 4.0000 -> 4, 4.5000 -> 4.5, 4.1230 -> 4.123
+  return num % 1 === 0 
+    ? num.toString() 
+    : num.toString().replace(/\.?0+$/, '');
+};
+
 // Inline editable row components
 function EditableMaterialRow({ 
   material, 
@@ -76,14 +102,16 @@ function EditableMaterialRow({
   onSave: (data: MaterialFormValues) => void; 
   onCancel: () => void;
 }) {
+  const { settings } = useSettings();
   const [name, setName] = useState(material.name);
   const [quantity, setQuantity] = useState(material.quantity);
   const [unit, setUnit] = useState(material.unit);
   const [pricePerUnit, setPricePerUnit] = useState(material.price_per_unit);
+  const [unitsMade, setUnitsMade] = useState(material.units_made || 1);
 
   const handleSave = () => {
-    if (name && quantity > 0 && unit && pricePerUnit >= 0) {
-      onSave({ name, quantity, unit, price_per_unit: pricePerUnit });
+    if (name && quantity > 0 && unit && pricePerUnit >= 0 && unitsMade > 0) {
+      onSave({ name, quantity, unit, price_per_unit: pricePerUnit, units_made: unitsMade });
     }
   };
 
@@ -122,6 +150,19 @@ function EditableMaterialRow({
           value={pricePerUnit}
           onChange={(e) => setPricePerUnit(parseFloat(e.target.value) || 0)}
         />
+      </td>
+      <td className="p-2">
+        <Input
+          className="h-8 text-sm"
+          type="number"
+          step="1"
+          min="1"
+          value={unitsMade}
+          onChange={(e) => setUnitsMade(parseFloat(e.target.value) || 1)}
+        />
+      </td>
+      <td className="p-2">
+        {formatCurrency((quantity * pricePerUnit) / unitsMade, settings.currency)}
       </td>
       <td className="p-2 text-right">
         <div className="flex items-center justify-end gap-1">
@@ -349,6 +390,7 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
       quantity: 0,
       unit: '',
       price_per_unit: 0,
+      units_made: 1,
     },
   });
 
@@ -418,6 +460,7 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
           ...m,
           quantity: Number(m.quantity),
           price_per_unit: Number(m.price_per_unit),
+          units_made: m.units_made ? Number(m.units_made) : 1,
           total_cost: m.total_cost ? Number(m.total_cost) : undefined,
           user_material_id: m.user_material_id || undefined,
         }));
@@ -464,7 +507,8 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
   };
 
   const onAddMaterial = (data: MaterialFormValues) => {
-    const totalCost = data.quantity * data.price_per_unit;
+    const unitsMade = data.units_made || 1;
+    const totalCost = (data.quantity * data.price_per_unit) / unitsMade;
     setMaterials([...materials, { ...data, total_cost: totalCost }]);
     materialForm.reset();
   };
@@ -560,8 +604,24 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
   };
 
   const onFinalSubmit = async () => {
-    if (!productId) return;
+    console.log('onFinalSubmit called', { productId, isSubmitting });
     
+    if (!productId) {
+      console.error('Product ID is missing');
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Product ID is missing. Please refresh the page.',
+      });
+      return;
+    }
+    
+    if (isSubmitting) {
+      console.log('Already submitting, ignoring click');
+      return;
+    }
+    
+    console.log('Starting submit...');
     setIsSubmitting(true);
     const step1Data = step1Form.getValues();
     
@@ -571,6 +631,7 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
         quantity: m.quantity,
         unit: m.unit,
         price_per_unit: m.price_per_unit,
+        units_made: m.units_made || 1,
         user_material_id: m.user_material_id,
       }));
 
@@ -602,10 +663,19 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
         other_costs: otherCostsData,
       });
 
+      toast({
+        variant: 'success',
+        title: 'Success',
+        description: 'Product updated successfully',
+      });
       onSuccess();
     } catch (error: any) {
       console.error('Error updating product:', error);
-      alert(error.response?.data?.message || 'Failed to update product. Please try again.');
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: error.response?.data?.message || 'Failed to update product. Please try again.',
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -613,7 +683,10 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
 
   // Calculations
   const batchSize = step1Form.watch('batch_size');
-  const totalMaterialsCost = materials.reduce((sum, m) => sum + (m.quantity * m.price_per_unit), 0);
+  const totalMaterialsCost = materials.reduce((sum, m) => {
+    const unitsMade = m.units_made || 1;
+    return sum + ((m.quantity * m.price_per_unit) / unitsMade);
+  }, 0);
   const laborPerProduct = laborCosts
     .filter(l => l.per_unit)
     .reduce((sum, l) => sum + (l.total_cost || 0), 0);
@@ -828,12 +901,19 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
                         type="button" 
                         size="sm" 
                         variant="default"
-                        onClick={onFinalSubmit}
-                        disabled={isSubmitting}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          onFinalSubmit();
+                        }}
+                        disabled={isSubmitting || !productId}
                       >
                         {isSubmitting ? 'Saving...' : 'Save'}
                       </Button>
-                      <Button type="submit" size="sm">
+                      <Button 
+                        type="submit" 
+                        size="sm"
+                      >
                         Next: Materials
                         <ChevronRight className="ml-2 h-3 w-3" />
                       </Button>
@@ -850,6 +930,7 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
                 <div>
                   <MaterialSelector
                     onSelect={(material, quantity) => {
+                      const unitsMade = 1; // Default, user can edit
                       setMaterials([
                         ...materials,
                         {
@@ -857,8 +938,11 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
                           quantity: quantity,
                           unit: material.unit,
                           price_per_unit: material.price_per_unit,
+                          units_made: unitsMade,
                           user_material_id: material.id,
-                          total_cost: quantity * material.price_per_unit,
+                          width: material.width,
+                          length: material.length,
+                          total_cost: (quantity * material.price_per_unit) / unitsMade,
                         },
                       ]);
                       materialForm.reset();
@@ -960,6 +1044,42 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
                           </FormItem>
                         )}
                       />
+                      <FormField
+                        control={materialForm.control}
+                        name="units_made"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-sm flex items-center gap-1">
+                              Units Made *
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>Number of products from this quantity</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            </FormLabel>
+                            <FormControl>
+                              <Input 
+                                className="h-9"
+                                type="number" 
+                                step="1"
+                                min="1"
+                                {...field}
+                                value={field.value ?? ''}
+                                onChange={(e) => {
+                                  const value = e.target.value;
+                                  field.onChange(value === '' ? 1 : parseFloat(value) || 1);
+                                }}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
                     </div>
                     <Button type="submit" variant="outline" size="sm">
                       <Plus className="mr-2 h-3 w-3" />
@@ -978,6 +1098,8 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
                             <th className="text-left p-2 text-xs font-medium">Qty</th>
                             <th className="text-left p-2 text-xs font-medium">Unit</th>
                             <th className="text-left p-2 text-xs font-medium">Price</th>
+                            <th className="text-left p-2 text-xs font-medium">Units Made</th>
+                            <th className="text-left p-2 text-xs font-medium">Cost</th>
                             <th className="text-right p-2 text-xs font-medium">Actions</th>
                           </tr>
                         </thead>
@@ -992,10 +1114,21 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
                               />
                             ) : (
                               <tr key={index} className="border-t">
-                                <td className="p-2">{material.name}</td>
-                                <td className="p-2">{material.quantity}</td>
+                                <td className="p-2">
+                                  <div>
+                                    <div className="font-medium">{material.name}</div>
+                                    {(material as any).width && (material as any).length && (
+                                      <div className="text-xs text-muted-foreground">
+                                        {formatNumberDisplay((material as any).width)} × {formatNumberDisplay((material as any).length)} {material.unit === 'm²' || material.unit === 'ft²' ? material.unit.replace('²', '') : material.unit}
+                                      </div>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="p-2">{formatNumberDisplay(material.quantity)}</td>
                                 <td className="p-2">{material.unit}</td>
-                                <td className="p-2">{formatCurrency(Math.round(material.price_per_unit * 100) / 100, settings.currency)}</td>
+                                <td className="p-2">{formatCurrency(material.price_per_unit, settings.currency)}</td>
+                                <td className="p-2">{formatNumberDisplay(material.units_made || 1)}</td>
+                                <td className="p-2 font-medium">{formatCurrency(material.total_cost || 0, settings.currency)}</td>
                                 <td className="p-2 text-right">
                                   <div className="flex items-center justify-end gap-1">
                                     <Button
@@ -1042,8 +1175,12 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
                       type="button" 
                       size="sm" 
                       variant="default"
-                      onClick={onFinalSubmit}
-                      disabled={isSubmitting}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onFinalSubmit();
+                      }}
+                      disabled={isSubmitting || !productId}
                     >
                       {isSubmitting ? 'Saving...' : 'Save'}
                     </Button>
@@ -1234,7 +1371,11 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
                       type="button" 
                       size="sm" 
                       variant="default"
-                      onClick={onFinalSubmit}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onFinalSubmit();
+                      }}
                       disabled={isSubmitting}
                     >
                       {isSubmitting ? 'Saving...' : 'Save'}
@@ -1405,7 +1546,11 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
                       type="button" 
                       size="sm" 
                       variant="default"
-                      onClick={onFinalSubmit}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onFinalSubmit();
+                      }}
                       disabled={isSubmitting}
                     >
                       {isSubmitting ? 'Saving...' : 'Save'}

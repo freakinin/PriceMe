@@ -96,13 +96,20 @@ export function CategoryCombobox({
             {value ? (
               <Badge variant="secondary" className="mr-1">
                 {value}
-                <button
-                  type="button"
+                <span
                   onClick={handleRemove}
-                  className="ml-1 ring-offset-background rounded-full outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      handleRemove(e as any);
+                    }
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  className="ml-1 ring-offset-background rounded-full outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 cursor-pointer"
                 >
                   <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
-                </button>
+                </span>
               </Badge>
             ) : (
               <span className="text-sm">Select or create category...</span>

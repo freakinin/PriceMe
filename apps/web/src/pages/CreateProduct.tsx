@@ -38,6 +38,10 @@ const materialSchema = z.object({
     (val) => (val === '' || val === null || val === undefined ? 0 : Number(val)),
     z.number().nonnegative('Price must be 0 or greater')
   ),
+  units_made: z.preprocess(
+    (val) => (val === '' || val === null || val === undefined ? 1 : Number(val)),
+    z.number().positive('Units made must be greater than 0')
+  ),
 });
 
 const laborSchema = z.object({
@@ -91,6 +95,7 @@ export default function CreateProduct() {
       quantity: 0,
       unit: '',
       price_per_unit: 0,
+      units_made: 1,
     },
   });
 
@@ -179,6 +184,7 @@ export default function CreateProduct() {
         quantity: m.quantity,
         unit: m.unit,
         price_per_unit: m.price_per_unit,
+        units_made: m.units_made || 1,
         user_material_id: m.user_material_id,
       }));
 
@@ -226,8 +232,11 @@ export default function CreateProduct() {
   // Calculations
   const batchSize = step1Form.watch('batch_size');
   
-  // Total cost per single product (materials are entered per product)
-  const totalMaterialsCost = materials.reduce((sum, m) => sum + (m.quantity * m.price_per_unit), 0);
+  // Total cost per single product (materials cost is divided by units_made)
+  const totalMaterialsCost = materials.reduce((sum, m) => {
+    const unitsMade = m.units_made || 1;
+    return sum + ((m.quantity * m.price_per_unit) / unitsMade);
+  }, 0);
   
   // Labor costs: per_unit costs are per product, others are per batch
   const laborPerProduct = laborCosts
@@ -482,7 +491,10 @@ export default function CreateProduct() {
                       quantity: quantity,
                       unit: material.unit,
                       price_per_unit: material.price_per_unit,
+                      units_made: 1, // Default, user can edit in the table
                       user_material_id: material.id,
+                      width: material.width,
+                      length: material.length,
                     },
                   ]);
                   materialForm.reset();
@@ -635,6 +647,51 @@ export default function CreateProduct() {
                         </FormItem>
                       )}
                     />
+                    <FormField
+                      control={materialForm.control}
+                      name="units_made"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="flex items-center gap-1.5">
+                            Units Made *
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Number of products you can make from this quantity of material</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </FormLabel>
+                          <FormControl>
+                            <Input 
+                              type="number" 
+                              step="1"
+                              min="1"
+                              placeholder="1"
+                              {...field}
+                              value={field.value ?? ''}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                if (value === '' || value === null || value === undefined) {
+                                  field.onChange(1);
+                                } else {
+                                  const numValue = parseFloat(value);
+                                  if (!isNaN(numValue) && numValue > 0) {
+                                    field.onChange(numValue);
+                                  } else {
+                                    field.onChange(1);
+                                  }
+                                }
+                              }}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                   </div>
                   <Button type="submit" variant="outline">
                     <Plus className="mr-2 h-4 w-4" />
@@ -661,22 +718,34 @@ export default function CreateProduct() {
                       <thead className="bg-slate-100 dark:bg-slate-800">
                         <tr>
                           <th className="text-left p-3 text-sm font-medium">Material</th>
-                          <th className="text-left p-3 text-sm font-medium">Quantity (per product)</th>
+                          <th className="text-left p-3 text-sm font-medium">Quantity</th>
                           <th className="text-left p-3 text-sm font-medium">Unit</th>
                           <th className="text-left p-3 text-sm font-medium">Price per Unit</th>
+                          <th className="text-left p-3 text-sm font-medium">Units Made</th>
                           <th className="text-left p-3 text-sm font-medium">Cost Per Product</th>
                           <th className="text-right p-3 text-sm font-medium">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
                         {materials.map((material, index) => {
-                          const costPerProduct = material.quantity * material.price_per_unit;
+                          const unitsMade = material.units_made || 1;
+                          const costPerProduct = (material.quantity * material.price_per_unit) / unitsMade;
                           return (
                             <tr key={index} className="border-t">
-                              <td className="p-3">{material.name}</td>
+                              <td className="p-3">
+                                <div>
+                                  <div className="font-medium">{material.name}</div>
+                                  {(material as any).width && (material as any).length && (
+                                    <div className="text-xs text-muted-foreground">
+                                      {(material as any).width} × {(material as any).length} {material.unit === 'm²' || material.unit === 'ft²' ? material.unit.replace('²', '') : material.unit}
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
                               <td className="p-3">{material.quantity}</td>
                               <td className="p-3">{material.unit}</td>
                               <td className="p-3">{formatCurrency(material.price_per_unit, settings.currency)}</td>
+                              <td className="p-3">{material.units_made || 1}</td>
                               <td className="p-3 font-medium">{formatCurrency(costPerProduct, settings.currency)}</td>
                               <td className="p-3 text-right">
                                 <Button

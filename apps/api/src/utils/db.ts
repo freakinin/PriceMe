@@ -208,8 +208,21 @@ export async function initializeDatabase() {
         await sql`ALTER TABLE materials ADD COLUMN user_material_id INTEGER REFERENCES user_materials(id) ON DELETE SET NULL`;
         console.log('✅ Added user_material_id column');
       }
+
+      // Add units_made column if it doesn't exist (migration)
+      const unitsMadeExists = await sql`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name='materials' AND column_name='units_made'
+      `;
+      const unitsMadeRows = Array.isArray(unitsMadeExists) ? unitsMadeExists : unitsMadeExists.rows || [];
+      if (unitsMadeRows.length === 0) {
+        console.log('Adding units_made column to materials table...');
+        await sql`ALTER TABLE materials ADD COLUMN units_made DECIMAL(10, 4) DEFAULT 1`;
+        console.log('✅ Added units_made column');
+      }
     } catch (error: any) {
-      console.log('Note: Migration check for user_material_id column:', error.message);
+      console.log('Note: Migration check for materials table columns:', error.message);
     }
 
     // Create labor_costs table
@@ -266,6 +279,8 @@ export async function initializeDatabase() {
         quantity DECIMAL(10, 4) NOT NULL DEFAULT 0,
         unit VARCHAR(50) NOT NULL,
         price_per_unit DECIMAL(10, 4) NOT NULL,
+        width DECIMAL(10, 4),
+        length DECIMAL(10, 4),
         details TEXT,
         supplier VARCHAR(255),
         supplier_link VARCHAR(500),
@@ -278,6 +293,35 @@ export async function initializeDatabase() {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `;
+
+    // Add width and length columns if they don't exist (migration)
+    try {
+      const widthExists = await sql`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name='user_materials' AND column_name='width'
+      `;
+      const widthRows = Array.isArray(widthExists) ? widthExists : widthExists.rows || [];
+      if (widthRows.length === 0) {
+        console.log('Adding width column to user_materials table...');
+        await sql`ALTER TABLE user_materials ADD COLUMN width DECIMAL(10, 4)`;
+        console.log('✅ Added width column');
+      }
+
+      const lengthExists = await sql`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name='user_materials' AND column_name='length'
+      `;
+      const lengthRows = Array.isArray(lengthExists) ? lengthExists : lengthExists.rows || [];
+      if (lengthRows.length === 0) {
+        console.log('Adding length column to user_materials table...');
+        await sql`ALTER TABLE user_materials ADD COLUMN length DECIMAL(10, 4)`;
+        console.log('✅ Added length column');
+      }
+    } catch (error: any) {
+      console.log('Note: Migration check for width/length columns:', error.message);
+    }
 
     console.log('✅ Database tables initialized successfully');
   } catch (error) {

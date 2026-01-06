@@ -9,6 +9,8 @@ const createMaterialSchema = z.object({
   quantity: z.number().nonnegative('Quantity must be 0 or greater'),
   unit: z.string().min(1, 'Unit is required'),
   price_per_unit: z.number().nonnegative('Price per unit must be 0 or greater'),
+  width: z.number().nonnegative().optional(),
+  length: z.number().nonnegative().optional(),
   details: z.string().optional(),
   supplier: z.string().optional(),
   supplier_link: z.string().url().optional().or(z.literal('')),
@@ -37,6 +39,8 @@ export const createMaterial = async (req: AuthRequest, res: Response) => {
       quantity,
       unit,
       price_per_unit,
+      width,
+      length,
       details,
       supplier,
       supplier_link,
@@ -49,13 +53,13 @@ export const createMaterial = async (req: AuthRequest, res: Response) => {
 
     const result = await db`
       INSERT INTO user_materials (
-        user_id, name, price, quantity, unit, price_per_unit, details,
+        user_id, name, price, quantity, unit, price_per_unit, width, length, details,
         supplier, supplier_link, stock_level, reorder_point,
         last_purchased_date, last_purchased_price, category
       )
       VALUES (
         ${req.userId}, ${name}, ${price}, ${quantity || 0}, ${unit}, ${price_per_unit},
-        ${details || null}, ${supplier || null}, ${supplier_link || null},
+        ${width || null}, ${length || null}, ${details || null}, ${supplier || null}, ${supplier_link || null},
         ${stock_level || 0}, ${reorder_point || 0},
         ${last_purchased_date || null}, ${last_purchased_price || null}, ${category || null}
       )
@@ -359,6 +363,8 @@ export const updateMaterial = async (req: AuthRequest, res: Response) => {
       quantity: validatedData.quantity !== undefined ? validatedData.quantity : Number(current.quantity),
       unit: validatedData.unit !== undefined ? validatedData.unit : current.unit,
       price_per_unit: validatedData.price_per_unit !== undefined ? validatedData.price_per_unit : Number(current.price_per_unit),
+      width: validatedData.width !== undefined ? validatedData.width : (current.width ? Number(current.width) : null),
+      length: validatedData.length !== undefined ? validatedData.length : (current.length ? Number(current.length) : null),
       details: validatedData.details !== undefined ? validatedData.details : current.details,
       supplier: validatedData.supplier !== undefined ? validatedData.supplier : current.supplier,
       supplier_link: validatedData.supplier_link !== undefined ? validatedData.supplier_link : current.supplier_link,
@@ -377,6 +383,8 @@ export const updateMaterial = async (req: AuthRequest, res: Response) => {
         quantity = ${mergedData.quantity},
         unit = ${mergedData.unit},
         price_per_unit = ${mergedData.price_per_unit},
+        width = ${mergedData.width !== undefined ? mergedData.width : current.width},
+        length = ${mergedData.length !== undefined ? mergedData.length : current.length},
         details = ${mergedData.details || null},
         supplier = ${mergedData.supplier || null},
         supplier_link = ${mergedData.supplier_link || null},
