@@ -24,7 +24,6 @@ const step1Schema = z.object({
   category: z.string().optional(),
   batch_size: z.number().int().positive().min(1, 'Batch size must be at least 1').default(1),
   target_price: z.number().positive('Target price must be greater than 0').optional(),
-  markup_percentage: z.number().nonnegative('Markup percentage must be 0 or greater').optional(),
 });
 
 const materialSchema = z.object({
@@ -84,7 +83,6 @@ export default function CreateProduct() {
       sku: '',
       batch_size: 1,
       target_price: undefined,
-      markup_percentage: undefined,
     },
   });
 
@@ -204,6 +202,15 @@ export default function CreateProduct() {
         per_unit: o.per_unit,
       }));
 
+      // Determine pricing method and value from target_price if provided
+      let pricing_method: 'price' | undefined = undefined;
+      let pricing_value: number | undefined = undefined;
+      
+      if (step1Data.target_price) {
+        pricing_method = 'price';
+        pricing_value = step1Data.target_price;
+      }
+
       // Call API to create product
       await api.post('/products', {
         name: step1Data.name,
@@ -212,7 +219,8 @@ export default function CreateProduct() {
         category: step1Data.category,
         batch_size: step1Data.batch_size,
         target_price: step1Data.target_price,
-        markup_percentage: step1Data.markup_percentage,
+        pricing_method: pricing_method,
+        pricing_value: pricing_value,
         materials: materialsData,
         labor_costs: laborCostsData,
         other_costs: otherCostsData,
@@ -415,39 +423,6 @@ export default function CreateProduct() {
                             type="number" 
                             step="0.01"
                             min="0.01"
-                            placeholder="0.00"
-                            {...field}
-                            onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : undefined)}
-                            value={field.value || ''}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={step1Form.control}
-                    name="markup_percentage"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="flex items-center gap-1.5">
-                          Desired Markup % (Optional)
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>Desired markup percentage for pricing calculations</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        </FormLabel>
-                        <FormControl>
-                          <Input 
-                            type="number" 
-                            step="0.01"
-                            min="0"
                             placeholder="0.00"
                             {...field}
                             onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : undefined)}

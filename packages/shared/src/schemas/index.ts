@@ -78,8 +78,9 @@ export const createProductSchema = z.object({
   description: z.string().optional(),
   category: z.string().optional(),
   batch_size: z.number().int().positive().default(1),
-  target_price: z.number().positive().optional(),
-  markup_percentage: z.number().nonnegative().optional(),
+  target_price: z.number().positive().optional(), // Calculated/resulting price
+  pricing_method: z.enum(['markup', 'price', 'profit', 'margin']).optional(), // Which method user selected
+  pricing_value: z.number().nonnegative().optional(), // The input value for the selected method
   materials: z.array(createMaterialSchema).optional(),
   labor_costs: z.array(createLaborSchema).optional(),
   other_costs: z.array(createOtherCostSchema).optional(),

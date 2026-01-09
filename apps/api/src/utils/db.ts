@@ -162,17 +162,30 @@ export async function initializeDatabase() {
         console.log('✅ Added target_price column');
       }
 
-      // Check and add markup_percentage column
-      const markupExists = await sql`
+      // Check and add pricing_method column
+      const pricingMethodExists = await sql`
         SELECT column_name 
         FROM information_schema.columns 
-        WHERE table_name='products' AND column_name='markup_percentage'
+        WHERE table_name='products' AND column_name='pricing_method'
       `;
-      const markupRows = Array.isArray(markupExists) ? markupExists : markupExists.rows || [];
-      if (markupRows.length === 0) {
-        console.log('Adding markup_percentage column to products table...');
-        await sql`ALTER TABLE products ADD COLUMN markup_percentage DECIMAL(5, 2)`;
-        console.log('✅ Added markup_percentage column');
+      const pricingMethodRows = Array.isArray(pricingMethodExists) ? pricingMethodExists : pricingMethodExists.rows || [];
+      if (pricingMethodRows.length === 0) {
+        console.log('Adding pricing_method column to products table...');
+        await sql`ALTER TABLE products ADD COLUMN pricing_method VARCHAR(20)`;
+        console.log('✅ Added pricing_method column');
+      }
+
+      // Check and add pricing_value column
+      const pricingValueExists = await sql`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name='products' AND column_name='pricing_value'
+      `;
+      const pricingValueRows = Array.isArray(pricingValueExists) ? pricingValueExists : pricingValueExists.rows || [];
+      if (pricingValueRows.length === 0) {
+        console.log('Adding pricing_value column to products table...');
+        await sql`ALTER TABLE products ADD COLUMN pricing_value DECIMAL(10, 4)`;
+        console.log('✅ Added pricing_value column');
       }
     } catch (error: any) {
       // Columns might already exist or table might not exist yet

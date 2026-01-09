@@ -14,13 +14,13 @@ export const createProduct = async (req: AuthRequest, res: Response) => {
 
     // Validate input
     const validatedData = createProductSchema.parse(req.body);
-    const { name, sku, description, category, batch_size, target_price, markup_percentage, materials, labor_costs, other_costs } = validatedData;
+    const { name, sku, description, category, batch_size, target_price, pricing_method, pricing_value, materials, labor_costs, other_costs } = validatedData;
 
     // Start transaction: Create product
     console.log('Inserting product with userId:', req.userId);
     const productResult = await db`
-      INSERT INTO products (user_id, name, sku, description, category, batch_size, target_price, markup_percentage)
-      VALUES (${req.userId}, ${name}, ${sku || null}, ${description || null}, ${category || null}, ${batch_size || 1}, ${target_price || null}, ${markup_percentage || null})
+      INSERT INTO products (user_id, name, sku, description, category, batch_size, target_price, pricing_method, pricing_value)
+      VALUES (${req.userId}, ${name}, ${sku || null}, ${description || null}, ${category || null}, ${batch_size || 1}, ${target_price || null}, ${pricing_method || null}, ${pricing_value || null})
       RETURNING id
     `;
 
@@ -91,35 +91,29 @@ export const createProduct = async (req: AuthRequest, res: Response) => {
         sku,
         batch_size,
         target_price,
-        markup_percentage,
+        pricing_method,
+        pricing_value,
       },
     });
   } catch (error: any) {
     if (error.name === 'ZodError') {
       return res.status(400).json({
         status: 'error',
-        message: 'Validation error',
-        errors: error.errors,
+        message: 'Validation failed',
+        issues: error.issues,
       });
     }
-
-    console.error('Create product error:', error);
-    console.error('Error details:', {
+    
+    console.error('Create product error:', {
       message: error.message,
       stack: error.stack,
       name: error.name,
       code: error.code,
-      cause: error.cause,
     });
-    
-    // Return more detailed error in development
-    const errorMessage = process.env.NODE_ENV === 'development' 
-      ? error.message || 'Failed to create product'
-      : 'Failed to create product';
     
     return res.status(500).json({
       status: 'error',
-      message: errorMessage,
+      message: 'Failed to create product',
       ...(process.env.NODE_ENV === 'development' && { 
         error: error.message,
         stack: error.stack,
@@ -138,7 +132,7 @@ export const getProducts = async (req: AuthRequest, res: Response) => {
     }
 
     const products = await db`
-      SELECT id, name, sku, batch_size, target_price, markup_percentage, created_at, updated_at
+      SELECT id, name, sku, batch_size, target_price, pricing_method, pricing_value, created_at, updated_at
       FROM products
       WHERE user_id = ${req.userId}
       ORDER BY created_at DESC
@@ -220,6 +214,10 @@ export const getProducts = async (req: AuthRequest, res: Response) => {
     return res.status(500).json({
       status: 'error',
       message: 'Failed to fetch products',
+      ...(process.env.NODE_ENV === 'development' && { 
+        error: error.message,
+        stack: error.stack,
+      }),
     });
   }
 };
@@ -243,27 +241,28 @@ export const getProduct = async (req: AuthRequest, res: Response) => {
 
     // Get product
     const productResult = await db`
-      SELECT id, name, sku, description, category, batch_size, target_price, markup_percentage, created_at, updated_at
+      SELECT id, name, sku, description, category, batch_size, target_price, pricing_method, pricing_value, created_at, updated_at
       FROM products
       WHERE id = ${productId} AND user_id = ${req.userId}
     `;
+    const productRows = Array.isArray(productResult) ? productResult : productResult.rows || [];
 
-    const products = Array.isArray(productResult) ? productResult : productResult.rows || [];
-    if (products.length === 0) {
+    if (productRows.length === 0) {
       return res.status(404).json({
         status: 'error',
         message: 'Product not found',
       });
     }
 
-    const product = products[0];
+    const product = productRows[0];
 
     // Get materials
     const materialsResult = await db`
-      SELECT id, user_material_id, name, quantity, unit, price_per_unit, units_made, total_cost
-      FROM materials
-      WHERE product_id = ${productId}
-      ORDER BY created_at ASC
+      SELECT m.id, m.name, m.quantity, m.unit, m.price_per_unit, m.units_made, m.total_cost, m.user_material_id,
+             um.width, um.length
+      FROM materials m
+      LEFT JOIN user_materials um ON m.user_material_id = um.id
+      WHERE m.product_id = ${productId}
     `;
     const materials = Array.isArray(materialsResult) ? materialsResult : materialsResult.rows || [];
 
@@ -272,7 +271,6 @@ export const getProduct = async (req: AuthRequest, res: Response) => {
       SELECT id, activity, time_spent_minutes, hourly_rate, total_cost, per_unit
       FROM labor_costs
       WHERE product_id = ${productId}
-      ORDER BY created_at ASC
     `;
     const laborCosts = Array.isArray(laborResult) ? laborResult : laborResult.rows || [];
 
@@ -281,7 +279,6 @@ export const getProduct = async (req: AuthRequest, res: Response) => {
       SELECT id, item, quantity, cost, total_cost, per_unit
       FROM other_costs
       WHERE product_id = ${productId}
-      ORDER BY created_at ASC
     `;
     const otherCosts = Array.isArray(otherCostsResult) ? otherCostsResult : otherCostsResult.rows || [];
 
@@ -299,6 +296,10 @@ export const getProduct = async (req: AuthRequest, res: Response) => {
     return res.status(500).json({
       status: 'error',
       message: 'Failed to fetch product',
+      ...(process.env.NODE_ENV === 'development' && { 
+        error: error.message,
+        stack: error.stack,
+      }),
     });
   }
 };
@@ -322,16 +323,16 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
 
     // Validate input
     const validatedData = createProductSchema.parse(req.body);
-    const { name, sku, description, category, batch_size, target_price, markup_percentage, materials, labor_costs, other_costs } = validatedData;
+    const { name, sku, description, category, batch_size, target_price, pricing_method, pricing_value, materials, labor_costs, other_costs } = validatedData;
 
     // Check if product exists and belongs to user
     const productCheck = await db`
       SELECT id FROM products
       WHERE id = ${productId} AND user_id = ${req.userId}
     `;
-    const productExists = Array.isArray(productCheck) ? productCheck.length > 0 : (productCheck.rows || []).length > 0;
+    const productRows = Array.isArray(productCheck) ? productCheck : productCheck.rows || [];
     
-    if (!productExists) {
+    if (productRows.length === 0) {
       return res.status(404).json({
         status: 'error',
         message: 'Product not found',
@@ -347,12 +348,13 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
           category = ${category || null},
           batch_size = ${batch_size || 1},
           target_price = ${target_price || null},
-          markup_percentage = ${markup_percentage || null},
+          pricing_method = ${pricing_method || null},
+          pricing_value = ${pricing_value || null},
           updated_at = CURRENT_TIMESTAMP
       WHERE id = ${productId} AND user_id = ${req.userId}
     `;
 
-    // Delete existing materials, labor costs, and other costs
+    // Delete existing related records
     await db`DELETE FROM materials WHERE product_id = ${productId}`;
     await db`DELETE FROM labor_costs WHERE product_id = ${productId}`;
     await db`DELETE FROM other_costs WHERE product_id = ${productId}`;
@@ -400,20 +402,20 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
         sku,
         batch_size,
         target_price,
-        markup_percentage,
+        pricing_method,
+        pricing_value,
       },
     });
   } catch (error: any) {
     if (error.name === 'ZodError') {
       return res.status(400).json({
         status: 'error',
-        message: 'Validation error',
-        errors: error.errors,
+        message: 'Validation failed',
+        issues: error.issues,
       });
     }
-
-    console.error('Update product error:', error);
-    console.error('Error details:', {
+    
+    console.error('Update product error:', {
       message: error.message,
       stack: error.stack,
       name: error.name,
@@ -435,3 +437,63 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
   }
 };
 
+export const deleteProduct = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.userId) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'Unauthorized',
+      });
+    }
+
+    const productId = parseInt(req.params.id);
+    if (isNaN(productId)) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid product ID',
+      });
+    }
+
+    // Check if product exists and belongs to user
+    const productCheck = await db`
+      SELECT id FROM products
+      WHERE id = ${productId} AND user_id = ${req.userId}
+    `;
+    const productRows = Array.isArray(productCheck) ? productCheck : productCheck.rows || [];
+    
+    if (productRows.length === 0) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Product not found',
+      });
+    }
+
+    // Delete related records first (cascade delete)
+    // Delete materials
+    await db`DELETE FROM materials WHERE product_id = ${productId}`;
+    
+    // Delete labor costs
+    await db`DELETE FROM labor_costs WHERE product_id = ${productId}`;
+    
+    // Delete other costs
+    await db`DELETE FROM other_costs WHERE product_id = ${productId}`;
+    
+    // Delete the product
+    await db`DELETE FROM products WHERE id = ${productId} AND user_id = ${req.userId}`;
+
+    return res.json({
+      status: 'success',
+      message: 'Product deleted successfully',
+    });
+  } catch (error: any) {
+    console.error('Delete product error:', error);
+    return res.status(500).json({
+      status: 'error',
+      message: 'Failed to delete product',
+      ...(process.env.NODE_ENV === 'development' && { 
+        error: error.message,
+        stack: error.stack,
+      }),
+    });
+  }
+};

@@ -34,10 +34,8 @@ const step1Schema = z.object({
     (val) => (val === '' || val === null || val === undefined ? undefined : Number(val)),
     z.number().positive('Target price must be greater than 0').optional()
   ),
-  markup_percentage: z.preprocess(
-    (val) => (val === '' || val === null || val === undefined ? undefined : Number(val)),
-    z.number().nonnegative('Markup percentage must be 0 or greater').optional()
-  ),
+  pricing_method: z.enum(['markup', 'price', 'profit', 'margin']).optional(),
+  pricing_value: z.number().nonnegative().optional(),
 });
 
 const materialSchema = z.object({
@@ -379,7 +377,8 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
       sku: '',
       batch_size: 1,
       target_price: undefined,
-      markup_percentage: undefined,
+      pricing_method: undefined,
+      pricing_value: undefined,
     },
   });
 
@@ -452,7 +451,8 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
           category: product.category || '',
           batch_size: product.batch_size ? Number(product.batch_size) : 1,
           target_price: product.target_price != null ? Number(product.target_price) : undefined,
-          markup_percentage: product.markup_percentage != null ? Number(product.markup_percentage) : undefined,
+          pricing_method: product.pricing_method || undefined,
+          pricing_value: product.pricing_value != null ? Number(product.pricing_value) : undefined,
         });
 
         // Populate materials - ensure numbers are converted
@@ -657,7 +657,8 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
         category: step1Data.category,
         batch_size: step1Data.batch_size,
         target_price: step1Data.target_price,
-        markup_percentage: step1Data.markup_percentage,
+        pricing_method: step1Data.pricing_method,
+        pricing_value: step1Data.pricing_value,
         materials: materialsData,
         labor_costs: laborCostsData,
         other_costs: otherCostsData,
@@ -849,32 +850,6 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel className="text-sm">Target Price ({getCurrencySymbol(settings.currency)})</FormLabel>
-                            <FormControl>
-                              <Input 
-                                className="h-9"
-                                type="number" 
-                                step="0.01"
-                                placeholder="0.00"
-                                value={field.value === undefined || field.value === null ? '' : String(field.value)}
-                                onChange={(e) => {
-                                  const value = e.target.value;
-                                  field.onChange(value === '' ? undefined : parseFloat(value));
-                                }}
-                                onBlur={field.onBlur}
-                                name={field.name}
-                                ref={field.ref}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={step1Form.control}
-                        name="markup_percentage"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-sm">Markup %</FormLabel>
                             <FormControl>
                               <Input 
                                 className="h-9"
