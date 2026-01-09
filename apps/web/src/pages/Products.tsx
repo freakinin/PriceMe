@@ -25,9 +25,6 @@ import { formatCurrency } from '@/utils/currency';
 import EditProductPane from '@/components/EditProductPane';
 import {
   calculateProfitFromPrice,
-  calculatePriceFromMargin,
-  calculatePriceFromMarkup,
-  calculatePriceFromProfit,
 } from '@/utils/profitCalculations';
 import { useToast } from '@/components/ui/use-toast';
 
@@ -168,7 +165,7 @@ export default function Products() {
   const [localProductData, setLocalProductData] = useState<Record<number, { name?: string; qty_sold?: number }>>({});
   const [productPricingMethods, setProductPricingMethods] = useState<Record<number, PricingMethod>>({});
   const [productPricingValues, setProductPricingValues] = useState<Record<number, number>>({});
-  const [savingFields, setSavingFields] = useState<Set<number>>(new Set());
+  const [, setSavingFields] = useState<Set<number>>(new Set());
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -294,10 +291,11 @@ export default function Products() {
     return formatCurrency(value, settings.currency);
   };
 
-  const formatPercentage = (value: number | null) => {
+  const formatPercentage = (value: string | number | null) => {
     if (value === null || value === undefined) return '-';
-    if (typeof value !== 'number' || isNaN(value)) return '-';
-    return `${value.toFixed(2)}%`;
+    const numValue = typeof value === 'string' ? parseFloat(value) : value;
+    if (typeof numValue !== 'number' || isNaN(numValue)) return '-';
+    return `${numValue.toFixed(2)}%`;
   };
 
   const handleMethodChange = (productId: number, method: PricingMethod) => {
@@ -566,7 +564,6 @@ export default function Products() {
     }
     
     // Get pricing value based on method
-    const method = productPricingMethods[product.id] || product.pricing_method || 'price';
     if (field === 'pricing_value') {
       if (productPricingValues[product.id] !== undefined) {
         return productPricingValues[product.id];
