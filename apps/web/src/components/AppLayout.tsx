@@ -17,6 +17,7 @@ const getPageTitle = (pathname: string, userName?: string): string => {
     '/products/add': 'Create Product',
     '/products': 'Products',
     '/materials': 'Materials',
+    '/on-sale': 'On Sale',
     '/settings': 'Settings',
     '/roadmap': 'Roadmap',
   };

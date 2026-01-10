@@ -340,8 +340,14 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
     // Helper to convert null to undefined for optional fields
     const nullToUndefined = (value: any) => value === null ? undefined : value;
     
+    // Check if materials/labor/other_costs are explicitly provided in the request
+    // Only consider them "provided" if they're an array (even if empty - empty means "clear all")
+    const hasMaterials = Array.isArray(req.body.materials);
+    const hasLaborCosts = Array.isArray(req.body.labor_costs);
+    const hasOtherCosts = Array.isArray(req.body.other_costs);
+
     // Merge request body with current product data for partial updates
-    const updateData = {
+    const updateData: any = {
       name: req.body.name ?? currentProduct.name,
       sku: req.body.sku !== undefined ? req.body.sku : nullToUndefined(currentProduct.sku),
       status: req.body.status !== undefined ? req.body.status : (nullToUndefined(currentProduct.status) || 'draft'),
@@ -352,16 +358,48 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
       pricing_method: req.body.pricing_method !== undefined ? req.body.pricing_method : nullToUndefined(currentProduct.pricing_method),
       pricing_value: req.body.pricing_value !== undefined ? req.body.pricing_value : nullToUndefined(currentProduct.pricing_value),
     };
+
+    // Only include materials/labor/other_costs if they were explicitly provided
+    if (hasMaterials) {
+      updateData.materials = req.body.materials;
+    }
+    if (hasLaborCosts) {
+      updateData.labor_costs = req.body.labor_costs;
+    }
+    if (hasOtherCosts) {
+      updateData.other_costs = req.body.other_costs;
+    }
     
     console.log('API received body:', JSON.stringify(req.body, null, 2));
     console.log('API merged updateData:', JSON.stringify(updateData, null, 2));
+    console.log('Has materials:', hasMaterials, 'Has labor:', hasLaborCosts, 'Has other:', hasOtherCosts);
 
-    // Validate the merged data
-    const validatedData = createProductSchema.parse(updateData);
-    const { name, sku, status, description, category, batch_size, target_price, pricing_method, pricing_value, materials, labor_costs, other_costs } = validatedData;
+    // Only validate with schema if we're updating materials/labor/other_costs
+    // Otherwise, use a simpler validation for just the product fields
+    let validatedData: any;
+    if (hasMaterials || hasLaborCosts || hasOtherCosts) {
+      // Full validation including materials/labor/other_costs
+      validatedData = createProductSchema.parse(updateData);
+    } else {
+      // Partial update - only validate product fields, don't require materials/labor/other_costs
+      validatedData = {
+        ...updateData,
+        materials: undefined,
+        labor_costs: undefined,
+        other_costs: undefined,
+      };
+      // Still validate the product fields
+      createProductSchema.partial().parse(validatedData);
+    }
+
+    const { name, sku, status, description, category, batch_size, target_price, pricing_method, pricing_value } = validatedData;
+    const materials = validatedData.materials;
+    const labor_costs = validatedData.labor_costs;
+    const other_costs = validatedData.other_costs;
 
     console.log('After validation - status:', status);
     console.log('After validation - validatedData:', JSON.stringify(validatedData, null, 2));
+    console.log('Has materials:', hasMaterials, 'Has labor:', hasLaborCosts, 'Has other:', hasOtherCosts);
 
     // Update product
     await db`
@@ -379,42 +417,53 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
       WHERE id = ${productId} AND user_id = ${req.userId}
     `;
 
-    // Delete existing related records
-    await db`DELETE FROM materials WHERE product_id = ${productId}`;
-    await db`DELETE FROM labor_costs WHERE product_id = ${productId}`;
-    await db`DELETE FROM other_costs WHERE product_id = ${productId}`;
-
-    // Insert new materials if provided
-    if (materials && materials.length > 0) {
-      for (const material of materials) {
-        const unitsMade = material.units_made || 1;
-        const totalCost = (material.quantity * material.price_per_unit) / unitsMade;
-        await db`
-          INSERT INTO materials (product_id, user_material_id, name, quantity, unit, price_per_unit, units_made, total_cost)
-          VALUES (${productId}, ${material.user_material_id || null}, ${material.name}, ${material.quantity}, ${material.unit}, ${material.price_per_unit}, ${unitsMade}, ${totalCost})
-        `;
+    // Only update materials/labor/other_costs if they were explicitly provided in the request
+    if (hasMaterials) {
+      // Delete existing materials
+      await db`DELETE FROM materials WHERE product_id = ${productId}`;
+      
+      // Insert new materials if provided
+      if (materials && materials.length > 0) {
+        for (const material of materials) {
+          const unitsMade = material.units_made || 1;
+          const totalCost = (material.quantity * material.price_per_unit) / unitsMade;
+          await db`
+            INSERT INTO materials (product_id, user_material_id, name, quantity, unit, price_per_unit, units_made, total_cost)
+            VALUES (${productId}, ${material.user_material_id || null}, ${material.name}, ${material.quantity}, ${material.unit}, ${material.price_per_unit}, ${unitsMade}, ${totalCost})
+          `;
+        }
       }
     }
 
-    // Insert new labor costs if provided
-    if (labor_costs && labor_costs.length > 0) {
-      for (const labor of labor_costs) {
-        const totalCost = (labor.time_spent_minutes / 60) * labor.hourly_rate;
-        await db`
-          INSERT INTO labor_costs (product_id, activity, time_spent_minutes, hourly_rate, total_cost, per_unit)
-          VALUES (${productId}, ${labor.activity}, ${labor.time_spent_minutes}, ${labor.hourly_rate}, ${totalCost}, ${labor.per_unit ?? true})
-        `;
+    if (hasLaborCosts) {
+      // Delete existing labor costs
+      await db`DELETE FROM labor_costs WHERE product_id = ${productId}`;
+      
+      // Insert new labor costs if provided
+      if (labor_costs && labor_costs.length > 0) {
+        for (const labor of labor_costs) {
+          const totalCost = (labor.time_spent_minutes / 60) * labor.hourly_rate;
+          await db`
+            INSERT INTO labor_costs (product_id, activity, time_spent_minutes, hourly_rate, total_cost, per_unit)
+            VALUES (${productId}, ${labor.activity}, ${labor.time_spent_minutes}, ${labor.hourly_rate}, ${totalCost}, ${labor.per_unit ?? true})
+          `;
+        }
       }
     }
 
-    // Insert new other costs if provided
-    if (other_costs && other_costs.length > 0) {
-      for (const cost of other_costs) {
-        const totalCost = cost.quantity * cost.cost;
-        await db`
-          INSERT INTO other_costs (product_id, item, quantity, cost, total_cost, per_unit)
-          VALUES (${productId}, ${cost.item}, ${cost.quantity}, ${cost.cost}, ${totalCost}, ${cost.per_unit ?? true})
-        `;
+    if (hasOtherCosts) {
+      // Delete existing other costs
+      await db`DELETE FROM other_costs WHERE product_id = ${productId}`;
+      
+      // Insert new other costs if provided
+      if (other_costs && other_costs.length > 0) {
+        for (const cost of other_costs) {
+          const totalCost = cost.quantity * cost.cost;
+          await db`
+            INSERT INTO other_costs (product_id, item, quantity, cost, total_cost, per_unit)
+            VALUES (${productId}, ${cost.item}, ${cost.quantity}, ${cost.cost}, ${totalCost}, ${cost.per_unit ?? true})
+          `;
+        }
       }
     }
 

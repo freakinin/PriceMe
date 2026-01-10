@@ -1065,67 +1065,6 @@ export default function Products() {
       },
     },
     {
-      id: 'qty_sold',
-      size: 100,
-      minSize: 80,
-      maxSize: 150,
-      header: 'Qty Sold',
-      cell: ({ row }) => {
-        const product = row.original;
-        const currentQtySold = getDisplayValue(product, 'qty_sold') as number;
-        return (
-          <EditableCell
-            value={currentQtySold}
-            onSave={async (value) => handleSaveField(product.id, 'qty_sold', value)}
-            type="number"
-          />
-        );
-      },
-    },
-    {
-      id: 'profit_qty',
-      size: 130,
-      minSize: 110,
-      maxSize: 200,
-      header: ({ column }) => {
-        return (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 -ml-1 px-4"
-            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-          >
-            Profit (Qty)
-            {column.getIsSorted() === 'asc' ? (
-              <ArrowUp className="ml-2 h-3 w-3" />
-            ) : column.getIsSorted() === 'desc' ? (
-              <ArrowDown className="ml-2 h-3 w-3" />
-            ) : (
-              <ArrowUpDown className="ml-2 h-3 w-3 opacity-50" />
-            )}
-          </Button>
-        );
-      },
-      accessorFn: (row) => {
-        const currentQtySold = getDisplayValue(row, 'qty_sold') as number;
-        const metrics = getCalculatedMetrics(row);
-        return calculateProfitFromQty({ ...row, profit: metrics.profit }, currentQtySold);
-      },
-      cell: ({ row }) => {
-        const product = row.original;
-        const currentQtySold = getDisplayValue(product, 'qty_sold') as number;
-        const metrics = getCalculatedMetrics(product);
-        const profitFromQty = calculateProfitFromQty({ ...product, profit: metrics.profit }, currentQtySold);
-        return (
-          <div className="py-1">
-            <span className={profitFromQty && profitFromQty >= 0 ? 'text-green-600 font-medium' : profitFromQty ? 'text-red-600 font-medium' : ''}>
-              {formatCurrencyValue(profitFromQty)}
-            </span>
-          </div>
-        );
-      },
-    },
-    {
       id: 'actions',
       size: 100,
       minSize: 80,
@@ -1435,8 +1374,6 @@ export default function Products() {
                          columnId === 'margin' ? 'Desired Margin %' :
                          columnId === 'calculated_profit' ? 'Profit' :
                          columnId === 'calculated_margin' ? 'Profit Margin' :
-                         columnId === 'qty_sold' ? 'Qty Sold' :
-                         columnId === 'profit_qty' ? 'Profit (Qty)' :
                          columnId === 'actions' ? 'Actions' :
                          columnId}
                       </DropdownMenuCheckboxItem>

@@ -7,6 +7,7 @@ import Products from './pages/Products';
 import Materials from './pages/Materials';
 import Settings from './pages/Settings';
 import Roadmap from './pages/Roadmap';
+import OnSale from './pages/OnSale';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import { useAuth } from './hooks/useAuth';
@@ -120,6 +121,16 @@ function App() {
             <ProtectedRoute>
               <AppLayout>
                 <Roadmap />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/on-sale"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <OnSale />
               </AppLayout>
             </ProtectedRoute>
           }

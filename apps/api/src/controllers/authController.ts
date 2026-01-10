@@ -147,3 +147,67 @@ export const login = async (req: Request, res: Response) => {
   }
 };
 
+// Development-only password reset endpoint
+export const resetPassword = async (req: Request, res: Response) => {
+  try {
+    // Only allow in development or with a secret key
+    if (process.env.NODE_ENV === 'production' && req.body.secret !== process.env.PASSWORD_RESET_SECRET) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Password reset not allowed in production without secret',
+      });
+    }
+
+    const { email, newPassword } = req.body;
+
+    if (!email || !newPassword) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Email and newPassword are required',
+      });
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Password must be at least 8 characters',
+      });
+    }
+
+    // Find user
+    const result = await db`
+      SELECT id, email FROM users WHERE email = ${email}
+    `;
+
+    const users = Array.isArray(result) ? result : result.rows || [];
+    if (users.length === 0) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'User not found',
+      });
+    }
+
+    // Hash new password
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+
+    // Update password
+    await db`
+      UPDATE users 
+      SET password_hash = ${passwordHash}, updated_at = CURRENT_TIMESTAMP
+      WHERE email = ${email}
+    `;
+
+    return res.json({
+      status: 'success',
+      message: 'Password reset successfully',
+      email,
+    });
+  } catch (error: any) {
+    console.error('Password reset error:', error);
+    return res.status(500).json({
+      status: 'error',
+      message: 'Failed to reset password',
+    });
+  }
+};
+

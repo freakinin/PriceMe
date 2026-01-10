@@ -1,4 +1,4 @@
-import { Home, PlusCircle, Package, Settings, LogOut, Box, Map } from 'lucide-react';
+import { Home, PlusCircle, Package, Settings, LogOut, Box, Map, ShoppingCart } from 'lucide-react';
 import {
   Sidebar,
   SidebarContent,
@@ -34,6 +34,11 @@ const menuItems = [
     title: 'Materials',
     url: '/materials',
     icon: Box,
+  },
+  {
+    title: 'On Sale',
+    url: '/on-sale',
+    icon: ShoppingCart,
   },
   {
     title: 'Settings',
