@@ -1112,7 +1112,7 @@ export default function Products() {
                 value={globalPricingMethod}
                 onValueChange={(value) => handleGlobalMethodChange(value as PricingMethod)}
               >
-                <SelectTrigger className="w-[180px] h-9">
+                <SelectTrigger className="w-[180px] h-10">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
