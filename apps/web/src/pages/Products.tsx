@@ -1,6 +1,16 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Package, Edit, Trash2, Check, X } from 'lucide-react';
+import { Plus, Package, Edit, Trash2, Check, X, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import {
+  useReactTable,
+  getCoreRowModel,
+  getSortedRowModel,
+  getFilteredRowModel,
+  flexRender,
+  type ColumnDef,
+  type SortingState,
+  type ColumnFiltersState,
+} from '@tanstack/react-table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -168,6 +178,8 @@ export default function Products() {
   const [productPricingValues, setProductPricingValues] = useState<Record<number, number>>({});
   const [globalPricingMethod, setGlobalPricingMethod] = useState<PricingMethod>('price');
   const [, setSavingFields] = useState<Set<number>>(new Set());
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const navigate = useNavigate();
   const { setOpen: setSidebarOpen } = useSidebar();
 
@@ -620,10 +632,6 @@ export default function Products() {
     setEditingField(null);
   };
 
-  const calculateProfitFromQty = (product: Product, qty: number) => {
-    if (!product.profit || qty <= 0) return null;
-    return product.profit * qty;
-  };
 
   const getDisplayValue = (product: Product, field: string): string | number | null => {
     // Check local product data
@@ -667,6 +675,405 @@ export default function Products() {
       markup: metrics.markup,
     };
   };
+
+  // Helper to calculate profit from quantity
+  const calculateProfitFromQty = (product: Product & { profit: number }, qty: number): number => {
+    return product.profit * qty;
+  };
+
+  // Column definitions for TanStack Table
+  const columns = useMemo<ColumnDef<Product>[]>(() => [
+    {
+      accessorKey: 'name',
+      header: 'Product Name',
+      cell: ({ row }) => {
+        const product = row.original;
+        const displayName = getDisplayValue(product, 'name') as string;
+        const isEditingName = editingField?.productId === product.id && editingField?.field === 'name';
+        return (
+          <div className="flex flex-col gap-0.5">
+            <EditableCell
+              value={displayName}
+              onSave={(value) => handleSaveField(product.id, 'name', value)}
+              onCancel={handleCancelEdit}
+              isEditing={isEditingName}
+              onEdit={() => setEditingField({ productId: product.id, field: 'name' })}
+              type="text"
+              className="font-medium"
+            />
+            {product.sku && (
+              <span className="text-xs text-muted-foreground pl-2">{product.sku}</span>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      id: 'product_cost',
+      header: ({ column }) => {
+        return (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 -ml-3"
+            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+          >
+            Product Cost
+            {column.getIsSorted() === 'asc' ? (
+              <ArrowUp className="ml-2 h-3 w-3" />
+            ) : column.getIsSorted() === 'desc' ? (
+              <ArrowDown className="ml-2 h-3 w-3" />
+            ) : (
+              <ArrowUpDown className="ml-2 h-3 w-3 opacity-50" />
+            )}
+          </Button>
+        );
+      },
+      accessorFn: (row) => row.product_cost,
+      cell: ({ row }) => {
+        const product = row.original;
+        return formatCurrencyValue(product.product_cost);
+      },
+    },
+    {
+      id: 'markup',
+      header: 'Markup %',
+      cell: ({ row }) => {
+        const product = row.original;
+        const method = productPricingMethods[product.id] || globalPricingMethod || product.pricing_method || 'price';
+        const metrics = getCalculatedMetrics(product);
+        const pricingValue = productPricingValues[product.id] ?? product.pricing_value ?? (method === 'price' ? (product.target_price || 0) : 0);
+        const markupValue = method === 'markup' ? pricingValue : metrics.markup;
+        const isEditingMarkup = editingField?.productId === product.id && editingField?.field === 'pricing_value' && method === 'markup';
+        
+        return (
+          <div className={method !== 'markup' ? 'opacity-50' : ''}>
+            {method === 'markup' ? (
+              <EditableCell
+                value={markupValue}
+                onSave={(value) => handleSavePricingValue(product.id, 'markup', value as number)}
+                onCancel={handleCancelEdit}
+                isEditing={isEditingMarkup}
+                onEdit={() => setEditingField({ productId: product.id, field: 'pricing_value' })}
+                type="number"
+                formatDisplay={formatPercentage}
+              />
+            ) : (
+              <div 
+                className="text-muted-foreground cursor-pointer hover:bg-muted/50 rounded px-2 py-1 -mx-2 -my-1 transition-colors"
+                onClick={() => {
+                  handleMethodChange(product.id, 'markup');
+                  setTimeout(() => setEditingField({ productId: product.id, field: 'pricing_value' }), 100);
+                }}
+              >
+                {formatPercentage(markupValue)}
+              </div>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      id: 'price',
+      header: 'Planned Sales Price $',
+      cell: ({ row }) => {
+        const product = row.original;
+        const method = productPricingMethods[product.id] || globalPricingMethod || product.pricing_method || 'price';
+        const metrics = getCalculatedMetrics(product);
+        const pricingValue = productPricingValues[product.id] ?? product.pricing_value ?? (method === 'price' ? (product.target_price || 0) : 0);
+        const priceValue = method === 'price' ? pricingValue : metrics.price;
+        const isEditingPrice = editingField?.productId === product.id && editingField?.field === 'pricing_value' && method === 'price';
+        
+        return (
+          <div className={method !== 'price' ? 'opacity-50' : ''}>
+            {method === 'price' ? (
+              <EditableCell
+                value={priceValue}
+                onSave={(value) => handleSavePricingValue(product.id, 'price', value as number)}
+                onCancel={handleCancelEdit}
+                isEditing={isEditingPrice}
+                onEdit={() => setEditingField({ productId: product.id, field: 'pricing_value' })}
+                type="number"
+                formatDisplay={formatCurrencyValue}
+              />
+            ) : (
+              <div 
+                className="text-muted-foreground cursor-pointer hover:bg-muted/50 rounded px-2 py-1 -mx-2 -my-1 transition-colors"
+                onClick={() => {
+                  handleMethodChange(product.id, 'price');
+                  setTimeout(() => setEditingField({ productId: product.id, field: 'pricing_value' }), 100);
+                }}
+              >
+                {formatCurrencyValue(priceValue)}
+              </div>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      id: 'profit',
+      header: 'Desired Profit $',
+      cell: ({ row }) => {
+        const product = row.original;
+        const method = productPricingMethods[product.id] || globalPricingMethod || product.pricing_method || 'price';
+        const metrics = getCalculatedMetrics(product);
+        const pricingValue = productPricingValues[product.id] ?? product.pricing_value ?? (method === 'price' ? (product.target_price || 0) : 0);
+        const profitValue = method === 'profit' ? pricingValue : metrics.profit;
+        const isEditingProfit = editingField?.productId === product.id && editingField?.field === 'pricing_value' && method === 'profit';
+        
+        return (
+          <div className={method !== 'profit' ? 'opacity-50' : ''}>
+            {method === 'profit' ? (
+              <EditableCell
+                value={profitValue}
+                onSave={(value) => handleSavePricingValue(product.id, 'profit', value as number)}
+                onCancel={handleCancelEdit}
+                isEditing={isEditingProfit}
+                onEdit={() => setEditingField({ productId: product.id, field: 'pricing_value' })}
+                type="number"
+                formatDisplay={formatCurrencyValue}
+              />
+            ) : (
+              <div 
+                className="text-muted-foreground cursor-pointer hover:bg-muted/50 rounded px-2 py-1 -mx-2 -my-1 transition-colors"
+                onClick={() => {
+                  handleMethodChange(product.id, 'profit');
+                  setTimeout(() => setEditingField({ productId: product.id, field: 'pricing_value' }), 100);
+                }}
+              >
+                {formatCurrencyValue(profitValue)}
+              </div>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      id: 'margin',
+      header: 'Desired Margin %',
+      cell: ({ row }) => {
+        const product = row.original;
+        const method = productPricingMethods[product.id] || globalPricingMethod || product.pricing_method || 'price';
+        const metrics = getCalculatedMetrics(product);
+        const pricingValue = productPricingValues[product.id] ?? product.pricing_value ?? (method === 'price' ? (product.target_price || 0) : 0);
+        const marginValue = method === 'margin' ? pricingValue : metrics.margin;
+        const isEditingMargin = editingField?.productId === product.id && editingField?.field === 'pricing_value' && method === 'margin';
+        
+        return (
+          <div className={method !== 'margin' ? 'opacity-50' : ''}>
+            {method === 'margin' ? (
+              <EditableCell
+                value={marginValue}
+                onSave={(value) => handleSavePricingValue(product.id, 'margin', value as number)}
+                onCancel={handleCancelEdit}
+                isEditing={isEditingMargin}
+                onEdit={() => setEditingField({ productId: product.id, field: 'pricing_value' })}
+                type="number"
+                formatDisplay={formatPercentage}
+              />
+            ) : (
+              <div 
+                className="text-muted-foreground cursor-pointer hover:bg-muted/50 rounded px-2 py-1 -mx-2 -my-1 transition-colors"
+                onClick={() => {
+                  handleMethodChange(product.id, 'margin');
+                  setTimeout(() => setEditingField({ productId: product.id, field: 'pricing_value' }), 100);
+                }}
+              >
+                {formatPercentage(marginValue)}
+              </div>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      id: 'calculated_profit',
+      header: ({ column }) => {
+        return (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 -ml-3"
+            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+          >
+            Profit
+            {column.getIsSorted() === 'asc' ? (
+              <ArrowUp className="ml-2 h-3 w-3" />
+            ) : column.getIsSorted() === 'desc' ? (
+              <ArrowDown className="ml-2 h-3 w-3" />
+            ) : (
+              <ArrowUpDown className="ml-2 h-3 w-3 opacity-50" />
+            )}
+          </Button>
+        );
+      },
+      accessorFn: (row) => {
+        const metrics = getCalculatedMetrics(row);
+        return metrics.profit;
+      },
+      cell: ({ row }) => {
+        const product = row.original;
+        const metrics = getCalculatedMetrics(product);
+        return (
+          <span className={metrics.profit >= 0 ? 'text-green-600' : 'text-red-600'}>
+            {formatCurrencyValue(metrics.profit)}
+          </span>
+        );
+      },
+    },
+    {
+      id: 'calculated_margin',
+      header: ({ column }) => {
+        return (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 -ml-3"
+            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+          >
+            Profit Margin
+            {column.getIsSorted() === 'asc' ? (
+              <ArrowUp className="ml-2 h-3 w-3" />
+            ) : column.getIsSorted() === 'desc' ? (
+              <ArrowDown className="ml-2 h-3 w-3" />
+            ) : (
+              <ArrowUpDown className="ml-2 h-3 w-3 opacity-50" />
+            )}
+          </Button>
+        );
+      },
+      accessorFn: (row) => {
+        const metrics = getCalculatedMetrics(row);
+        return metrics.margin;
+      },
+      cell: ({ row }) => {
+        const product = row.original;
+        const metrics = getCalculatedMetrics(product);
+        return (
+          <span className={metrics.margin >= 0 ? 'text-green-600' : 'text-red-600'}>
+            {formatPercentage(metrics.margin)}
+          </span>
+        );
+      },
+    },
+    {
+      id: 'qty_sold',
+      header: 'Qty Sold',
+      cell: ({ row }) => {
+        const product = row.original;
+        const currentQtySold = getDisplayValue(product, 'qty_sold') as number;
+        const isEditingQty = editingField?.productId === product.id && editingField?.field === 'qty_sold';
+        return (
+          <EditableCell
+            value={currentQtySold}
+            onSave={(value) => handleSaveField(product.id, 'qty_sold', value)}
+            onCancel={handleCancelEdit}
+            isEditing={isEditingQty}
+            onEdit={() => setEditingField({ productId: product.id, field: 'qty_sold' })}
+            type="number"
+          />
+        );
+      },
+    },
+    {
+      id: 'profit_qty',
+      header: ({ column }) => {
+        return (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 -ml-3"
+            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+          >
+            Profit (Qty)
+            {column.getIsSorted() === 'asc' ? (
+              <ArrowUp className="ml-2 h-3 w-3" />
+            ) : column.getIsSorted() === 'desc' ? (
+              <ArrowDown className="ml-2 h-3 w-3" />
+            ) : (
+              <ArrowUpDown className="ml-2 h-3 w-3 opacity-50" />
+            )}
+          </Button>
+        );
+      },
+      accessorFn: (row) => {
+        const currentQtySold = getDisplayValue(row, 'qty_sold') as number;
+        const metrics = getCalculatedMetrics(row);
+        return calculateProfitFromQty({ ...row, profit: metrics.profit }, currentQtySold);
+      },
+      cell: ({ row }) => {
+        const product = row.original;
+        const currentQtySold = getDisplayValue(product, 'qty_sold') as number;
+        const metrics = getCalculatedMetrics(product);
+        const profitFromQty = calculateProfitFromQty({ ...product, profit: metrics.profit }, currentQtySold);
+        return (
+          <span className={profitFromQty && profitFromQty >= 0 ? 'text-green-600 font-medium' : profitFromQty ? 'text-red-600 font-medium' : ''}>
+            {formatCurrencyValue(profitFromQty)}
+          </span>
+        );
+      },
+    },
+    {
+      id: 'actions',
+      header: () => <div className="text-right">Actions</div>,
+      cell: ({ row }) => {
+        const product = row.original;
+        return (
+          <div className="flex items-center justify-end gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => {
+                setEditingProductId(product.id);
+              }}
+            >
+              <Edit className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => handleDeleteProduct(product.id, product.name)}
+            >
+              <Trash2 className="h-4 w-4 text-destructive" />
+            </Button>
+          </div>
+        );
+      },
+    },
+  ], [
+    products, 
+    productPricingMethods, 
+    productPricingValues, 
+    globalPricingMethod, 
+    editingField, 
+    settings.currency,
+    getDisplayValue,
+    getCalculatedMetrics,
+    calculateProfitFromQty,
+    handleSaveField,
+    handleCancelEdit,
+    handleSavePricingValue,
+    handleMethodChange,
+    setEditingField,
+    formatCurrencyValue,
+    formatPercentage,
+  ]);
+
+  // Table instance
+  const table = useReactTable({
+    data: products,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    onSortingChange: setSorting,
+    onColumnFiltersChange: setColumnFilters,
+    state: {
+      sorting,
+      columnFilters,
+    },
+  });
 
   if (loading) {
     return (
@@ -749,216 +1156,39 @@ export default function Products() {
         <div className="rounded-lg border overflow-x-auto">
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead>Product Name</TableHead>
-                <TableHead>Markup %</TableHead>
-                <TableHead>Planned Sales Price $</TableHead>
-                <TableHead>Desired Profit $</TableHead>
-                <TableHead>Desired Margin %</TableHead>
-                <TableHead>Product Cost</TableHead>
-                <TableHead>Profit</TableHead>
-                <TableHead>Profit Margin</TableHead>
-                <TableHead>Markup %</TableHead>
-                <TableHead>Qty Sold</TableHead>
-                <TableHead>Profit (Qty)</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
+              {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => (
+                    <TableHead key={header.id}>
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(
+                            header.column.columnDef.header,
+                            header.getContext()
+                          )}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              ))}
             </TableHeader>
             <TableBody>
-              {products.map((product) => {
-                const currentQtySold = getDisplayValue(product, 'qty_sold') as number;
-                const displayName = getDisplayValue(product, 'name') as string;
-                const method = productPricingMethods[product.id] || globalPricingMethod || product.pricing_method || 'price';
-                const metrics = getCalculatedMetrics(product);
-                
-                // Get pricing value for display
-                const pricingValue = productPricingValues[product.id] ?? product.pricing_value ?? 
-                  (method === 'price' ? (product.target_price || 0) : 0);
-                
-                // Calculate individual values for display
-                const markupValue = method === 'markup' ? pricingValue : metrics.markup;
-                const priceValue = method === 'price' ? pricingValue : metrics.price;
-                const profitValue = method === 'profit' ? pricingValue : metrics.profit;
-                const marginValue = method === 'margin' ? pricingValue : metrics.margin;
-                
-                const profitFromQty = calculateProfitFromQty({ ...product, profit: metrics.profit }, currentQtySold);
-                const isEditingName = editingField?.productId === product.id && editingField?.field === 'name';
-                const isEditingMarkup = editingField?.productId === product.id && editingField?.field === 'pricing_value' && method === 'markup';
-                const isEditingPrice = editingField?.productId === product.id && editingField?.field === 'pricing_value' && method === 'price';
-                const isEditingProfit = editingField?.productId === product.id && editingField?.field === 'pricing_value' && method === 'profit';
-                const isEditingMargin = editingField?.productId === product.id && editingField?.field === 'pricing_value' && method === 'margin';
-                const isEditingQty = editingField?.productId === product.id && editingField?.field === 'qty_sold';
-
-                return (
-                  <TableRow key={product.id}>
-                    <TableCell className="font-medium w-[180px]">
-                      <div className="flex flex-col gap-0.5">
-                        <EditableCell
-                          value={displayName}
-                          onSave={(value) => handleSaveField(product.id, 'name', value)}
-                          onCancel={handleCancelEdit}
-                          isEditing={isEditingName}
-                          onEdit={() => setEditingField({ productId: product.id, field: 'name' })}
-                          type="text"
-                          className="font-medium"
-                        />
-                        {product.sku && (
-                          <span className="text-xs text-muted-foreground pl-2">{product.sku}</span>
-                        )}
-                      </div>
-                    </TableCell>
-                    {/* Markup % field */}
-                    <TableCell className={`w-[120px] ${method !== 'markup' ? 'opacity-50' : ''}`}>
-                      {method === 'markup' ? (
-                        <EditableCell
-                          value={markupValue}
-                          onSave={(value) => {
-                            handleSavePricingValue(product.id, 'markup', value as number);
-                          }}
-                          onCancel={handleCancelEdit}
-                          isEditing={isEditingMarkup}
-                          onEdit={() => setEditingField({ productId: product.id, field: 'pricing_value' })}
-                          type="number"
-                          formatDisplay={formatPercentage}
-                        />
-                      ) : (
-                        <div 
-                          className="text-muted-foreground cursor-pointer hover:bg-muted/50 rounded px-2 py-1 -mx-2 -my-1 transition-colors"
-                          onClick={() => {
-                            handleMethodChange(product.id, 'markup');
-                            setTimeout(() => setEditingField({ productId: product.id, field: 'pricing_value' }), 100);
-                          }}
-                        >
-                          {formatPercentage(markupValue)}
-                        </div>
-                      )}
-                    </TableCell>
-                    {/* Planned Sales Price $ field */}
-                    <TableCell className={`w-[150px] ${method !== 'price' ? 'opacity-50' : ''}`}>
-                      {method === 'price' ? (
-                        <EditableCell
-                          value={priceValue}
-                          onSave={(value) => {
-                            handleSavePricingValue(product.id, 'price', value as number);
-                          }}
-                          onCancel={handleCancelEdit}
-                          isEditing={isEditingPrice}
-                          onEdit={() => setEditingField({ productId: product.id, field: 'pricing_value' })}
-                          type="number"
-                          formatDisplay={formatCurrencyValue}
-                        />
-                      ) : (
-                        <div 
-                          className="text-muted-foreground cursor-pointer hover:bg-muted/50 rounded px-2 py-1 -mx-2 -my-1 transition-colors"
-                          onClick={() => {
-                            handleMethodChange(product.id, 'price');
-                            setTimeout(() => setEditingField({ productId: product.id, field: 'pricing_value' }), 100);
-                          }}
-                        >
-                          {formatCurrencyValue(priceValue)}
-                        </div>
-                      )}
-                    </TableCell>
-                    {/* Desired Profit $ field */}
-                    <TableCell className={`w-[130px] ${method !== 'profit' ? 'opacity-50' : ''}`}>
-                      {method === 'profit' ? (
-                        <EditableCell
-                          value={profitValue}
-                          onSave={(value) => {
-                            handleSavePricingValue(product.id, 'profit', value as number);
-                          }}
-                          onCancel={handleCancelEdit}
-                          isEditing={isEditingProfit}
-                          onEdit={() => setEditingField({ productId: product.id, field: 'pricing_value' })}
-                          type="number"
-                          formatDisplay={formatCurrencyValue}
-                        />
-                      ) : (
-                        <div 
-                          className="text-muted-foreground cursor-pointer hover:bg-muted/50 rounded px-2 py-1 -mx-2 -my-1 transition-colors"
-                          onClick={() => {
-                            handleMethodChange(product.id, 'profit');
-                            setTimeout(() => setEditingField({ productId: product.id, field: 'pricing_value' }), 100);
-                          }}
-                        >
-                          {formatCurrencyValue(profitValue)}
-                        </div>
-                      )}
-                    </TableCell>
-                    {/* Desired Margin % field */}
-                    <TableCell className={`w-[140px] ${method !== 'margin' ? 'opacity-50' : ''}`}>
-                      {method === 'margin' ? (
-                        <EditableCell
-                          value={marginValue}
-                          onSave={(value) => {
-                            handleSavePricingValue(product.id, 'margin', value as number);
-                          }}
-                          onCancel={handleCancelEdit}
-                          isEditing={isEditingMargin}
-                          onEdit={() => setEditingField({ productId: product.id, field: 'pricing_value' })}
-                          type="number"
-                          formatDisplay={formatPercentage}
-                        />
-                      ) : (
-                        <div 
-                          className="text-muted-foreground cursor-pointer hover:bg-muted/50 rounded px-2 py-1 -mx-2 -my-1 transition-colors"
-                          onClick={() => {
-                            handleMethodChange(product.id, 'margin');
-                            setTimeout(() => setEditingField({ productId: product.id, field: 'pricing_value' }), 100);
-                          }}
-                        >
-                          {formatPercentage(marginValue)}
-                        </div>
-                      )}
-                    </TableCell>
-                    <TableCell className="w-[130px]">
-                      {formatCurrencyValue(product.product_cost)}
-                    </TableCell>
-                    <TableCell className={`w-[110px] ${metrics.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {formatCurrencyValue(metrics.profit)}
-                    </TableCell>
-                    <TableCell className={`w-[130px] ${metrics.margin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {formatPercentage(metrics.margin)}
-                    </TableCell>
-                    <TableCell className="w-[130px]">
-                      {formatPercentage(metrics.markup)}
-                    </TableCell>
-                    <TableCell className="w-[130px]">
-                      <EditableCell
-                        value={currentQtySold}
-                        onSave={(value) => handleSaveField(product.id, 'qty_sold', value)}
-                        onCancel={handleCancelEdit}
-                        isEditing={isEditingQty}
-                        onEdit={() => setEditingField({ productId: product.id, field: 'qty_sold' })}
-                        type="number"
-                      />
-                    </TableCell>
-                    <TableCell className={`w-[130px] ${profitFromQty && profitFromQty >= 0 ? 'text-green-600 font-medium' : profitFromQty ? 'text-red-600 font-medium' : ''}`}>
-                      {formatCurrencyValue(profitFromQty)}
-                    </TableCell>
-                    <TableCell className="text-right w-[100px]">
-                      <div className="flex items-center justify-end gap-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => {
-                            setEditingProductId(product.id);
-                          }}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDeleteProduct(product.id, product.name)}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </div>
-                    </TableCell>
+              {table.getRowModel().rows?.length ? (
+                table.getRowModel().rows.map((row) => (
+                  <TableRow key={row.id} data-state={row.getIsSelected() && 'selected'}>
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell key={cell.id}>
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </TableCell>
+                    ))}
                   </TableRow>
-                );
-              })}
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={columns.length} className="h-24 text-center">
+                    No products found.
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </div>
