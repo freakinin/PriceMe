@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Package, Edit, Trash2, Check, X, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Plus, Package, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -12,7 +12,6 @@ import {
   type ColumnFiltersState,
 } from '@tanstack/react-table';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import {
   Table,
   TableBody,
@@ -43,25 +42,25 @@ import { useToast } from '@/components/ui/use-toast';
 function EditableCell({
   value,
   onSave,
-  onCancel,
-  isEditing,
-  onEdit,
   type = 'text',
   formatDisplay,
   className = '',
 }: {
   value: string | number | null;
-  onSave: (value: string | number) => void;
-  onCancel: () => void;
-  isEditing: boolean;
-  onEdit: () => void;
+  onSave: (value: string | number) => Promise<void>;
   type?: 'text' | 'number';
   formatDisplay?: (value: string | number | null) => string;
   className?: string;
 }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState<string>(value?.toString() || '');
+  const [isSaving, setIsSaving] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const cellRef = useRef<HTMLDivElement>(null);
-  const [editValue, setEditValue] = useState<string>(value?.toString() || '');
+
+  useEffect(() => {
+    setEditValue(value?.toString() || '');
+  }, [value]);
 
   useEffect(() => {
     if (isEditing && inputRef.current) {
@@ -70,77 +69,95 @@ function EditableCell({
     }
   }, [isEditing]);
 
-  useEffect(() => {
-    setEditValue(value?.toString() || '');
-  }, [value]);
-
-  const handleSave = () => {
-    if (type === 'number') {
-      const numValue = parseFloat(editValue) || 0;
-      onSave(numValue);
-    } else {
-      onSave(editValue);
+  const handleSave = async () => {
+    if (isSaving) return;
+    
+    setIsSaving(true);
+    try {
+      let valueToSave: string | number;
+      if (type === 'number') {
+        valueToSave = parseFloat(editValue) || 0;
+      } else {
+        valueToSave = editValue;
+      }
+      await onSave(valueToSave);
+      setIsEditing(false);
+    } catch (error) {
+      // Revert on error
+      setEditValue(value?.toString() || '');
+    } finally {
+      setIsSaving(false);
     }
+  };
+
+  const handleCancel = () => {
+    setEditValue(value?.toString() || '');
+    setIsEditing(false);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
+      e.preventDefault();
       handleSave();
     } else if (e.key === 'Escape') {
-      onCancel();
+      e.preventDefault();
+      handleCancel();
+    } else if (e.key === 'Tab') {
+      // Allow tab to move to next cell
+      handleSave();
     }
   };
 
   if (isEditing) {
     return (
-      <div ref={cellRef} className="relative h-full w-full">
-        <Input
+      <div ref={cellRef} className="absolute inset-0">
+        <input
           ref={inputRef}
-          type={type}
+          type={type === 'number' ? 'number' : 'text'}
           step={type === 'number' ? '0.01' : undefined}
-          className={`h-8 text-sm w-full pr-16 ${className}`}
+          className="h-full w-full border-none outline-none px-2 py-1 text-sm bg-transparent focus:bg-background focus:outline-none focus:ring-0"
+          style={{ borderRadius: 0 }}
           value={editValue}
           onChange={(e) => setEditValue(e.target.value)}
           onKeyDown={handleKeyDown}
           onBlur={handleSave}
+          disabled={isSaving}
         />
-        <div className="absolute right-0 top-0 h-8 flex items-center gap-0.5 pr-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 w-7 p-0"
-            onClick={handleSave}
-            onMouseDown={(e) => e.preventDefault()} // Prevent blur
-          >
-            <Check className="h-3 w-3 text-green-600" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 w-7 p-0"
-            onClick={onCancel}
-            onMouseDown={(e) => e.preventDefault()} // Prevent blur
-          >
-            <X className="h-3 w-3 text-destructive" />
-          </Button>
-        </div>
       </div>
     );
   }
 
+  // Format number display to remove trailing zeros
+  const formatNumberDisplay = (val: string | number | null): string => {
+    if (val === null || val === undefined) return '-';
+    let num: number;
+    if (typeof val === 'number') {
+      num = val;
+    } else {
+      num = parseFloat(val);
+      if (isNaN(num)) return val.toString();
+    }
+    // Remove trailing zeros: 4.0000 -> 4, 4.5000 -> 4.5, 4.1230 -> 4.123
+    return num % 1 === 0 
+      ? num.toString() 
+      : num.toString().replace(/\.?0+$/, '');
+  };
+
+  const displayValue = formatDisplay 
+    ? formatDisplay(value) 
+    : (type === 'number' ? formatNumberDisplay(value) : (value?.toString() || '-'));
+
+  const handleClick = () => {
+    setIsEditing(true);
+  };
+
   return (
-    <div className="relative flex items-center group h-full w-full">
-      <span className={`flex-1 truncate ${className}`}>
-        {formatDisplay ? formatDisplay(value) : (value?.toString() || '-')}
-      </span>
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 absolute right-0"
-        onClick={onEdit}
-      >
-        <Edit className="h-3 w-3" />
-      </Button>
+    <div 
+      ref={cellRef} 
+      className="relative h-full w-full cursor-pointer hover:bg-muted/50 rounded px-2 py-1 -mx-2 -my-1 transition-colors"
+      onClick={handleClick}
+    >
+      <span className={className}>{displayValue}</span>
     </div>
   );
 }
@@ -172,7 +189,6 @@ export default function Products() {
   const [error, setError] = useState<string | null>(null);
   const [editingProductId, setEditingProductId] = useState<number | null>(null);
   const [qtySold, setQtySold] = useState<Record<number, number>>({});
-  const [editingField, setEditingField] = useState<{ productId: number; field: string } | null>(null);
   const [localProductData, setLocalProductData] = useState<Record<number, { name?: string; qty_sold?: number }>>({});
   const [productPricingMethods, setProductPricingMethods] = useState<Record<number, PricingMethod>>({});
   const [productPricingValues, setProductPricingValues] = useState<Record<number, number>>({});
@@ -448,7 +464,6 @@ export default function Products() {
       };
 
       setProducts(prev => prev.map(p => p.id === productId ? updatedProduct : p));
-      setEditingField(null);
 
       // Save to database
       await saveProductToDatabase(productId, {
@@ -502,7 +517,6 @@ export default function Products() {
         updateData.name = value as string;
       } else if (field === 'qty_sold') {
         setQtySold(prev => ({ ...prev, [productId]: value as number }));
-        setEditingField(null);
         setSavingFields(prev => {
           const newSet = new Set(prev);
           newSet.delete(productId);
@@ -514,8 +528,6 @@ export default function Products() {
       // Update products state optimistically
       setProducts(prev => prev.map(p => p.id === productId ? updatedProduct : p));
 
-      setEditingField(null);
-
       // Save to database
       await saveProductToDatabase(productId, updateData);
 
@@ -526,7 +538,6 @@ export default function Products() {
       });
     } catch (error: any) {
       console.error('Error saving field:', error);
-      setEditingField(null);
       toast({
         variant: 'destructive',
         title: 'Error',
@@ -628,9 +639,6 @@ export default function Products() {
     }
   };
 
-  const handleCancelEdit = () => {
-    setEditingField(null);
-  };
 
 
   const getDisplayValue = (product: Product, field: string): string | number | null => {
@@ -689,15 +697,11 @@ export default function Products() {
       cell: ({ row }) => {
         const product = row.original;
         const displayName = getDisplayValue(product, 'name') as string;
-        const isEditingName = editingField?.productId === product.id && editingField?.field === 'name';
         return (
           <div className="flex flex-col gap-0.5">
             <EditableCell
               value={displayName}
-              onSave={(value) => handleSaveField(product.id, 'name', value)}
-              onCancel={handleCancelEdit}
-              isEditing={isEditingName}
-              onEdit={() => setEditingField({ productId: product.id, field: 'name' })}
+              onSave={async (value) => handleSaveField(product.id, 'name', value)}
               type="text"
               className="font-medium"
             />
@@ -744,17 +748,13 @@ export default function Products() {
         const metrics = getCalculatedMetrics(product);
         const pricingValue = productPricingValues[product.id] ?? product.pricing_value ?? (method === 'price' ? (product.target_price || 0) : 0);
         const markupValue = method === 'markup' ? pricingValue : metrics.markup;
-        const isEditingMarkup = editingField?.productId === product.id && editingField?.field === 'pricing_value' && method === 'markup';
         
         return (
           <div className={method !== 'markup' ? 'opacity-50' : ''}>
             {method === 'markup' ? (
               <EditableCell
                 value={markupValue}
-                onSave={(value) => handleSavePricingValue(product.id, 'markup', value as number)}
-                onCancel={handleCancelEdit}
-                isEditing={isEditingMarkup}
-                onEdit={() => setEditingField({ productId: product.id, field: 'pricing_value' })}
+                onSave={async (value) => handleSavePricingValue(product.id, 'markup', value as number)}
                 type="number"
                 formatDisplay={formatPercentage}
               />
@@ -763,7 +763,6 @@ export default function Products() {
                 className="text-muted-foreground cursor-pointer hover:bg-muted/50 rounded px-2 py-1 -mx-2 -my-1 transition-colors"
                 onClick={() => {
                   handleMethodChange(product.id, 'markup');
-                  setTimeout(() => setEditingField({ productId: product.id, field: 'pricing_value' }), 100);
                 }}
               >
                 {formatPercentage(markupValue)}
@@ -782,17 +781,13 @@ export default function Products() {
         const metrics = getCalculatedMetrics(product);
         const pricingValue = productPricingValues[product.id] ?? product.pricing_value ?? (method === 'price' ? (product.target_price || 0) : 0);
         const priceValue = method === 'price' ? pricingValue : metrics.price;
-        const isEditingPrice = editingField?.productId === product.id && editingField?.field === 'pricing_value' && method === 'price';
         
         return (
           <div className={method !== 'price' ? 'opacity-50' : ''}>
             {method === 'price' ? (
               <EditableCell
                 value={priceValue}
-                onSave={(value) => handleSavePricingValue(product.id, 'price', value as number)}
-                onCancel={handleCancelEdit}
-                isEditing={isEditingPrice}
-                onEdit={() => setEditingField({ productId: product.id, field: 'pricing_value' })}
+                onSave={async (value) => handleSavePricingValue(product.id, 'price', value as number)}
                 type="number"
                 formatDisplay={formatCurrencyValue}
               />
@@ -801,7 +796,6 @@ export default function Products() {
                 className="text-muted-foreground cursor-pointer hover:bg-muted/50 rounded px-2 py-1 -mx-2 -my-1 transition-colors"
                 onClick={() => {
                   handleMethodChange(product.id, 'price');
-                  setTimeout(() => setEditingField({ productId: product.id, field: 'pricing_value' }), 100);
                 }}
               >
                 {formatCurrencyValue(priceValue)}
@@ -820,17 +814,13 @@ export default function Products() {
         const metrics = getCalculatedMetrics(product);
         const pricingValue = productPricingValues[product.id] ?? product.pricing_value ?? (method === 'price' ? (product.target_price || 0) : 0);
         const profitValue = method === 'profit' ? pricingValue : metrics.profit;
-        const isEditingProfit = editingField?.productId === product.id && editingField?.field === 'pricing_value' && method === 'profit';
         
         return (
           <div className={method !== 'profit' ? 'opacity-50' : ''}>
             {method === 'profit' ? (
               <EditableCell
                 value={profitValue}
-                onSave={(value) => handleSavePricingValue(product.id, 'profit', value as number)}
-                onCancel={handleCancelEdit}
-                isEditing={isEditingProfit}
-                onEdit={() => setEditingField({ productId: product.id, field: 'pricing_value' })}
+                onSave={async (value) => handleSavePricingValue(product.id, 'profit', value as number)}
                 type="number"
                 formatDisplay={formatCurrencyValue}
               />
@@ -839,7 +829,6 @@ export default function Products() {
                 className="text-muted-foreground cursor-pointer hover:bg-muted/50 rounded px-2 py-1 -mx-2 -my-1 transition-colors"
                 onClick={() => {
                   handleMethodChange(product.id, 'profit');
-                  setTimeout(() => setEditingField({ productId: product.id, field: 'pricing_value' }), 100);
                 }}
               >
                 {formatCurrencyValue(profitValue)}
@@ -858,17 +847,13 @@ export default function Products() {
         const metrics = getCalculatedMetrics(product);
         const pricingValue = productPricingValues[product.id] ?? product.pricing_value ?? (method === 'price' ? (product.target_price || 0) : 0);
         const marginValue = method === 'margin' ? pricingValue : metrics.margin;
-        const isEditingMargin = editingField?.productId === product.id && editingField?.field === 'pricing_value' && method === 'margin';
         
         return (
           <div className={method !== 'margin' ? 'opacity-50' : ''}>
             {method === 'margin' ? (
               <EditableCell
                 value={marginValue}
-                onSave={(value) => handleSavePricingValue(product.id, 'margin', value as number)}
-                onCancel={handleCancelEdit}
-                isEditing={isEditingMargin}
-                onEdit={() => setEditingField({ productId: product.id, field: 'pricing_value' })}
+                onSave={async (value) => handleSavePricingValue(product.id, 'margin', value as number)}
                 type="number"
                 formatDisplay={formatPercentage}
               />
@@ -877,7 +862,6 @@ export default function Products() {
                 className="text-muted-foreground cursor-pointer hover:bg-muted/50 rounded px-2 py-1 -mx-2 -my-1 transition-colors"
                 onClick={() => {
                   handleMethodChange(product.id, 'margin');
-                  setTimeout(() => setEditingField({ productId: product.id, field: 'pricing_value' }), 100);
                 }}
               >
                 {formatPercentage(marginValue)}
@@ -963,14 +947,10 @@ export default function Products() {
       cell: ({ row }) => {
         const product = row.original;
         const currentQtySold = getDisplayValue(product, 'qty_sold') as number;
-        const isEditingQty = editingField?.productId === product.id && editingField?.field === 'qty_sold';
         return (
           <EditableCell
             value={currentQtySold}
-            onSave={(value) => handleSaveField(product.id, 'qty_sold', value)}
-            onCancel={handleCancelEdit}
-            isEditing={isEditingQty}
-            onEdit={() => setEditingField({ productId: product.id, field: 'qty_sold' })}
+            onSave={async (value) => handleSaveField(product.id, 'qty_sold', value)}
             type="number"
           />
         );
@@ -1046,16 +1026,13 @@ export default function Products() {
     productPricingMethods, 
     productPricingValues, 
     globalPricingMethod, 
-    editingField, 
     settings.currency,
     getDisplayValue,
     getCalculatedMetrics,
     calculateProfitFromQty,
     handleSaveField,
-    handleCancelEdit,
     handleSavePricingValue,
     handleMethodChange,
-    setEditingField,
     formatCurrencyValue,
     formatPercentage,
   ]);
