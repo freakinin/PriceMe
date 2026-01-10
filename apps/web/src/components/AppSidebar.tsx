@@ -51,7 +51,12 @@ export function AppSidebar() {
       <SidebarHeader className="border-b border-sidebar-border">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" asChild className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground">
+            <SidebarMenuButton 
+              size="lg" 
+              asChild 
+              tooltip="PriceMe"
+              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+            >
               <Link to="/">
                 <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground [&_svg]:size-4 group-data-[collapsible=icon]:rounded-full">
                   <Package />
@@ -76,7 +81,13 @@ export function AppSidebar() {
                 const isActive = location.pathname === item.url;
                 return (
                   <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild isActive={isActive} className="text-sidebar-foreground" style={{ color: 'hsl(0 0% 98%)' }}>
+                    <SidebarMenuButton 
+                      asChild 
+                      isActive={isActive} 
+                      tooltip={item.title}
+                      className="text-sidebar-foreground" 
+                      style={{ color: 'hsl(0 0% 98%)' }}
+                    >
                       <Link to={item.url} style={{ color: 'hsl(0 0% 98%)' }}>
                         <item.icon className="h-4 w-4 text-sidebar-foreground" style={{ color: 'hsl(0 0% 98%)' }} />
                         <span className="group-data-[collapsible=icon]:hidden" style={{ color: 'hsl(0 0% 98%)' }}>{item.title}</span>
@@ -97,7 +108,12 @@ export function AppSidebar() {
             </div>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton onClick={logout} className="text-sidebar-foreground hover:text-sidebar-accent-foreground hover:bg-sidebar-accent" style={{ color: 'hsl(0 0% 98%)' }}>
+            <SidebarMenuButton 
+              onClick={logout} 
+              tooltip="Logout"
+              className="text-sidebar-foreground hover:text-sidebar-accent-foreground hover:bg-sidebar-accent" 
+              style={{ color: 'hsl(0 0% 98%)' }}
+            >
               <LogOut className="h-4 w-4 text-sidebar-foreground" style={{ color: 'hsl(0 0% 98%)' }} />
               <span className="group-data-[collapsible=icon]:hidden" style={{ color: 'hsl(0 0% 98%)' }}>Logout</span>
             </SidebarMenuButton>
