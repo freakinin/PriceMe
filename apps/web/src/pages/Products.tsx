@@ -185,6 +185,9 @@ export default function Products() {
       const firstProductMethod = products[0]?.pricing_method;
       if (firstProductMethod && products.every(p => p.pricing_method === firstProductMethod)) {
         setGlobalPricingMethod(firstProductMethod);
+      } else if (!firstProductMethod) {
+        // If no products have a method set, use default
+        setGlobalPricingMethod('price');
       }
       
       setProductPricingMethods(prev => {
@@ -307,6 +310,49 @@ export default function Products() {
     const numValue = typeof value === 'string' ? parseFloat(value) : value;
     if (typeof numValue !== 'number' || isNaN(numValue)) return '-';
     return `${numValue.toFixed(2)}%`;
+  };
+
+  const handleGlobalMethodChange = (method: PricingMethod) => {
+    setGlobalPricingMethod(method);
+    
+    // Apply to all products - update local state immediately
+    products.forEach(product => {
+      // Update local state
+      setProductPricingMethods(prev => ({
+        ...prev,
+        [product.id]: method,
+      }));
+      
+      // Calculate new pricing value from current target_price if available
+      if (product.target_price && product.product_cost > 0) {
+        let newValue: number;
+        switch (method) {
+          case 'markup':
+            newValue = product.target_price > product.product_cost 
+              ? ((product.target_price - product.product_cost) / product.product_cost) * 100 
+              : 0;
+            break;
+          case 'price':
+            newValue = product.target_price;
+            break;
+          case 'profit':
+            newValue = product.target_price - product.product_cost;
+            break;
+          case 'margin':
+            newValue = product.target_price > 0 
+              ? ((product.target_price - product.product_cost) / product.target_price) * 100 
+              : 0;
+            break;
+          default:
+            newValue = 0;
+        }
+        
+        setProductPricingValues(prev => ({
+          ...prev,
+          [product.id]: newValue,
+        }));
+      }
+    });
   };
 
   const handleMethodChange = (productId: number, method: PricingMethod) => {
@@ -610,10 +656,6 @@ export default function Products() {
   if (loading) {
     return (
       <div className="p-6">
-        <div className="mb-6">
-          <h1 className="text-2xl font-semibold mb-2">Products</h1>
-          <p className="text-muted-foreground">Manage your product listings</p>
-        </div>
         <div className="space-y-4">
           {[1, 2, 3].map((i) => (
             <Skeleton key={i} className="h-16 w-full" />
@@ -629,10 +671,6 @@ export default function Products() {
   if (error) {
     return (
       <div className="p-6">
-        <div className="mb-6">
-          <h1 className="text-2xl font-semibold mb-2">Products</h1>
-          <p className="text-muted-foreground">Manage your product listings</p>
-        </div>
         <div className="rounded-lg border border-destructive bg-destructive/10 p-4">
           <p className="text-destructive">{error}</p>
           <Button onClick={fetchProducts} variant="outline" className="mt-4">
@@ -647,10 +685,8 @@ export default function Products() {
     <div className="p-6">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold mb-2">Products</h1>
-          <p className="text-muted-foreground">Manage your product listings</p>
           {products.length > 0 && (
-            <p className="text-sm text-muted-foreground mt-1">
+            <p className="text-sm text-muted-foreground">
               Select a calculation method for all products. Only the selected method's input is editable.
             </p>
           )}
