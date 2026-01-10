@@ -75,7 +75,7 @@ export const updateOtherCostSchema = createOtherCostSchema.partial();
 export const createProductSchema = z.object({
   name: z.string().min(1),
   sku: z.string().optional(),
-  status: z.enum(['draft', 'working', 'on_sale', 'inactive']).optional(),
+  status: z.enum(['draft', 'in_progress', 'on_sale', 'inactive']).optional(),
   description: z.string().optional(),
   category: z.string().optional(),
   batch_size: z.number().int().positive().default(1),

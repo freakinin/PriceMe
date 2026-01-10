@@ -175,7 +175,7 @@ function EditableCell({
 }
 
 type PricingMethod = 'markup' | 'price' | 'profit' | 'margin';
-type ProductStatus = 'draft' | 'working' | 'on_sale' | 'inactive';
+type ProductStatus = 'draft' | 'in_progress' | 'on_sale' | 'inactive';
 
 interface Product {
   id: number;
@@ -712,7 +712,7 @@ export default function Products() {
         const getStatusBadge = (status: ProductStatus) => {
           const statusConfig = {
             draft: { label: 'Draft', className: 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200' },
-            working: { label: 'Working On', className: 'bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-200' },
+            in_progress: { label: 'In Progress', className: 'bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-200' },
             on_sale: { label: 'On Sale', className: 'bg-green-100 text-green-700 border-green-200 hover:bg-green-200' },
             inactive: { label: 'Inactive', className: 'bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200' },
           };
@@ -738,8 +738,8 @@ export default function Products() {
               <SelectItem value="draft">
                 <Badge variant="outline" className="bg-slate-100 text-slate-700 border-slate-200">Draft</Badge>
               </SelectItem>
-              <SelectItem value="working">
-                <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-200">Working On</Badge>
+              <SelectItem value="in_progress">
+                <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-200">In Progress</Badge>
               </SelectItem>
               <SelectItem value="on_sale">
                 <Badge variant="outline" className="bg-green-100 text-green-700 border-green-200">On Sale</Badge>

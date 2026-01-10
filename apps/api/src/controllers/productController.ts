@@ -323,7 +323,7 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
 
     // Validate input
     const validatedData = createProductSchema.parse(req.body);
-    const { name, sku, description, category, batch_size, target_price, pricing_method, pricing_value, materials, labor_costs, other_costs } = validatedData;
+    const { name, sku, status, description, category, batch_size, target_price, pricing_method, pricing_value, materials, labor_costs, other_costs } = validatedData;
 
     // Check if product exists and belongs to user
     const productCheck = await db`
