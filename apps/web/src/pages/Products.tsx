@@ -1108,7 +1108,6 @@ export default function Products() {
         <div className="flex items-center gap-3">
           {products.length > 0 && (
             <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Calculation Type:</span>
               <Select
                 value={globalPricingMethod}
                 onValueChange={(value) => handleGlobalMethodChange(value as PricingMethod)}
