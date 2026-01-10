@@ -500,6 +500,7 @@ export default function Products() {
       } else if (field === 'status') {
         updatedProduct.status = value as ProductStatus;
         updateData.status = value as ProductStatus;
+        console.log('Status update:', { productId, field, value, updateData });
       } else if (field === 'qty_sold') {
         setQtySold(prev => ({ ...prev, [productId]: value as number }));
         setSavingFields(prev => {
@@ -576,12 +577,16 @@ export default function Products() {
       
       // Only include optional fields if they have values
       if (currentProduct.sku) updatePayload.sku = currentProduct.sku;
-      // Always include status if it's being updated (even if null)
+      // Always include status - prioritize updateData, fallback to currentProduct, then default
       if (updateData.status !== undefined) {
         updatePayload.status = updateData.status;
+        console.log('Including status in payload from updateData:', updateData.status);
       } else if (currentProduct.status) {
         // Include existing status if not being updated
         updatePayload.status = currentProduct.status;
+      } else {
+        // Default to draft if no status exists
+        updatePayload.status = 'draft';
       }
       if (currentProduct.description) updatePayload.description = currentProduct.description;
       if (currentProduct.category) updatePayload.category = currentProduct.category;
@@ -706,9 +711,9 @@ export default function Products() {
     {
       accessorKey: 'status',
       header: 'Status',
-      size: 150,
-      minSize: 120,
-      maxSize: 200,
+      size: 140,
+      minSize: 140,
+      maxSize: 140,
       cell: ({ row }) => {
         const product = row.original;
         const currentStatus = (getDisplayValue(product, 'status') as ProductStatus) || 'draft';
@@ -735,20 +740,20 @@ export default function Products() {
               await handleSaveField(product.id, 'status', value);
             }}
           >
-            <SelectTrigger className="h-8 border-none shadow-none px-2 hover:bg-muted/50 w-auto">
+            <SelectTrigger className="h-8 border-none shadow-none px-2 hover:bg-muted/50 w-full [&>svg]:hidden">
               {getStatusBadge(currentStatus)}
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="draft">
+              <SelectItem value="draft" className="pl-2 [&>span.absolute]:hidden">
                 <Badge variant="outline" className="bg-slate-100 text-slate-700 border-slate-200">Draft</Badge>
               </SelectItem>
-              <SelectItem value="in_progress">
+              <SelectItem value="in_progress" className="pl-2 [&>span.absolute]:hidden">
                 <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-200">In Progress</Badge>
               </SelectItem>
-              <SelectItem value="on_sale">
+              <SelectItem value="on_sale" className="pl-2 [&>span.absolute]:hidden">
                 <Badge variant="outline" className="bg-green-100 text-green-700 border-green-200">On Sale</Badge>
               </SelectItem>
-              <SelectItem value="inactive">
+              <SelectItem value="inactive" className="pl-2 [&>span.absolute]:hidden">
                 <Badge variant="outline" className="bg-gray-100 text-gray-600 border-gray-200">Inactive</Badge>
               </SelectItem>
             </SelectContent>
@@ -1264,22 +1269,22 @@ export default function Products() {
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
                   {headerGroup.headers.map((header) => (
-                    <TableHead 
-                      key={header.id}
-                      style={{ 
-                        width: header.getSize(),
-                        minWidth: header.column.columnDef.minSize,
-                        maxWidth: header.column.columnDef.maxSize,
-                      }}
-                    >
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext()
-                          )}
-                    </TableHead>
-                  ))}
+                      <TableHead 
+                        key={header.id}
+                        style={{ 
+                          width: header.getSize(),
+                          minWidth: header.column.columnDef.minSize,
+                          maxWidth: header.column.columnDef.maxSize,
+                        }}
+                      >
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(
+                              header.column.columnDef.header,
+                              header.getContext()
+                            )}
+                      </TableHead>
+                    ))}
                 </TableRow>
               ))}
             </TableHeader>
@@ -1287,20 +1292,23 @@ export default function Products() {
               {table.getRowModel().rows?.length ? (
                 table.getRowModel().rows.map((row) => (
                   <TableRow key={row.id} data-state={row.getIsSelected() && 'selected'}>
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell 
-                        key={cell.id} 
-                        className="px-4 relative overflow-hidden"
-                        style={{ 
-                          width: cell.column.getSize(),
-                          minWidth: cell.column.columnDef.minSize,
-                          maxWidth: cell.column.columnDef.maxSize,
-                          boxSizing: 'border-box',
-                        }}
-                      >
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </TableCell>
-                    ))}
+                    {row.getVisibleCells().map((cell) => {
+                      const isStatusColumn = cell.column.columnDef.accessorKey === 'status';
+                      return (
+                        <TableCell 
+                          key={cell.id} 
+                          className={`px-4 relative ${isStatusColumn ? 'overflow-visible whitespace-nowrap' : 'overflow-hidden'}`}
+                          style={{ 
+                            width: cell.column.getSize(),
+                            minWidth: cell.column.columnDef.minSize,
+                            maxWidth: cell.column.columnDef.maxSize,
+                            boxSizing: 'border-box',
+                          }}
+                        >
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </TableCell>
+                      );
+                    })}
                   </TableRow>
                 ))
               ) : (

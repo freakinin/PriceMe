@@ -132,7 +132,7 @@ export const getProducts = async (req: AuthRequest, res: Response) => {
     }
 
     const products = await db`
-      SELECT id, name, sku, batch_size, target_price, pricing_method, pricing_value, created_at, updated_at
+      SELECT id, name, sku, status, batch_size, target_price, pricing_method, pricing_value, created_at, updated_at
       FROM products
       WHERE user_id = ${req.userId}
       ORDER BY created_at DESC
@@ -241,7 +241,7 @@ export const getProduct = async (req: AuthRequest, res: Response) => {
 
     // Get product
     const productResult = await db`
-      SELECT id, name, sku, description, category, batch_size, target_price, pricing_method, pricing_value, created_at, updated_at
+      SELECT id, name, sku, status, description, category, batch_size, target_price, pricing_method, pricing_value, created_at, updated_at
       FROM products
       WHERE id = ${productId} AND user_id = ${req.userId}
     `;
@@ -337,22 +337,31 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
 
     const currentProduct = currentProductRows[0];
     
+    // Helper to convert null to undefined for optional fields
+    const nullToUndefined = (value: any) => value === null ? undefined : value;
+    
     // Merge request body with current product data for partial updates
     const updateData = {
       name: req.body.name ?? currentProduct.name,
-      sku: req.body.sku !== undefined ? req.body.sku : currentProduct.sku,
-      status: req.body.status !== undefined ? req.body.status : currentProduct.status,
-      description: req.body.description !== undefined ? req.body.description : currentProduct.description,
-      category: req.body.category !== undefined ? req.body.category : currentProduct.category,
+      sku: req.body.sku !== undefined ? req.body.sku : nullToUndefined(currentProduct.sku),
+      status: req.body.status !== undefined ? req.body.status : (nullToUndefined(currentProduct.status) || 'draft'),
+      description: req.body.description !== undefined ? req.body.description : nullToUndefined(currentProduct.description),
+      category: req.body.category !== undefined ? req.body.category : nullToUndefined(currentProduct.category),
       batch_size: req.body.batch_size ?? currentProduct.batch_size ?? 1,
-      target_price: req.body.target_price !== undefined ? req.body.target_price : currentProduct.target_price,
-      pricing_method: req.body.pricing_method !== undefined ? req.body.pricing_method : currentProduct.pricing_method,
-      pricing_value: req.body.pricing_value !== undefined ? req.body.pricing_value : currentProduct.pricing_value,
+      target_price: req.body.target_price !== undefined ? req.body.target_price : nullToUndefined(currentProduct.target_price),
+      pricing_method: req.body.pricing_method !== undefined ? req.body.pricing_method : nullToUndefined(currentProduct.pricing_method),
+      pricing_value: req.body.pricing_value !== undefined ? req.body.pricing_value : nullToUndefined(currentProduct.pricing_value),
     };
+    
+    console.log('API received body:', JSON.stringify(req.body, null, 2));
+    console.log('API merged updateData:', JSON.stringify(updateData, null, 2));
 
     // Validate the merged data
     const validatedData = createProductSchema.parse(updateData);
     const { name, sku, status, description, category, batch_size, target_price, pricing_method, pricing_value, materials, labor_costs, other_costs } = validatedData;
+
+    console.log('After validation - status:', status);
+    console.log('After validation - validatedData:', JSON.stringify(validatedData, null, 2));
 
     // Update product
     await db`
@@ -361,7 +370,7 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
           sku = ${sku || null},
           description = ${description || null},
           category = ${category || null},
-          status = ${status || null},
+          status = ${status !== undefined ? status : null},
           batch_size = ${batch_size || 1},
           target_price = ${target_price || null},
           pricing_method = ${pricing_method || null},
