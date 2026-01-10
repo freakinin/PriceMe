@@ -576,9 +576,12 @@ export default function Products() {
       
       // Only include optional fields if they have values
       if (currentProduct.sku) updatePayload.sku = currentProduct.sku;
-      // Always include status if it's being updated
+      // Always include status if it's being updated (even if null)
       if (updateData.status !== undefined) {
         updatePayload.status = updateData.status;
+      } else if (currentProduct.status) {
+        // Include existing status if not being updated
+        updatePayload.status = currentProduct.status;
       }
       if (currentProduct.description) updatePayload.description = currentProduct.description;
       if (currentProduct.category) updatePayload.category = currentProduct.category;
@@ -607,6 +610,7 @@ export default function Products() {
       if (laborCostsData.length > 0) updatePayload.labor_costs = laborCostsData;
       if (otherCostsData.length > 0) updatePayload.other_costs = otherCostsData;
       
+      console.log('Sending update payload:', JSON.stringify(updatePayload, null, 2));
       await api.put(`/products/${productId}`, updatePayload);
     } catch (apiError: any) {
       console.error('Error saving to database:', apiError);

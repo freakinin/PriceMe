@@ -321,23 +321,38 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Validate input
-    const validatedData = createProductSchema.parse(req.body);
-    const { name, sku, status, description, category, batch_size, target_price, pricing_method, pricing_value, materials, labor_costs, other_costs } = validatedData;
-
-    // Check if product exists and belongs to user
-    const productCheck = await db`
-      SELECT id FROM products
+    // Get current product to merge with updates
+    const currentProductResult = await db`
+      SELECT * FROM products
       WHERE id = ${productId} AND user_id = ${req.userId}
     `;
-    const productRows = Array.isArray(productCheck) ? productCheck : productCheck.rows || [];
+    const currentProductRows = Array.isArray(currentProductResult) ? currentProductResult : currentProductResult.rows || [];
     
-    if (productRows.length === 0) {
+    if (currentProductRows.length === 0) {
       return res.status(404).json({
         status: 'error',
         message: 'Product not found',
       });
     }
+
+    const currentProduct = currentProductRows[0];
+    
+    // Merge request body with current product data for partial updates
+    const updateData = {
+      name: req.body.name ?? currentProduct.name,
+      sku: req.body.sku !== undefined ? req.body.sku : currentProduct.sku,
+      status: req.body.status !== undefined ? req.body.status : currentProduct.status,
+      description: req.body.description !== undefined ? req.body.description : currentProduct.description,
+      category: req.body.category !== undefined ? req.body.category : currentProduct.category,
+      batch_size: req.body.batch_size ?? currentProduct.batch_size ?? 1,
+      target_price: req.body.target_price !== undefined ? req.body.target_price : currentProduct.target_price,
+      pricing_method: req.body.pricing_method !== undefined ? req.body.pricing_method : currentProduct.pricing_method,
+      pricing_value: req.body.pricing_value !== undefined ? req.body.pricing_value : currentProduct.pricing_value,
+    };
+
+    // Validate the merged data
+    const validatedData = createProductSchema.parse(updateData);
+    const { name, sku, status, description, category, batch_size, target_price, pricing_method, pricing_value, materials, labor_costs, other_costs } = validatedData;
 
     // Update product
     await db`
