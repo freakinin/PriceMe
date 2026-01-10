@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import type { ReactNode } from 'react';
-import { Plus, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown, Edit, Trash2, ExternalLink, Package, Eye, Info } from 'lucide-react';
+import { Plus, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown, Edit, Trash2, ExternalLink, Package, Columns, X, Info } from 'lucide-react';
 import { useSidebar } from '@/components/ui/sidebar';
 import {
   useReactTable,
@@ -248,14 +248,15 @@ export default function Materials() {
   const [materials, setMaterials] = useState<Material[]>([]);
   const [loading, setLoading] = useState(true);
   const [globalFilter, setGlobalFilter] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState<string>('all');
-  const [lowStockFilter, setLowStockFilter] = useState(false);
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
     supplier: false,
     supplier_link: false,
   });
+  const [selectedFilterColumn, setSelectedFilterColumn] = useState<string>('');
+  const [filterOperator, setFilterOperator] = useState<string>('contains');
+  const [filterValue, setFilterValue] = useState<string>('');
   const [editingMaterial, setEditingMaterial] = useState<Material | null>(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
 
@@ -358,28 +359,45 @@ export default function Materials() {
       : ['ml', 'L', 'fl oz', 'pt', 'qt', 'gal', 'g', 'kg', 'oz', 'lb', 'mm', 'cm', 'm', 'in', 'ft', 'yd', 'm²', 'ft²', 'pcs', 'piece', 'unit', 'set', 'pack', 'box', 'roll', 'sheet', 'yard'];
   }, [settings.units]);
 
-  // Filter materials based on category and low stock
-  const filteredMaterials = useMemo(() => {
-    let filtered = materials;
-
-    // Apply category filter
-    if (categoryFilter !== 'all') {
-      filtered = filtered.filter(m => m.category === categoryFilter);
-    }
-
-    // Apply low stock filter
-    if (lowStockFilter) {
-      filtered = filtered.filter(m => isLowStock(m));
-    }
-
-    return filtered;
-  }, [materials, categoryFilter, lowStockFilter]);
+  // Custom filter functions
+  const customFilterFunctions = {
+    contains: (row: any, columnId: string, filterValue: string) => {
+      const value = row.getValue(columnId);
+      if (value === null || value === undefined) return false;
+      return String(value).toLowerCase().includes(String(filterValue).toLowerCase());
+    },
+    equals: (row: any, columnId: string, filterValue: string) => {
+      const value = row.getValue(columnId);
+      return String(value).toLowerCase() === String(filterValue).toLowerCase();
+    },
+    notContains: (row: any, columnId: string, filterValue: string) => {
+      const value = row.getValue(columnId);
+      if (value === null || value === undefined) return true;
+      return !String(value).toLowerCase().includes(String(filterValue).toLowerCase());
+    },
+    startsWith: (row: any, columnId: string, filterValue: string) => {
+      const value = row.getValue(columnId);
+      if (value === null || value === undefined) return false;
+      return String(value).toLowerCase().startsWith(String(filterValue).toLowerCase());
+    },
+    endsWith: (row: any, columnId: string, filterValue: string) => {
+      const value = row.getValue(columnId);
+      if (value === null || value === undefined) return false;
+      return String(value).toLowerCase().endsWith(String(filterValue).toLowerCase());
+    },
+  };
 
   // Column definitions with inline editing
   const columns = useMemo<ColumnDef<Material>[]>(
     () => [
       {
         accessorKey: 'name',
+        enableColumnFilter: true,
+        filterFn: (row, columnId, filterValue: any) => {
+          if (!filterValue || !filterValue.value) return true;
+          const operator = filterValue.operator || 'contains';
+          return customFilterFunctions[operator as keyof typeof customFilterFunctions]?.(row, columnId, filterValue.value) ?? true;
+        },
         header: ({ column }) => {
           return (
             <Button
@@ -539,6 +557,12 @@ export default function Materials() {
       },
       {
         accessorKey: 'supplier',
+        enableColumnFilter: true,
+        filterFn: (row, columnId, filterValue: any) => {
+          if (!filterValue || !filterValue.value) return true;
+          const operator = filterValue.operator || 'contains';
+          return customFilterFunctions[operator as keyof typeof customFilterFunctions]?.(row, columnId, filterValue.value) ?? true;
+        },
         header: 'Supplier',
         cell: ({ row }) => {
           const material = row.original;
@@ -575,6 +599,12 @@ export default function Materials() {
       },
       {
         accessorKey: 'stock_level',
+        enableColumnFilter: true,
+        filterFn: (row, columnId, filterValue: any) => {
+          if (!filterValue || !filterValue.value) return true;
+          const operator = filterValue.operator || 'equals';
+          return customFilterFunctions[operator as keyof typeof customFilterFunctions]?.(row, columnId, filterValue.value) ?? true;
+        },
         header: ({ column }) => {
           return (
             <Button
@@ -662,6 +692,12 @@ export default function Materials() {
       },
       {
         accessorKey: 'category',
+        enableColumnFilter: true,
+        filterFn: (row, columnId, filterValue: any) => {
+          if (!filterValue || !filterValue.value) return true;
+          const operator = filterValue.operator || 'equals';
+          return customFilterFunctions[operator as keyof typeof customFilterFunctions]?.(row, columnId, filterValue.value) ?? true;
+        },
         header: 'Category',
         cell: ({ row }) => {
           const material = row.original;
@@ -711,7 +747,7 @@ export default function Materials() {
 
   // Table instance
   const table = useReactTable({
-    data: filteredMaterials,
+    data: materials,
     columns,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -741,93 +777,265 @@ export default function Materials() {
   return (
     <div className="p-6">
       <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold mb-2">Materials</h1>
-          <p className="text-muted-foreground">Manage your material inventory</p>
+        <div></div>
+        <div className="flex items-center gap-3">
+          {materials.length > 0 && (
+            <>
+              {/* Search Box */}
+              <div className="relative w-[250px]">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by name or supplier..."
+                  value={globalFilter}
+                  onChange={(e) => setGlobalFilter(e.target.value)}
+                  className="pl-9 h-10"
+                />
+              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="icon">
+                    <Filter className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-[300px]">
+                  <DropdownMenuLabel>Add Filter</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <div className="p-2 space-y-3">
+                    {/* Column selection */}
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground">Column</label>
+                      <Select
+                        value={selectedFilterColumn}
+                        onValueChange={(value) => {
+                          setSelectedFilterColumn(value);
+                          setFilterValue('');
+                          setFilterOperator(value === 'category' || value === 'stock_level' ? 'equals' : 'contains');
+                        }}
+                      >
+                        <SelectTrigger className="h-8">
+                          <SelectValue placeholder="Select column..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="name">Name</SelectItem>
+                          <SelectItem value="category">Category</SelectItem>
+                          <SelectItem value="supplier">Supplier</SelectItem>
+                          <SelectItem value="stock_level">Stock Level</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    {/* Filter operator selection */}
+                    {selectedFilterColumn && (
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium text-muted-foreground">Operator</label>
+                        <Select
+                          value={filterOperator}
+                          onValueChange={setFilterOperator}
+                        >
+                          <SelectTrigger className="h-8">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {selectedFilterColumn === 'category' || selectedFilterColumn === 'stock_level' ? (
+                              <>
+                                <SelectItem value="equals">Equals</SelectItem>
+                                <SelectItem value="notContains">Not Equals</SelectItem>
+                              </>
+                            ) : (
+                              <>
+                                <SelectItem value="contains">Contains</SelectItem>
+                                <SelectItem value="equals">Equals</SelectItem>
+                                <SelectItem value="notContains">Not Contains</SelectItem>
+                                <SelectItem value="startsWith">Starts With</SelectItem>
+                                <SelectItem value="endsWith">Ends With</SelectItem>
+                              </>
+                            )}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                    
+                    {/* Dynamic filter input based on selected column */}
+                    {selectedFilterColumn && (
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium text-muted-foreground">
+                          {selectedFilterColumn === 'name' ? 'Name' :
+                           selectedFilterColumn === 'category' ? 'Category' :
+                           selectedFilterColumn === 'supplier' ? 'Supplier' :
+                           selectedFilterColumn === 'stock_level' ? 'Stock Level' : ''}
+                        </label>
+                        {selectedFilterColumn === 'category' ? (
+                          <Select
+                            value={filterValue}
+                            onValueChange={setFilterValue}
+                          >
+                            <SelectTrigger className="h-8">
+                              <SelectValue placeholder="Select category..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {getCategories().map((cat) => (
+                                <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Input
+                            placeholder={`Filter by ${selectedFilterColumn}...`}
+                            value={filterValue}
+                            onChange={(e) => setFilterValue(e.target.value)}
+                            className="h-8"
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && filterValue) {
+                                table.getColumn(selectedFilterColumn)?.setFilterValue({
+                                  operator: filterOperator,
+                                  value: filterValue
+                                });
+                                setSelectedFilterColumn('');
+                                setFilterValue('');
+                                setFilterOperator('contains');
+                              }
+                            }}
+                          />
+                        )}
+                      </div>
+                    )}
+                    
+                    {/* Apply button */}
+                    {selectedFilterColumn && filterValue && (
+                      <Button
+                        size="sm"
+                        className="w-full"
+                        onClick={() => {
+                          table.getColumn(selectedFilterColumn)?.setFilterValue({
+                            operator: filterOperator,
+                            value: filterValue
+                          });
+                          setSelectedFilterColumn('');
+                          setFilterValue('');
+                          setFilterOperator('contains');
+                        }}
+                      >
+                        Apply Filter
+                      </Button>
+                    )}
+                  </div>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="icon">
+                    <Columns className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-[250px]">
+                  <DropdownMenuLabel>Toggle columns</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {table
+                    .getAllColumns()
+                    .filter((column) => column.getCanHide && column.getCanHide())
+                    .map((column) => {
+                      const columnId = column.id || '';
+                      const columnLabels: Record<string, string> = {
+                        name: 'Name',
+                        price_per_unit: 'Price/Unit',
+                        quantity: 'Qty',
+                        unit: 'Unit',
+                        price: 'Total Price',
+                        details: 'Details',
+                        supplier: 'Supplier',
+                        supplier_link: 'Link',
+                        stock_level: 'Stock Level',
+                        reorder_point: 'Reorder Point',
+                        last_purchased_date: 'Last Purchased',
+                        category: 'Category',
+                      };
+                      return (
+                        <DropdownMenuCheckboxItem
+                          key={columnId}
+                          className="capitalize"
+                          checked={column.getIsVisible ? column.getIsVisible() : true}
+                          onSelect={(e) => e.preventDefault()}
+                          onCheckedChange={(value) => {
+                            if (column.toggleVisibility) {
+                              column.toggleVisibility(!!value);
+                            }
+                          }}
+                        >
+                          {columnLabels[columnId] || columnId}
+                        </DropdownMenuCheckboxItem>
+                      );
+                    })}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </>
+          )}
+          <Button onClick={() => setIsAddDialogOpen(true)}>
+            <Plus className="h-4 w-4 mr-1" />
+            New
+          </Button>
         </div>
-        <Button onClick={() => setIsAddDialogOpen(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Material
-        </Button>
       </div>
 
-      {/* Filters and Search */}
-      <div className="mb-6 flex flex-wrap items-center gap-4">
-        <div className="flex-1 min-w-[200px]">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search materials..."
-              value={globalFilter ?? ''}
-              onChange={(e) => setGlobalFilter(e.target.value)}
-              className="pl-9"
-            />
-          </div>
+      {/* Active Filters Display */}
+      {table.getState().columnFilters.length > 0 && (
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <span className="text-sm text-muted-foreground">Filters:</span>
+          {table.getState().columnFilters.map((filter) => {
+            const columnId = filter.id;
+            const columnName = columnId === 'name' ? 'Name' :
+                             columnId === 'category' ? 'Category' :
+                             columnId === 'supplier' ? 'Supplier' :
+                             columnId === 'stock_level' ? 'Stock Level' : columnId;
+            
+            // Handle both old format (string) and new format (object with operator and value)
+            const filterData = typeof filter.value === 'object' && filter.value !== null 
+              ? filter.value as { operator: string; value: string }
+              : { operator: columnId === 'category' || columnId === 'stock_level' ? 'equals' : 'contains', value: filter.value as string };
+            
+            const operatorLabels: Record<string, string> = {
+              contains: 'contains',
+              equals: 'equals',
+              notContains: 'not contains',
+              startsWith: 'starts with',
+              endsWith: 'ends with',
+            };
+            
+            const operatorLabel = operatorLabels[filterData.operator] || filterData.operator;
+            const displayValue = filterData.value;
+            
+            return (
+              <Badge
+                key={filter.id}
+                variant="secondary"
+                className="flex items-center gap-1 px-2 py-1"
+              >
+                <span className="text-xs font-medium">{columnName} {operatorLabel} {displayValue}</span>
+                <button
+                  onClick={() => {
+                    table.getColumn(columnId)?.setFilterValue('');
+                  }}
+                  className="ml-1 rounded-full hover:bg-muted-foreground/20 p-0.5"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            );
+          })}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => {
+              table.resetColumnFilters();
+              setSelectedFilterColumn('');
+              setFilterValue('');
+              setFilterOperator('contains');
+            }}
+          >
+            Clear all
+          </Button>
         </div>
-        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Category" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Categories</SelectItem>
-            {getCategories().map((cat) => (
-              <SelectItem key={cat} value={cat}>
-                {cat}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Button
-          variant={lowStockFilter ? 'default' : 'outline'}
-          onClick={() => setLowStockFilter(!lowStockFilter)}
-        >
-          <Filter className="h-4 w-4 mr-2" />
-          Low Stock
-        </Button>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline">
-              <Eye className="h-4 w-4 mr-2" />
-              Columns
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-[200px]">
-            <DropdownMenuLabel>Toggle columns</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {table
-              .getAllColumns()
-              .filter((column) => column.getCanHide())
-              .map((column) => {
-                const columnLabels: Record<string, string> = {
-                  name: 'Name',
-                  price: 'Price',
-                  quantity: 'Quantity',
-                  unit: 'Unit',
-                  price_per_unit: 'Price/Unit',
-                  details: 'Details',
-                  supplier: 'Supplier',
-                  supplier_link: 'Link',
-                  stock_level: 'Stock Level',
-                  reorder_point: 'Reorder Point',
-                  last_purchased_date: 'Last Purchased',
-                  category: 'Category',
-                };
-                return (
-                  <DropdownMenuCheckboxItem
-                    key={column.id}
-                    className="capitalize"
-                    checked={column.getIsVisible()}
-                    onCheckedChange={(value) =>
-                      column.toggleVisibility(!!value)
-                    }
-                  >
-                    {columnLabels[column.id] || column.id}
-                  </DropdownMenuCheckboxItem>
-                );
-              })}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+      )}
 
       {/* Materials Table */}
       {loading ? (
