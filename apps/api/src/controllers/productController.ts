@@ -14,13 +14,13 @@ export const createProduct = async (req: AuthRequest, res: Response) => {
 
     // Validate input
     const validatedData = createProductSchema.parse(req.body);
-    const { name, sku, description, category, batch_size, target_price, pricing_method, pricing_value, materials, labor_costs, other_costs } = validatedData;
+    const { name, sku, status, description, category, batch_size, target_price, pricing_method, pricing_value, materials, labor_costs, other_costs } = validatedData;
 
     // Start transaction: Create product
     console.log('Inserting product with userId:', req.userId);
     const productResult = await db`
-      INSERT INTO products (user_id, name, sku, description, category, batch_size, target_price, pricing_method, pricing_value)
-      VALUES (${req.userId}, ${name}, ${sku || null}, ${description || null}, ${category || null}, ${batch_size || 1}, ${target_price || null}, ${pricing_method || null}, ${pricing_value || null})
+      INSERT INTO products (user_id, name, sku, status, description, category, batch_size, target_price, pricing_method, pricing_value)
+      VALUES (${req.userId}, ${name}, ${sku || null}, ${status || 'draft'}, ${description || null}, ${category || null}, ${batch_size || 1}, ${target_price || null}, ${pricing_method || null}, ${pricing_value || null})
       RETURNING id
     `;
 
@@ -339,9 +339,7 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Update product - handle status separately as it's optional
-    const status = (req.body as any).status || null;
-    
+    // Update product
     await db`
       UPDATE products
       SET name = ${name},

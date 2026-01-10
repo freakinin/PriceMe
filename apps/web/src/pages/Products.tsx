@@ -22,6 +22,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Badge } from '@/components/ui/badge';
 import {
   Select,
   SelectContent,
@@ -174,7 +175,7 @@ function EditableCell({
 }
 
 type PricingMethod = 'markup' | 'price' | 'profit' | 'margin';
-type ProductStatus = 'draft' | 'working' | 'on_sale' | 'active' | 'inactive';
+type ProductStatus = 'draft' | 'working' | 'on_sale' | 'inactive';
 
 interface Product {
   id: number;
@@ -575,10 +576,9 @@ export default function Products() {
       
       // Only include optional fields if they have values
       if (currentProduct.sku) updatePayload.sku = currentProduct.sku;
+      // Always include status if it's being updated
       if (updateData.status !== undefined) {
         updatePayload.status = updateData.status;
-      } else if (currentProduct.status) {
-        updatePayload.status = currentProduct.status;
       }
       if (currentProduct.description) updatePayload.description = currentProduct.description;
       if (currentProduct.category) updatePayload.category = currentProduct.category;
@@ -708,6 +708,22 @@ export default function Products() {
       cell: ({ row }) => {
         const product = row.original;
         const currentStatus = (getDisplayValue(product, 'status') as ProductStatus) || 'draft';
+        
+        const getStatusBadge = (status: ProductStatus) => {
+          const statusConfig = {
+            draft: { label: 'Draft', className: 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200' },
+            working: { label: 'Working On', className: 'bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-200' },
+            on_sale: { label: 'On Sale', className: 'bg-green-100 text-green-700 border-green-200 hover:bg-green-200' },
+            inactive: { label: 'Inactive', className: 'bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200' },
+          };
+          const config = statusConfig[status] || statusConfig.draft;
+          return (
+            <Badge variant="outline" className={config.className}>
+              {config.label}
+            </Badge>
+          );
+        };
+
         return (
           <Select
             value={currentStatus}
@@ -715,15 +731,22 @@ export default function Products() {
               await handleSaveField(product.id, 'status', value);
             }}
           >
-            <SelectTrigger className="h-8 border-none shadow-none px-2 hover:bg-muted/50">
-              <SelectValue />
+            <SelectTrigger className="h-8 border-none shadow-none px-2 hover:bg-muted/50 w-auto">
+              {getStatusBadge(currentStatus)}
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="draft">Draft</SelectItem>
-              <SelectItem value="working">Working On</SelectItem>
-              <SelectItem value="on_sale">On Sale</SelectItem>
-              <SelectItem value="active">Active</SelectItem>
-              <SelectItem value="inactive">Inactive</SelectItem>
+              <SelectItem value="draft">
+                <Badge variant="outline" className="bg-slate-100 text-slate-700 border-slate-200">Draft</Badge>
+              </SelectItem>
+              <SelectItem value="working">
+                <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-200">Working On</Badge>
+              </SelectItem>
+              <SelectItem value="on_sale">
+                <Badge variant="outline" className="bg-green-100 text-green-700 border-green-200">On Sale</Badge>
+              </SelectItem>
+              <SelectItem value="inactive">
+                <Badge variant="outline" className="bg-gray-100 text-gray-600 border-gray-200">Inactive</Badge>
+              </SelectItem>
             </SelectContent>
           </Select>
         );
