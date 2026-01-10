@@ -166,6 +166,7 @@ export default function Products() {
   const [localProductData, setLocalProductData] = useState<Record<number, { name?: string; qty_sold?: number }>>({});
   const [productPricingMethods, setProductPricingMethods] = useState<Record<number, PricingMethod>>({});
   const [productPricingValues, setProductPricingValues] = useState<Record<number, number>>({});
+  const [globalPricingMethod, setGlobalPricingMethod] = useState<PricingMethod>('price');
   const [, setSavingFields] = useState<Set<number>>(new Set());
   const navigate = useNavigate();
   const { setOpen: setSidebarOpen } = useSidebar();
@@ -180,14 +181,20 @@ export default function Products() {
   // Initialize pricing methods and values from fetched products
   useEffect(() => {
     if (products.length > 0) {
+      // Set global method from first product if all products have the same method
+      const firstProductMethod = products[0]?.pricing_method;
+      if (firstProductMethod && products.every(p => p.pricing_method === firstProductMethod)) {
+        setGlobalPricingMethod(firstProductMethod);
+      }
+      
       setProductPricingMethods(prev => {
         const updated = { ...prev };
         products.forEach(product => {
           if (product.pricing_method && !updated[product.id]) {
             updated[product.id] = product.pricing_method;
           } else if (!updated[product.id]) {
-            // Default to 'price' if no method is set
-            updated[product.id] = 'price';
+            // Default to 'price' if no method is set (will use global method in display)
+            updated[product.id] = product.pricing_method || 'price';
           }
         });
         return updated;
@@ -580,7 +587,7 @@ export default function Products() {
 
   // Get calculated values for display
   const getCalculatedMetrics = (product: Product) => {
-    const method = productPricingMethods[product.id] || product.pricing_method || 'price';
+    const method = productPricingMethods[product.id] || globalPricingMethod || product.pricing_method || 'price';
     const pricingValue = productPricingValues[product.id] ?? product.pricing_value ?? (product.target_price || 0);
     
     let calculatedPrice = product.target_price || 0;
@@ -644,14 +651,35 @@ export default function Products() {
           <p className="text-muted-foreground">Manage your product listings</p>
           {products.length > 0 && (
             <p className="text-sm text-muted-foreground mt-1">
-              Select a calculation method for each product. Only the selected method's input is editable.
+              Select a calculation method for all products. Only the selected method's input is editable.
             </p>
           )}
         </div>
-        <Button onClick={() => navigate('/products/add')}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Product
-        </Button>
+        <div className="flex items-center gap-3">
+          {products.length > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Calculation Type:</span>
+              <Select
+                value={globalPricingMethod}
+                onValueChange={(value) => handleGlobalMethodChange(value as PricingMethod)}
+              >
+                <SelectTrigger className="w-[180px] h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="markup">Markup %</SelectItem>
+                  <SelectItem value="price">Planned Sales Price $</SelectItem>
+                  <SelectItem value="profit">Desired Profit $</SelectItem>
+                  <SelectItem value="margin">Desired Margin %</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          <Button onClick={() => navigate('/products/add')}>
+            <Plus className="h-4 w-4 mr-1" />
+            New
+          </Button>
+        </div>
       </div>
 
       {products.length === 0 ? (
@@ -662,8 +690,8 @@ export default function Products() {
             Get started by creating your first product
           </p>
           <Button onClick={() => navigate('/products/add')}>
-            <Plus className="h-4 w-4 mr-2" />
-            Create Product
+            <Plus className="h-4 w-4 mr-1" />
+            New
           </Button>
         </div>
       ) : (
@@ -672,7 +700,6 @@ export default function Products() {
             <TableHeader>
               <TableRow>
                 <TableHead>Product Name</TableHead>
-                <TableHead>Calculation Type</TableHead>
                 <TableHead>Markup %</TableHead>
                 <TableHead>Planned Sales Price $</TableHead>
                 <TableHead>Desired Profit $</TableHead>
@@ -690,7 +717,7 @@ export default function Products() {
               {products.map((product) => {
                 const currentQtySold = getDisplayValue(product, 'qty_sold') as number;
                 const displayName = getDisplayValue(product, 'name') as string;
-                const method = productPricingMethods[product.id] || product.pricing_method || 'price';
+                const method = productPricingMethods[product.id] || globalPricingMethod || product.pricing_method || 'price';
                 const metrics = getCalculatedMetrics(product);
                 
                 // Get pricing value for display
@@ -728,22 +755,6 @@ export default function Products() {
                           <span className="text-xs text-muted-foreground pl-2">{product.sku}</span>
                         )}
                       </div>
-                    </TableCell>
-                    <TableCell className="w-[160px]">
-                      <Select
-                        value={method}
-                        onValueChange={(value) => handleMethodChange(product.id, value as PricingMethod)}
-                      >
-                        <SelectTrigger className="h-8 text-sm">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="markup">Markup %</SelectItem>
-                          <SelectItem value="price">Planned Sales Price $</SelectItem>
-                          <SelectItem value="profit">Desired Profit $</SelectItem>
-                          <SelectItem value="margin">Desired Margin %</SelectItem>
-                        </SelectContent>
-                      </Select>
                     </TableCell>
                     {/* Markup % field */}
                     <TableCell className={`w-[120px] ${method !== 'markup' ? 'opacity-50' : ''}`}>
