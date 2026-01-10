@@ -672,7 +672,6 @@ export default function Products() {
             <TableHeader>
               <TableRow>
                 <TableHead>Product Name</TableHead>
-                <TableHead>SKU</TableHead>
                 <TableHead>Calculation Type</TableHead>
                 <TableHead>Markup %</TableHead>
                 <TableHead>Planned Sales Price $</TableHead>
@@ -715,18 +714,20 @@ export default function Products() {
                 return (
                   <TableRow key={product.id}>
                     <TableCell className="font-medium w-[180px]">
-                      <EditableCell
-                        value={displayName}
-                        onSave={(value) => handleSaveField(product.id, 'name', value)}
-                        onCancel={handleCancelEdit}
-                        isEditing={isEditingName}
-                        onEdit={() => setEditingField({ productId: product.id, field: 'name' })}
-                        type="text"
-                        className="font-medium"
-                      />
-                    </TableCell>
-                    <TableCell className="text-muted-foreground w-[120px]">
-                      <span className="truncate block">{product.sku || '-'}</span>
+                      <div className="flex flex-col gap-0.5">
+                        <EditableCell
+                          value={displayName}
+                          onSave={(value) => handleSaveField(product.id, 'name', value)}
+                          onCancel={handleCancelEdit}
+                          isEditing={isEditingName}
+                          onEdit={() => setEditingField({ productId: product.id, field: 'name' })}
+                          type="text"
+                          className="font-medium"
+                        />
+                        {product.sku && (
+                          <span className="text-xs text-muted-foreground pl-2">{product.sku}</span>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="w-[160px]">
                       <Select
