@@ -6,6 +6,7 @@ import CreateProduct from './pages/CreateProduct';
 import Products from './pages/Products';
 import Materials from './pages/Materials';
 import Settings from './pages/Settings';
+import Roadmap from './pages/Roadmap';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import { useAuth } from './hooks/useAuth';
@@ -109,6 +110,16 @@ function App() {
             <ProtectedRoute>
               <AppLayout>
                 <Settings />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/roadmap"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <Roadmap />
               </AppLayout>
             </ProtectedRoute>
           }

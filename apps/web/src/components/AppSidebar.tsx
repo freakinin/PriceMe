@@ -1,4 +1,4 @@
-import { Home, PlusCircle, Package, Settings, LogOut, Box } from 'lucide-react';
+import { Home, PlusCircle, Package, Settings, LogOut, Box, Map } from 'lucide-react';
 import {
   Sidebar,
   SidebarContent,
@@ -102,6 +102,20 @@ export function AppSidebar() {
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border p-4">
         <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton 
+              asChild 
+              isActive={location.pathname === '/roadmap'} 
+              tooltip="Roadmap"
+              className="text-sidebar-foreground" 
+              style={{ color: 'hsl(0 0% 98%)' }}
+            >
+              <Link to="/roadmap" style={{ color: 'hsl(0 0% 98%)' }}>
+                <Map className="h-4 w-4 text-sidebar-foreground" style={{ color: 'hsl(0 0% 98%)' }} />
+                <span className="group-data-[collapsible=icon]:hidden" style={{ color: 'hsl(0 0% 98%)' }}>Roadmap</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
           <SidebarMenuItem>
             <div className="flex items-center gap-2 px-2 py-1.5 text-sm text-sidebar-foreground/70 group-data-[collapsible=icon]:hidden" style={{ color: 'hsl(0 0% 85%)' }}>
               <span className="truncate" style={{ color: 'hsl(0 0% 85%)' }}>{user?.email || 'Not logged in'}</span>

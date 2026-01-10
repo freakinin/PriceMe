@@ -17,6 +17,7 @@ const getPageTitle = (pathname: string, userName?: string): string => {
     '/products/add': 'Create Product',
     '/products': 'Products',
     '/settings': 'Settings',
+    '/roadmap': 'Roadmap',
   };
   return titles[pathname] || 'PriceMe';
 };

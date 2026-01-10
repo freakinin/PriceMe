@@ -349,6 +349,55 @@ export async function initializeDatabase() {
       console.log('Note: Migration check for width/length columns:', error.message);
     }
 
+    // Create roadmap_features table
+    await sql`
+      CREATE TABLE IF NOT EXISTS roadmap_features (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        description TEXT NOT NULL,
+        upvotes INTEGER DEFAULT 0,
+        downvotes INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+
+    // Create roadmap_votes table
+    await sql`
+      CREATE TABLE IF NOT EXISTS roadmap_votes (
+        id SERIAL PRIMARY KEY,
+        feature_id INTEGER REFERENCES roadmap_features(id) ON DELETE CASCADE,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        vote_type VARCHAR(10) NOT NULL CHECK (vote_type IN ('up', 'down')),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(feature_id, user_id)
+      );
+    `;
+
+    // Seed initial roadmap features
+    try {
+      const existingFeature = await sql`
+        SELECT id FROM roadmap_features WHERE name = 'Custom Product Views'
+      `;
+      const existingRows = Array.isArray(existingFeature) ? existingFeature : existingFeature.rows || [];
+      
+      if (existingRows.length === 0) {
+        console.log('Adding initial roadmap feature: Custom Product Views...');
+        await sql`
+          INSERT INTO roadmap_features (name, description, upvotes, downvotes)
+          VALUES (
+            'Custom Product Views',
+            'Create and save custom views for your product list with specific filters, column visibility, and sorting preferences. Save views like "Products in Progress", "High Margin Items", or "Ready to Sell" to quickly switch between different product contexts without reconfiguring filters each time. This saves time and helps you focus on the right products for each task.',
+            0,
+            0
+          )
+        `;
+        console.log('✅ Added Custom Product Views roadmap feature');
+      }
+    } catch (error: any) {
+      console.log('Note: Could not seed roadmap feature:', error.message);
+    }
+
     console.log('✅ Database tables initialized successfully');
   } catch (error) {
     console.error('❌ Error initializing database:', error);

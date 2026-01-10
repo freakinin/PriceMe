@@ -35,10 +35,12 @@ import authRoutes from './routes/auth.js';
 import productRoutes from './routes/products.js';
 import settingsRoutes from './routes/settings.js';
 import materialsRoutes from './routes/materials.js';
+import roadmapRoutes from './routes/roadmap.js';
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/materials', materialsRoutes);
+app.use('/api/roadmap', roadmapRoutes);
 
 // API info route
 app.get('/api', (_req, res) => {
