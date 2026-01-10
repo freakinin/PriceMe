@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Package, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Columns, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Package, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Columns } from 'lucide-react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -54,14 +54,12 @@ function EditableCell({
   type = 'text',
   formatDisplay,
   className = '',
-  minWidth,
 }: {
   value: string | number | null | undefined;
   onSave: (value: string | number) => Promise<void>;
   type?: 'text' | 'number';
   formatDisplay?: (value: string | number | null | undefined) => string;
   className?: string;
-  minWidth?: number;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState<string>(value?.toString() || '');
@@ -343,11 +341,11 @@ export default function Products() {
     }
   };
 
-  const formatCurrencyValue = (value: string | number | null) => {
+  const formatCurrencyValue = (value: string | number | null | undefined) => {
     return formatCurrency(value, settings.currency);
   };
 
-  const formatPercentage = (value: string | number | null) => {
+  const formatPercentage = (value: string | number | null | undefined) => {
     if (value === null || value === undefined) return '-';
     const numValue = typeof value === 'string' ? parseFloat(value) : value;
     if (typeof numValue !== 'number' || isNaN(numValue)) return '-';
@@ -674,7 +672,7 @@ export default function Products() {
   const columns = useMemo<ColumnDef<Product>[]>(() => [
     {
       accessorKey: 'name',
-      header: 'Product Name',
+      header: 'Name',
       size: 300,
       minSize: 300,
       maxSize: 300,
@@ -722,7 +720,7 @@ export default function Products() {
             className="h-8 -ml-1 px-4"
             onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
           >
-            Product Cost
+            Cost
             {column.getIsSorted() === 'asc' ? (
               <ArrowUp className="ml-2 h-3 w-3" />
             ) : column.getIsSorted() === 'desc' ? (
@@ -1155,9 +1153,9 @@ export default function Products() {
                           }
                         }}
                       >
-                        {columnId === 'name' ? 'Product Name' :
+                        {columnId === 'name' ? 'Name' :
                          columnId === 'sku' ? 'SKU' :
-                         columnId === 'product_cost' ? 'Product Cost' :
+                         columnId === 'product_cost' ? 'Cost' :
                          columnId === 'markup' ? 'Markup %' :
                          columnId === 'price' ? 'Planned Sales Price $' :
                          columnId === 'profit' ? 'Desired Profit $' :
