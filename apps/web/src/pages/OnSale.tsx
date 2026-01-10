@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
-import { ArrowUpDown, ArrowUp, ArrowDown, Search } from 'lucide-react';
+import { ArrowUpDown, ArrowUp, ArrowDown, Search, DollarSign, TrendingUp, Package, ShoppingCart } from 'lucide-react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -20,7 +20,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Package } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
 import api from '@/lib/api';
 import { useSettings } from '@/hooks/useSettings';
 import { useToast } from '@/components/ui/use-toast';
@@ -647,6 +647,36 @@ export default function OnSale() {
     },
   });
 
+  // Calculate analytics
+  const analytics = useMemo(() => {
+    const totalRevenue = products.reduce((sum, product) => {
+      const qtySoldValue = qtySold[product.id] || 0;
+      const price = product.target_price ?? 0;
+      return sum + (qtySoldValue * price);
+    }, 0);
+
+    const totalCost = products.reduce((sum, product) => {
+      const qtySoldValue = qtySold[product.id] || 0;
+      const productCost = typeof product.product_cost === 'number' ? product.product_cost : 0;
+      return sum + (qtySoldValue * productCost);
+    }, 0);
+
+    const totalProfit = totalRevenue - totalCost;
+    const totalSold = products.reduce((sum, product) => {
+      return sum + (qtySold[product.id] || 0);
+    }, 0);
+
+    const averageMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
+
+    return {
+      totalRevenue,
+      totalCost,
+      totalProfit,
+      totalSold,
+      averageMargin,
+    };
+  }, [products, qtySold]);
+
   if (loading) {
     return (
       <div className="p-6">
@@ -662,17 +692,95 @@ export default function OnSale() {
   return (
     <div className="p-6">
       {products.length > 0 && (
-        <div className="mb-4">
-          <div className="relative w-[250px]">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search by name or SKU..."
-              value={globalFilter}
-              onChange={(e) => setGlobalFilter(e.target.value)}
-              className="pl-9 h-10"
-            />
+        <>
+          {/* Analytics Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Total Revenue</p>
+                    <p className="text-2xl font-bold mt-1">{formatCurrencyValue(analytics.totalRevenue)}</p>
+                  </div>
+                  <div className="h-12 w-12 rounded-full bg-green-100 dark:bg-green-900/20 flex items-center justify-center">
+                    <DollarSign className="h-6 w-6 text-green-600 dark:text-green-400" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Total Profit</p>
+                    <p className={`text-2xl font-bold mt-1 ${analytics.totalProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {formatCurrencyValue(analytics.totalProfit)}
+                    </p>
+                  </div>
+                  <div className={`h-12 w-12 rounded-full flex items-center justify-center ${
+                    analytics.totalProfit >= 0 
+                      ? 'bg-blue-100 dark:bg-blue-900/20' 
+                      : 'bg-red-100 dark:bg-red-900/20'
+                  }`}>
+                    <TrendingUp className={`h-6 w-6 ${
+                      analytics.totalProfit >= 0 
+                        ? 'text-blue-600 dark:text-blue-400' 
+                        : 'text-red-600 dark:text-red-400'
+                    }`} />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Products Sold</p>
+                    <p className="text-2xl font-bold mt-1">{analytics.totalSold}</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Avg Margin: {formatPercentage(analytics.averageMargin)}
+                    </p>
+                  </div>
+                  <div className="h-12 w-12 rounded-full bg-purple-100 dark:bg-purple-900/20 flex items-center justify-center">
+                    <Package className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Total Cost</p>
+                    <p className="text-2xl font-bold mt-1">{formatCurrencyValue(analytics.totalCost)}</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {products.length} products
+                    </p>
+                  </div>
+                  <div className="h-12 w-12 rounded-full bg-orange-100 dark:bg-orange-900/20 flex items-center justify-center">
+                    <ShoppingCart className="h-6 w-6 text-orange-600 dark:text-orange-400" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
-        </div>
+
+          {/* Search */}
+          <div className="mb-4">
+            <div className="relative w-[250px]">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by name or SKU..."
+                value={globalFilter}
+                onChange={(e) => setGlobalFilter(e.target.value)}
+                className="pl-9 h-10"
+              />
+            </div>
+          </div>
+        </>
       )}
       {products.length === 0 ? (
         <div className="rounded-lg border border-dashed p-12 text-center">
