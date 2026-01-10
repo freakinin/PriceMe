@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Package, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Columns } from 'lucide-react';
+import { Plus, Package, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Columns, Filter, X } from 'lucide-react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -211,6 +212,9 @@ export default function Products() {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+  const [selectedFilterColumn, setSelectedFilterColumn] = useState<string>('');
+  const [filterOperator, setFilterOperator] = useState<string>('contains');
+  const [filterValue, setFilterValue] = useState<string>('');
   const navigate = useNavigate();
   const { setOpen: setSidebarOpen } = useSidebar();
 
@@ -687,6 +691,34 @@ export default function Products() {
     return product.profit * qty;
   };
 
+  // Custom filter functions
+  const customFilterFunctions = {
+    contains: (row: any, columnId: string, filterValue: string) => {
+      const value = row.getValue(columnId);
+      if (value === null || value === undefined) return false;
+      return String(value).toLowerCase().includes(String(filterValue).toLowerCase());
+    },
+    equals: (row: any, columnId: string, filterValue: string) => {
+      const value = row.getValue(columnId);
+      return String(value).toLowerCase() === String(filterValue).toLowerCase();
+    },
+    notContains: (row: any, columnId: string, filterValue: string) => {
+      const value = row.getValue(columnId);
+      if (value === null || value === undefined) return true;
+      return !String(value).toLowerCase().includes(String(filterValue).toLowerCase());
+    },
+    startsWith: (row: any, columnId: string, filterValue: string) => {
+      const value = row.getValue(columnId);
+      if (value === null || value === undefined) return false;
+      return String(value).toLowerCase().startsWith(String(filterValue).toLowerCase());
+    },
+    endsWith: (row: any, columnId: string, filterValue: string) => {
+      const value = row.getValue(columnId);
+      if (value === null || value === undefined) return false;
+      return String(value).toLowerCase().endsWith(String(filterValue).toLowerCase());
+    },
+  };
+
   // Column definitions for TanStack Table
   const columns = useMemo<ColumnDef<Product>[]>(() => [
     {
@@ -695,6 +727,12 @@ export default function Products() {
       size: 300,
       minSize: 300,
       maxSize: 300,
+      enableColumnFilter: true,
+      filterFn: (row, columnId, filterValue: any) => {
+        if (!filterValue || !filterValue.value) return true;
+        const operator = filterValue.operator || 'contains';
+        return customFilterFunctions[operator as keyof typeof customFilterFunctions]?.(row, columnId, filterValue.value) ?? true;
+      },
       cell: ({ row }) => {
         const product = row.original;
         const displayName = getDisplayValue(product, 'name') as string;
@@ -714,6 +752,12 @@ export default function Products() {
       size: 140,
       minSize: 140,
       maxSize: 140,
+      enableColumnFilter: true,
+      filterFn: (row, columnId, filterValue: any) => {
+        if (!filterValue || !filterValue.value) return true;
+        const operator = filterValue.operator || 'equals';
+        return customFilterFunctions[operator as keyof typeof customFilterFunctions]?.(row, columnId, filterValue.value) ?? true;
+      },
       cell: ({ row }) => {
         const product = row.original;
         const currentStatus = (getDisplayValue(product, 'status') as ProductStatus) || 'draft';
@@ -767,6 +811,12 @@ export default function Products() {
       size: 150,
       minSize: 120,
       maxSize: 200,
+      enableColumnFilter: true,
+      filterFn: (row, columnId, filterValue: any) => {
+        if (!filterValue || !filterValue.value) return true;
+        const operator = filterValue.operator || 'contains';
+        return customFilterFunctions[operator as keyof typeof customFilterFunctions]?.(row, columnId, filterValue.value) ?? true;
+      },
       cell: ({ row }) => {
         const product = row.original;
         const displaySku = getDisplayValue(product, 'sku') as string;
@@ -1197,6 +1247,136 @@ export default function Products() {
             </div>
           )}
           {products.length > 0 && (
+            <>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon">
+                  <Filter className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-[300px]">
+                <DropdownMenuLabel>Add Filter</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <div className="p-2 space-y-3">
+                  {/* Column selection */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground">Column</label>
+                    <Select
+                      value={selectedFilterColumn}
+                      onValueChange={(value) => {
+                        setSelectedFilterColumn(value);
+                        setFilterValue('');
+                        setFilterOperator(value === 'status' ? 'equals' : 'contains');
+                      }}
+                    >
+                      <SelectTrigger className="h-8">
+                        <SelectValue placeholder="Select column..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="name">Name</SelectItem>
+                        <SelectItem value="status">Status</SelectItem>
+                        <SelectItem value="sku">SKU</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  {/* Filter operator selection */}
+                  {selectedFilterColumn && (
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground">Operator</label>
+                      <Select
+                        value={filterOperator}
+                        onValueChange={setFilterOperator}
+                      >
+                        <SelectTrigger className="h-8">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {selectedFilterColumn === 'status' ? (
+                            <>
+                              <SelectItem value="equals">Equals</SelectItem>
+                              <SelectItem value="notContains">Not Equals</SelectItem>
+                            </>
+                          ) : (
+                            <>
+                              <SelectItem value="contains">Contains</SelectItem>
+                              <SelectItem value="equals">Equals</SelectItem>
+                              <SelectItem value="notContains">Not Contains</SelectItem>
+                              <SelectItem value="startsWith">Starts With</SelectItem>
+                              <SelectItem value="endsWith">Ends With</SelectItem>
+                            </>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  
+                  {/* Dynamic filter input based on selected column */}
+                  {selectedFilterColumn && (
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground">
+                        {selectedFilterColumn === 'name' ? 'Name' :
+                         selectedFilterColumn === 'status' ? 'Status' :
+                         selectedFilterColumn === 'sku' ? 'SKU' : ''}
+                      </label>
+                      {selectedFilterColumn === 'status' ? (
+                        <Select
+                          value={filterValue}
+                          onValueChange={setFilterValue}
+                        >
+                          <SelectTrigger className="h-8">
+                            <SelectValue placeholder="Select status..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="draft">Draft</SelectItem>
+                            <SelectItem value="in_progress">In Progress</SelectItem>
+                            <SelectItem value="on_sale">On Sale</SelectItem>
+                            <SelectItem value="inactive">Inactive</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Input
+                          placeholder={`Filter by ${selectedFilterColumn}...`}
+                          value={filterValue}
+                          onChange={(e) => setFilterValue(e.target.value)}
+                          className="h-8"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && filterValue) {
+                              table.getColumn(selectedFilterColumn)?.setFilterValue({
+                                operator: filterOperator,
+                                value: filterValue
+                              });
+                              setSelectedFilterColumn('');
+                              setFilterValue('');
+                              setFilterOperator('contains');
+                            }
+                          }}
+                        />
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Apply button */}
+                  {selectedFilterColumn && filterValue && (
+                    <Button
+                      size="sm"
+                      className="w-full"
+                      onClick={() => {
+                        table.getColumn(selectedFilterColumn)?.setFilterValue({
+                          operator: filterOperator,
+                          value: filterValue
+                        });
+                        setSelectedFilterColumn('');
+                        setFilterValue('');
+                        setFilterOperator('contains');
+                      }}
+                    >
+                      Apply Filter
+                    </Button>
+                  )}
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="icon">
@@ -1242,6 +1422,7 @@ export default function Products() {
                   })}
               </DropdownMenuContent>
             </DropdownMenu>
+            </>
           )}
           <Button onClick={() => navigate('/products/add')}>
             <Plus className="h-4 w-4 mr-1" />
@@ -1249,6 +1430,73 @@ export default function Products() {
           </Button>
         </div>
       </div>
+
+      {/* Active Filters Display */}
+      {table.getState().columnFilters.length > 0 && (
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <span className="text-sm text-muted-foreground">Filters:</span>
+          {table.getState().columnFilters.map((filter) => {
+            const columnId = filter.id;
+            const columnName = columnId === 'name' ? 'Name' :
+                             columnId === 'status' ? 'Status' :
+                             columnId === 'sku' ? 'SKU' : columnId;
+            
+            // Handle both old format (string) and new format (object with operator and value)
+            const filterData = typeof filter.value === 'object' && filter.value !== null 
+              ? filter.value as { operator: string; value: string }
+              : { operator: columnId === 'status' ? 'equals' : 'contains', value: filter.value as string };
+            
+            const operatorLabels: Record<string, string> = {
+              contains: 'contains',
+              equals: 'equals',
+              notContains: 'not contains',
+              startsWith: 'starts with',
+              endsWith: 'ends with',
+            };
+            
+            const operatorLabel = operatorLabels[filterData.operator] || filterData.operator;
+            
+            // Format status display value
+            const displayValue = columnId === 'status' 
+              ? (filterData.value === 'draft' ? 'Draft' :
+                 filterData.value === 'in_progress' ? 'In Progress' :
+                 filterData.value === 'on_sale' ? 'On Sale' :
+                 filterData.value === 'inactive' ? 'Inactive' : filterData.value)
+              : filterData.value;
+            
+            return (
+              <Badge
+                key={filter.id}
+                variant="secondary"
+                className="flex items-center gap-1 px-2 py-1"
+              >
+                <span className="text-xs font-medium">{columnName} {operatorLabel} {displayValue}</span>
+                <button
+                  onClick={() => {
+                    table.getColumn(columnId)?.setFilterValue('');
+                  }}
+                  className="ml-1 rounded-full hover:bg-muted-foreground/20 p-0.5"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            );
+          })}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => {
+              table.resetColumnFilters();
+              setSelectedFilterColumn('');
+              setFilterValue('');
+              setFilterOperator('contains');
+            }}
+          >
+            Clear all
+          </Button>
+        </div>
+      )}
 
       {products.length === 0 ? (
         <div className="rounded-lg border border-dashed p-12 text-center">
