@@ -19,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { useSidebar } from '@/components/ui/sidebar';
 import api from '@/lib/api';
 import { useSettings } from '@/hooks/useSettings';
 import { formatCurrency } from '@/utils/currency';
@@ -167,8 +168,11 @@ export default function Products() {
   const [productPricingValues, setProductPricingValues] = useState<Record<number, number>>({});
   const [, setSavingFields] = useState<Set<number>>(new Set());
   const navigate = useNavigate();
+  const { setOpen: setSidebarOpen } = useSidebar();
 
   useEffect(() => {
+    // Close sidebar when Products page loads
+    setSidebarOpen(false);
     fetchProducts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

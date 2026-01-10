@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { Plus, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown, Edit, Trash2, ExternalLink, Package, Eye, Info } from 'lucide-react';
+import { useSidebar } from '@/components/ui/sidebar';
 import {
   useReactTable,
   getCoreRowModel,
@@ -243,6 +244,7 @@ function EditableCell({
 export default function Materials() {
   const { settings } = useSettings();
   const { toast } = useToast();
+  const { setOpen: setSidebarOpen } = useSidebar();
   const [materials, setMaterials] = useState<Material[]>([]);
   const [loading, setLoading] = useState(true);
   const [globalFilter, setGlobalFilter] = useState('');
@@ -258,6 +260,8 @@ export default function Materials() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
 
   useEffect(() => {
+    // Close sidebar when Materials page loads
+    setSidebarOpen(false);
     fetchMaterials();
   }, []);
 
