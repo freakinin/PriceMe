@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Package, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Plus, Package, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Columns, ChevronLeft, ChevronRight } from 'lucide-react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -10,6 +10,7 @@ import {
   type ColumnDef,
   type SortingState,
   type ColumnFiltersState,
+  type VisibilityState,
 } from '@tanstack/react-table';
 import { Button } from '@/components/ui/button';
 import {
@@ -28,6 +29,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useSidebar } from '@/components/ui/sidebar';
 import api from '@/lib/api';
 import { useSettings } from '@/hooks/useSettings';
@@ -38,19 +47,21 @@ import {
 } from '@/utils/profitCalculations';
 import { useToast } from '@/components/ui/use-toast';
 
-// Inline editable cell component
+// Inline editable cell component - matches Materials exactly
 function EditableCell({
   value,
   onSave,
   type = 'text',
   formatDisplay,
   className = '',
+  minWidth,
 }: {
-  value: string | number | null;
+  value: string | number | null | undefined;
   onSave: (value: string | number) => Promise<void>;
   type?: 'text' | 'number';
-  formatDisplay?: (value: string | number | null) => string;
+  formatDisplay?: (value: string | number | null | undefined) => string;
   className?: string;
+  minWidth?: number;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState<string>(value?.toString() || '');
@@ -110,13 +121,13 @@ function EditableCell({
 
   if (isEditing) {
     return (
-      <div ref={cellRef} className="absolute inset-0">
+      <div ref={cellRef} className="absolute inset-0 overflow-hidden">
         <input
           ref={inputRef}
           type={type === 'number' ? 'number' : 'text'}
           step={type === 'number' ? '0.01' : undefined}
-          className="h-full w-full border-none outline-none px-2 py-1 text-sm bg-transparent focus:bg-background focus:outline-none focus:ring-0"
-          style={{ borderRadius: 0 }}
+          className="h-full w-full border-none outline-none px-4 py-1 text-sm bg-transparent focus:bg-background focus:outline-none focus:ring-0"
+          style={{ borderRadius: 0, maxWidth: '100%', boxSizing: 'border-box' }}
           value={editValue}
           onChange={(e) => setEditValue(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -128,7 +139,7 @@ function EditableCell({
   }
 
   // Format number display to remove trailing zeros
-  const formatNumberDisplay = (val: string | number | null): string => {
+  const formatNumberDisplay = (val: string | number | null | undefined): string => {
     if (val === null || val === undefined) return '-';
     let num: number;
     if (typeof val === 'number') {
@@ -152,12 +163,14 @@ function EditableCell({
   };
 
   return (
-    <div 
-      ref={cellRef} 
-      className="relative h-full w-full cursor-pointer hover:bg-muted/50 rounded px-2 py-1 -mx-2 -my-1 transition-colors"
+    <div
+      className={`relative flex items-center h-full w-full min-w-0 cursor-cell hover:bg-muted/30 py-1 transition-colors ${className}`}
       onClick={handleClick}
+      onDoubleClick={handleClick}
     >
-      <span className={className}>{displayValue}</span>
+      <div className="flex-1 truncate text-sm min-w-0">
+        {typeof displayValue === 'string' ? <span className="block truncate">{displayValue}</span> : displayValue}
+      </div>
     </div>
   );
 }
@@ -196,6 +209,7 @@ export default function Products() {
   const [, setSavingFields] = useState<Set<number>>(new Set());
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const navigate = useNavigate();
   const { setOpen: setSidebarOpen } = useSidebar();
 
@@ -398,42 +412,6 @@ export default function Products() {
     });
   };
 
-  const handleMethodChange = (productId: number, method: PricingMethod) => {
-    setProductPricingMethods(prev => ({
-      ...prev,
-      [productId]: method,
-    }));
-    // When method changes, recalculate pricing_value from current target_price if available
-    const product = products.find(p => p.id === productId);
-    if (product && product.target_price && product.product_cost > 0) {
-      let newValue: number;
-      switch (method) {
-        case 'markup':
-          newValue = product.target_price > product.product_cost 
-            ? ((product.target_price - product.product_cost) / product.product_cost) * 100 
-            : 0;
-          break;
-        case 'price':
-          newValue = product.target_price;
-          break;
-        case 'profit':
-          newValue = product.target_price - product.product_cost;
-          break;
-        case 'margin':
-          newValue = product.target_price > 0 
-            ? ((product.target_price - product.product_cost) / product.target_price) * 100 
-            : 0;
-          break;
-        default:
-          newValue = 0;
-      }
-      setProductPricingValues(prev => ({
-        ...prev,
-        [productId]: newValue,
-      }));
-    }
-  };
-
   const handleSavePricingValue = async (productId: number, method: PricingMethod, value: number) => {
     try {
       const product = products.find(p => p.id === productId);
@@ -515,6 +493,9 @@ export default function Products() {
       if (field === 'name') {
         updatedProduct.name = value as string;
         updateData.name = value as string;
+      } else if (field === 'sku') {
+        updatedProduct.sku = value as string;
+        updateData.sku = value as string;
       } else if (field === 'qty_sold') {
         setQtySold(prev => ({ ...prev, [productId]: value as number }));
         setSavingFields(prev => {
@@ -694,32 +675,51 @@ export default function Products() {
     {
       accessorKey: 'name',
       header: 'Product Name',
+      size: 300,
+      minSize: 300,
+      maxSize: 300,
       cell: ({ row }) => {
         const product = row.original;
         const displayName = getDisplayValue(product, 'name') as string;
         return (
-          <div className="flex flex-col gap-0.5">
-            <EditableCell
-              value={displayName}
-              onSave={async (value) => handleSaveField(product.id, 'name', value)}
-              type="text"
-              className="font-medium"
-            />
-            {product.sku && (
-              <span className="text-xs text-muted-foreground pl-2">{product.sku}</span>
-            )}
-          </div>
+          <EditableCell
+            value={displayName}
+            onSave={async (value) => handleSaveField(product.id, 'name', value)}
+            type="text"
+            className="font-medium"
+          />
+        );
+      },
+    },
+    {
+      accessorKey: 'sku',
+      header: 'SKU',
+      size: 150,
+      minSize: 120,
+      maxSize: 200,
+      cell: ({ row }) => {
+        const product = row.original;
+        const displaySku = getDisplayValue(product, 'sku') as string;
+        return (
+          <EditableCell
+            value={displaySku || ''}
+            onSave={async (value) => handleSaveField(product.id, 'sku', value)}
+            type="text"
+          />
         );
       },
     },
     {
       id: 'product_cost',
+      size: 120,
+      minSize: 100,
+      maxSize: 200,
       header: ({ column }) => {
         return (
           <Button
             variant="ghost"
             size="sm"
-            className="h-8 -ml-3"
+            className="h-8 -ml-1 px-4"
             onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
           >
             Product Cost
@@ -736,11 +736,14 @@ export default function Products() {
       accessorFn: (row) => row.product_cost,
       cell: ({ row }) => {
         const product = row.original;
-        return formatCurrencyValue(product.product_cost);
+        return <div className="py-1">{formatCurrencyValue(product.product_cost)}</div>;
       },
     },
     {
       id: 'markup',
+      size: 120,
+      minSize: 100,
+      maxSize: 200,
       header: 'Markup %',
       cell: ({ row }) => {
         const product = row.original;
@@ -759,12 +762,7 @@ export default function Products() {
                 formatDisplay={formatPercentage}
               />
             ) : (
-              <div 
-                className="text-muted-foreground cursor-pointer hover:bg-muted/50 rounded px-2 py-1 -mx-2 -my-1 transition-colors"
-                onClick={() => {
-                  handleMethodChange(product.id, 'markup');
-                }}
-              >
+              <div className="text-muted-foreground py-1">
                 {formatPercentage(markupValue)}
               </div>
             )}
@@ -774,6 +772,9 @@ export default function Products() {
     },
     {
       id: 'price',
+      size: 180,
+      minSize: 150,
+      maxSize: 250,
       header: 'Planned Sales Price $',
       cell: ({ row }) => {
         const product = row.original;
@@ -792,12 +793,7 @@ export default function Products() {
                 formatDisplay={formatCurrencyValue}
               />
             ) : (
-              <div 
-                className="text-muted-foreground cursor-pointer hover:bg-muted/50 rounded px-2 py-1 -mx-2 -my-1 transition-colors"
-                onClick={() => {
-                  handleMethodChange(product.id, 'price');
-                }}
-              >
+              <div className="text-muted-foreground py-1">
                 {formatCurrencyValue(priceValue)}
               </div>
             )}
@@ -807,6 +803,9 @@ export default function Products() {
     },
     {
       id: 'profit',
+      size: 150,
+      minSize: 120,
+      maxSize: 200,
       header: 'Desired Profit $',
       cell: ({ row }) => {
         const product = row.original;
@@ -825,12 +824,7 @@ export default function Products() {
                 formatDisplay={formatCurrencyValue}
               />
             ) : (
-              <div 
-                className="text-muted-foreground cursor-pointer hover:bg-muted/50 rounded px-2 py-1 -mx-2 -my-1 transition-colors"
-                onClick={() => {
-                  handleMethodChange(product.id, 'profit');
-                }}
-              >
+              <div className="text-muted-foreground py-1">
                 {formatCurrencyValue(profitValue)}
               </div>
             )}
@@ -840,6 +834,9 @@ export default function Products() {
     },
     {
       id: 'margin',
+      size: 150,
+      minSize: 120,
+      maxSize: 200,
       header: 'Desired Margin %',
       cell: ({ row }) => {
         const product = row.original;
@@ -858,12 +855,7 @@ export default function Products() {
                 formatDisplay={formatPercentage}
               />
             ) : (
-              <div 
-                className="text-muted-foreground cursor-pointer hover:bg-muted/50 rounded px-2 py-1 -mx-2 -my-1 transition-colors"
-                onClick={() => {
-                  handleMethodChange(product.id, 'margin');
-                }}
-              >
+              <div className="text-muted-foreground py-1">
                 {formatPercentage(marginValue)}
               </div>
             )}
@@ -873,12 +865,15 @@ export default function Products() {
     },
     {
       id: 'calculated_profit',
+      size: 120,
+      minSize: 100,
+      maxSize: 200,
       header: ({ column }) => {
         return (
           <Button
             variant="ghost"
             size="sm"
-            className="h-8 -ml-3"
+            className="h-8 -ml-1 px-4"
             onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
           >
             Profit
@@ -900,20 +895,25 @@ export default function Products() {
         const product = row.original;
         const metrics = getCalculatedMetrics(product);
         return (
-          <span className={metrics.profit >= 0 ? 'text-green-600' : 'text-red-600'}>
-            {formatCurrencyValue(metrics.profit)}
-          </span>
+          <div className="py-1">
+            <span className={metrics.profit >= 0 ? 'text-green-600' : 'text-red-600'}>
+              {formatCurrencyValue(metrics.profit)}
+            </span>
+          </div>
         );
       },
     },
     {
       id: 'calculated_margin',
+      size: 130,
+      minSize: 110,
+      maxSize: 200,
       header: ({ column }) => {
         return (
           <Button
             variant="ghost"
             size="sm"
-            className="h-8 -ml-3"
+            className="h-8 -ml-1 px-4"
             onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
           >
             Profit Margin
@@ -935,14 +935,19 @@ export default function Products() {
         const product = row.original;
         const metrics = getCalculatedMetrics(product);
         return (
-          <span className={metrics.margin >= 0 ? 'text-green-600' : 'text-red-600'}>
-            {formatPercentage(metrics.margin)}
-          </span>
+          <div className="py-1">
+            <span className={metrics.margin >= 0 ? 'text-green-600' : 'text-red-600'}>
+              {formatPercentage(metrics.margin)}
+            </span>
+          </div>
         );
       },
     },
     {
       id: 'qty_sold',
+      size: 100,
+      minSize: 80,
+      maxSize: 150,
       header: 'Qty Sold',
       cell: ({ row }) => {
         const product = row.original;
@@ -958,12 +963,15 @@ export default function Products() {
     },
     {
       id: 'profit_qty',
+      size: 130,
+      minSize: 110,
+      maxSize: 200,
       header: ({ column }) => {
         return (
           <Button
             variant="ghost"
             size="sm"
-            className="h-8 -ml-3"
+            className="h-8 -ml-1 px-4"
             onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
           >
             Profit (Qty)
@@ -988,14 +996,20 @@ export default function Products() {
         const metrics = getCalculatedMetrics(product);
         const profitFromQty = calculateProfitFromQty({ ...product, profit: metrics.profit }, currentQtySold);
         return (
-          <span className={profitFromQty && profitFromQty >= 0 ? 'text-green-600 font-medium' : profitFromQty ? 'text-red-600 font-medium' : ''}>
-            {formatCurrencyValue(profitFromQty)}
-          </span>
+          <div className="py-1">
+            <span className={profitFromQty && profitFromQty >= 0 ? 'text-green-600 font-medium' : profitFromQty ? 'text-red-600 font-medium' : ''}>
+              {formatCurrencyValue(profitFromQty)}
+            </span>
+          </div>
         );
       },
     },
     {
       id: 'actions',
+      size: 100,
+      minSize: 80,
+      maxSize: 120,
+      enableResizing: false,
       header: () => <div className="text-right">Actions</div>,
       cell: ({ row }) => {
         const product = row.original;
@@ -1032,7 +1046,6 @@ export default function Products() {
     calculateProfitFromQty,
     handleSaveField,
     handleSavePricingValue,
-    handleMethodChange,
     formatCurrencyValue,
     formatPercentage,
   ]);
@@ -1046,9 +1059,13 @@ export default function Products() {
     getFilteredRowModel: getFilteredRowModel(),
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
+    onColumnVisibilityChange: setColumnVisibility,
+    enableColumnResizing: true,
+    columnResizeMode: 'onChange',
     state: {
       sorting,
       columnFilters,
+      columnVisibility,
     },
   });
 
@@ -1110,6 +1127,53 @@ export default function Products() {
               </Select>
             </div>
           )}
+          {products.length > 0 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <Columns className="h-4 w-4 mr-2" />
+                  Columns
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-[250px]">
+                <DropdownMenuLabel>Toggle columns</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {table
+                  .getAllColumns()
+                  .filter((column) => column.getCanHide && column.getCanHide())
+                  .map((column) => {
+                    const columnId = column.id || '';
+                    return (
+                      <DropdownMenuCheckboxItem
+                        key={columnId}
+                        className="capitalize"
+                        checked={column.getIsVisible ? column.getIsVisible() : true}
+                        onSelect={(e) => e.preventDefault()}
+                        onCheckedChange={(value) => {
+                          if (column.toggleVisibility) {
+                            column.toggleVisibility(!!value);
+                          }
+                        }}
+                      >
+                        {columnId === 'name' ? 'Product Name' :
+                         columnId === 'sku' ? 'SKU' :
+                         columnId === 'product_cost' ? 'Product Cost' :
+                         columnId === 'markup' ? 'Markup %' :
+                         columnId === 'price' ? 'Planned Sales Price $' :
+                         columnId === 'profit' ? 'Desired Profit $' :
+                         columnId === 'margin' ? 'Desired Margin %' :
+                         columnId === 'calculated_profit' ? 'Profit' :
+                         columnId === 'calculated_margin' ? 'Profit Margin' :
+                         columnId === 'qty_sold' ? 'Qty Sold' :
+                         columnId === 'profit_qty' ? 'Profit (Qty)' :
+                         columnId === 'actions' ? 'Actions' :
+                         columnId}
+                      </DropdownMenuCheckboxItem>
+                    );
+                  })}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
           <Button onClick={() => navigate('/products/add')}>
             <Plus className="h-4 w-4 mr-1" />
             New
@@ -1136,7 +1200,14 @@ export default function Products() {
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
                   {headerGroup.headers.map((header) => (
-                    <TableHead key={header.id}>
+                    <TableHead 
+                      key={header.id}
+                      style={{ 
+                        width: header.getSize(),
+                        minWidth: header.column.columnDef.minSize,
+                        maxWidth: header.column.columnDef.maxSize,
+                      }}
+                    >
                       {header.isPlaceholder
                         ? null
                         : flexRender(
@@ -1153,7 +1224,16 @@ export default function Products() {
                 table.getRowModel().rows.map((row) => (
                   <TableRow key={row.id} data-state={row.getIsSelected() && 'selected'}>
                     {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id}>
+                      <TableCell 
+                        key={cell.id} 
+                        className="px-4 relative overflow-hidden"
+                        style={{ 
+                          width: cell.column.getSize(),
+                          minWidth: cell.column.columnDef.minSize,
+                          maxWidth: cell.column.columnDef.maxSize,
+                          boxSizing: 'border-box',
+                        }}
+                      >
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
                       </TableCell>
                     ))}
