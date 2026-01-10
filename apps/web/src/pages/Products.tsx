@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Package, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Columns, Filter, X } from 'lucide-react';
+import { Plus, Package, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Columns, Filter, X, Search } from 'lucide-react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -212,6 +212,7 @@ export default function Products() {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+  const [globalFilter, setGlobalFilter] = useState<string>('');
   const [selectedFilterColumn, setSelectedFilterColumn] = useState<string>('');
   const [filterOperator, setFilterOperator] = useState<string>('contains');
   const [filterValue, setFilterValue] = useState<string>('');
@@ -1180,12 +1181,21 @@ export default function Products() {
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
+    onGlobalFilterChange: setGlobalFilter,
+    globalFilterFn: (row, _columnId, filterValue: string) => {
+      if (!filterValue) return true;
+      const searchValue = filterValue.toLowerCase();
+      const name = (row.getValue('name') as string)?.toLowerCase() || '';
+      const sku = (row.getValue('sku') as string)?.toLowerCase() || '';
+      return name.includes(searchValue) || sku.includes(searchValue);
+    },
     enableColumnResizing: true,
     columnResizeMode: 'onChange',
     state: {
       sorting,
       columnFilters,
       columnVisibility,
+      globalFilter,
     },
   });
 
@@ -1229,14 +1239,25 @@ export default function Products() {
         </div>
         <div className="flex items-center gap-3">
           {products.length > 0 && (
-            <div className="flex items-center gap-2">
-              <Select
-                value={globalPricingMethod}
-                onValueChange={(value) => handleGlobalMethodChange(value as PricingMethod)}
-              >
-                <SelectTrigger className="w-[180px] h-10">
-                  <SelectValue />
-                </SelectTrigger>
+            <>
+              {/* Search Box */}
+              <div className="relative w-[250px]">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by name or SKU..."
+                  value={globalFilter}
+                  onChange={(e) => setGlobalFilter(e.target.value)}
+                  className="pl-9 h-10"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <Select
+                  value={globalPricingMethod}
+                  onValueChange={(value) => handleGlobalMethodChange(value as PricingMethod)}
+                >
+                  <SelectTrigger className="w-[180px] h-10">
+                    <SelectValue />
+                  </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="markup">Markup %</SelectItem>
                   <SelectItem value="price">Planned Sales Price $</SelectItem>
@@ -1244,7 +1265,8 @@ export default function Products() {
                   <SelectItem value="margin">Desired Margin %</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
+              </div>
+            </>
           )}
           {products.length > 0 && (
             <>
