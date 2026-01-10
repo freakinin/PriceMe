@@ -136,6 +136,19 @@ export async function initializeDatabase() {
         console.log('✅ Added category column');
       }
 
+      // Check and add status column
+      const statusExists = await sql`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name='products' AND column_name='status'
+      `;
+      const statusRows = Array.isArray(statusExists) ? statusExists : statusExists.rows || [];
+      if (statusRows.length === 0) {
+        console.log('Adding status column to products table...');
+        await sql`ALTER TABLE products ADD COLUMN status VARCHAR(20) DEFAULT 'draft'`;
+        console.log('✅ Added status column');
+      }
+
       // Check and add batch_size column
       const batchSizeExists = await sql`
         SELECT column_name 

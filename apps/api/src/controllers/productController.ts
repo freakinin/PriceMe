@@ -339,13 +339,16 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Update product
+    // Update product - handle status separately as it's optional
+    const status = (req.body as any).status || null;
+    
     await db`
       UPDATE products
       SET name = ${name},
           sku = ${sku || null},
           description = ${description || null},
           category = ${category || null},
+          status = ${status || null},
           batch_size = ${batch_size || 1},
           target_price = ${target_price || null},
           pricing_method = ${pricing_method || null},

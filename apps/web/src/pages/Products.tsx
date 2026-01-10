@@ -174,11 +174,13 @@ function EditableCell({
 }
 
 type PricingMethod = 'markup' | 'price' | 'profit' | 'margin';
+type ProductStatus = 'draft' | 'working' | 'on_sale' | 'active' | 'inactive';
 
 interface Product {
   id: number;
   name: string;
   sku: string | null;
+  status: ProductStatus | null;
   batch_size: number;
   target_price: number | null;
   pricing_method: PricingMethod | null;
@@ -494,6 +496,9 @@ export default function Products() {
       } else if (field === 'sku') {
         updatedProduct.sku = value as string;
         updateData.sku = value as string;
+      } else if (field === 'status') {
+        updatedProduct.status = value as ProductStatus;
+        updateData.status = value as ProductStatus;
       } else if (field === 'qty_sold') {
         setQtySold(prev => ({ ...prev, [productId]: value as number }));
         setSavingFields(prev => {
@@ -570,6 +575,11 @@ export default function Products() {
       
       // Only include optional fields if they have values
       if (currentProduct.sku) updatePayload.sku = currentProduct.sku;
+      if (updateData.status !== undefined) {
+        updatePayload.status = updateData.status;
+      } else if (currentProduct.status) {
+        updatePayload.status = currentProduct.status;
+      }
       if (currentProduct.description) updatePayload.description = currentProduct.description;
       if (currentProduct.category) updatePayload.category = currentProduct.category;
       
@@ -686,6 +696,36 @@ export default function Products() {
             type="text"
             className="font-medium"
           />
+        );
+      },
+    },
+    {
+      accessorKey: 'status',
+      header: 'Status',
+      size: 150,
+      minSize: 120,
+      maxSize: 200,
+      cell: ({ row }) => {
+        const product = row.original;
+        const currentStatus = (getDisplayValue(product, 'status') as ProductStatus) || 'draft';
+        return (
+          <Select
+            value={currentStatus}
+            onValueChange={async (value) => {
+              await handleSaveField(product.id, 'status', value);
+            }}
+          >
+            <SelectTrigger className="h-8 border-none shadow-none px-2 hover:bg-muted/50">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="draft">Draft</SelectItem>
+              <SelectItem value="working">Working On</SelectItem>
+              <SelectItem value="on_sale">On Sale</SelectItem>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="inactive">Inactive</SelectItem>
+            </SelectContent>
+          </Select>
         );
       },
     },
@@ -1152,6 +1192,7 @@ export default function Products() {
                         }}
                       >
                         {columnId === 'name' ? 'Name' :
+                         columnId === 'status' ? 'Status' :
                          columnId === 'sku' ? 'SKU' :
                          columnId === 'product_cost' ? 'Cost' :
                          columnId === 'markup' ? 'Markup %' :
