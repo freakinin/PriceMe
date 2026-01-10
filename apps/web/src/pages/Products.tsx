@@ -1541,7 +1541,7 @@ export default function Products() {
                 table.getRowModel().rows.map((row) => (
                   <TableRow key={row.id} data-state={row.getIsSelected() && 'selected'}>
                     {row.getVisibleCells().map((cell) => {
-                      const isStatusColumn = cell.column.columnDef.accessorKey === 'status';
+                      const isStatusColumn = cell.column.id === 'status';
                       return (
                         <TableCell 
                           key={cell.id} 
