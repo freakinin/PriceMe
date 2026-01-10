@@ -312,6 +312,21 @@ export default function Products() {
     return `${numValue.toFixed(2)}%`;
   };
 
+  const getCalculationTypeDescription = (method: PricingMethod): string => {
+    switch (method) {
+      case 'markup':
+        return 'Enter markup percentage applied to cost. Price = Cost × (1 + Markup%).';
+      case 'price':
+        return 'Enter your desired selling price. Profit and margin will be calculated automatically.';
+      case 'profit':
+        return 'Enter desired profit amount per unit. Price = Cost + Profit.';
+      case 'margin':
+        return 'Enter desired profit margin percentage. Price = Cost ÷ (1 - Margin%).';
+      default:
+        return 'Select a calculation method for all products.';
+    }
+  };
+
   const handleGlobalMethodChange = (method: PricingMethod) => {
     setGlobalPricingMethod(method);
     
@@ -687,7 +702,7 @@ export default function Products() {
         <div>
           {products.length > 0 && (
             <p className="text-sm text-muted-foreground">
-              Select a calculation method for all products. Only the selected method's input is editable.
+              {getCalculationTypeDescription(globalPricingMethod)}
             </p>
           )}
         </div>
