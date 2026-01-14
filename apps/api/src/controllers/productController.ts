@@ -420,49 +420,49 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
     // Only update materials/labor/other_costs if they were explicitly provided in the request
     if (hasMaterials) {
       // Delete existing materials
-      await db`DELETE FROM materials WHERE product_id = ${productId}`;
-      
-      // Insert new materials if provided
-      if (materials && materials.length > 0) {
-        for (const material of materials) {
-          const unitsMade = material.units_made || 1;
-          const totalCost = (material.quantity * material.price_per_unit) / unitsMade;
-          await db`
-            INSERT INTO materials (product_id, user_material_id, name, quantity, unit, price_per_unit, units_made, total_cost)
-            VALUES (${productId}, ${material.user_material_id || null}, ${material.name}, ${material.quantity}, ${material.unit}, ${material.price_per_unit}, ${unitsMade}, ${totalCost})
-          `;
-        }
+    await db`DELETE FROM materials WHERE product_id = ${productId}`;
+
+    // Insert new materials if provided
+    if (materials && materials.length > 0) {
+      for (const material of materials) {
+        const unitsMade = material.units_made || 1;
+        const totalCost = (material.quantity * material.price_per_unit) / unitsMade;
+        await db`
+          INSERT INTO materials (product_id, user_material_id, name, quantity, unit, price_per_unit, units_made, total_cost)
+          VALUES (${productId}, ${material.user_material_id || null}, ${material.name}, ${material.quantity}, ${material.unit}, ${material.price_per_unit}, ${unitsMade}, ${totalCost})
+        `;
       }
+    }
     }
 
     if (hasLaborCosts) {
       // Delete existing labor costs
       await db`DELETE FROM labor_costs WHERE product_id = ${productId}`;
-      
-      // Insert new labor costs if provided
-      if (labor_costs && labor_costs.length > 0) {
-        for (const labor of labor_costs) {
-          const totalCost = (labor.time_spent_minutes / 60) * labor.hourly_rate;
-          await db`
-            INSERT INTO labor_costs (product_id, activity, time_spent_minutes, hourly_rate, total_cost, per_unit)
-            VALUES (${productId}, ${labor.activity}, ${labor.time_spent_minutes}, ${labor.hourly_rate}, ${totalCost}, ${labor.per_unit ?? true})
-          `;
-        }
+
+    // Insert new labor costs if provided
+    if (labor_costs && labor_costs.length > 0) {
+      for (const labor of labor_costs) {
+        const totalCost = (labor.time_spent_minutes / 60) * labor.hourly_rate;
+        await db`
+          INSERT INTO labor_costs (product_id, activity, time_spent_minutes, hourly_rate, total_cost, per_unit)
+          VALUES (${productId}, ${labor.activity}, ${labor.time_spent_minutes}, ${labor.hourly_rate}, ${totalCost}, ${labor.per_unit ?? true})
+        `;
       }
+    }
     }
 
     if (hasOtherCosts) {
       // Delete existing other costs
       await db`DELETE FROM other_costs WHERE product_id = ${productId}`;
-      
-      // Insert new other costs if provided
-      if (other_costs && other_costs.length > 0) {
-        for (const cost of other_costs) {
-          const totalCost = cost.quantity * cost.cost;
-          await db`
-            INSERT INTO other_costs (product_id, item, quantity, cost, total_cost, per_unit)
-            VALUES (${productId}, ${cost.item}, ${cost.quantity}, ${cost.cost}, ${totalCost}, ${cost.per_unit ?? true})
-          `;
+
+    // Insert new other costs if provided
+    if (other_costs && other_costs.length > 0) {
+      for (const cost of other_costs) {
+        const totalCost = cost.quantity * cost.cost;
+        await db`
+          INSERT INTO other_costs (product_id, item, quantity, cost, total_cost, per_unit)
+          VALUES (${productId}, ${cost.item}, ${cost.quantity}, ${cost.cost}, ${totalCost}, ${cost.per_unit ?? true})
+        `;
         }
       }
     }

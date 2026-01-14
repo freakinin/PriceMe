@@ -11,7 +11,7 @@ interface AppLayoutProps {
 // Page titles mapping - will get user name dynamically
 const getPageTitle = (pathname: string, userName?: string): string => {
   if (pathname === '/') {
-    return `Hi ${userName || 'Amir'}`;
+    return 'Home';
   }
   const titles: Record<string, string> = {
     '/products/add': 'Create Product',

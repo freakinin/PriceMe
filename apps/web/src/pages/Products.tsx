@@ -738,12 +738,12 @@ export default function Products() {
         const product = row.original;
         const displayName = getDisplayValue(product, 'name') as string;
         return (
-          <EditableCell
-            value={displayName}
-            onSave={async (value) => handleSaveField(product.id, 'name', value)}
-            type="text"
-            className="font-medium"
-          />
+            <EditableCell
+              value={displayName}
+              onSave={async (value) => handleSaveField(product.id, 'name', value)}
+              type="text"
+              className="font-medium"
+            />
         );
       },
     },
@@ -1189,14 +1189,14 @@ export default function Products() {
                   className="pl-9 h-10"
                 />
               </div>
-              <div className="flex items-center gap-2">
-                <Select
-                  value={globalPricingMethod}
-                  onValueChange={(value) => handleGlobalMethodChange(value as PricingMethod)}
-                >
+            <div className="flex items-center gap-2">
+              <Select
+                value={globalPricingMethod}
+                onValueChange={(value) => handleGlobalMethodChange(value as PricingMethod)}
+              >
                   <SelectTrigger className="w-[180px] h-10">
-                    <SelectValue />
-                  </SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="markup">Markup %</SelectItem>
                   <SelectItem value="price">Planned Sales Price $</SelectItem>
@@ -1204,7 +1204,7 @@ export default function Products() {
                   <SelectItem value="margin">Desired Margin %</SelectItem>
                 </SelectContent>
               </Select>
-              </div>
+            </div>
             </>
           )}
           {products.length > 0 && (
@@ -1484,14 +1484,14 @@ export default function Products() {
                           maxWidth: header.column.columnDef.maxSize,
                         }}
                       >
-                        {header.isPlaceholder
-                          ? null
-                          : flexRender(
-                              header.column.columnDef.header,
-                              header.getContext()
-                            )}
-                      </TableHead>
-                    ))}
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(
+                            header.column.columnDef.header,
+                            header.getContext()
+                          )}
+                    </TableHead>
+                  ))}
                 </TableRow>
               ))}
             </TableHeader>
@@ -1512,8 +1512,8 @@ export default function Products() {
                             boxSizing: 'border-box',
                           }}
                         >
-                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                        </TableCell>
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </TableCell>
                       );
                     })}
                   </TableRow>

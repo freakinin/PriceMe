@@ -784,13 +784,13 @@ export default function Materials() {
               {/* Search Box */}
               <div className="relative w-[250px]">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
+            <Input
                   placeholder="Search by name or supplier..."
                   value={globalFilter}
-                  onChange={(e) => setGlobalFilter(e.target.value)}
+              onChange={(e) => setGlobalFilter(e.target.value)}
                   className="pl-9 h-10"
-                />
-              </div>
+            />
+          </div>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="icon">
@@ -822,7 +822,7 @@ export default function Materials() {
                           <SelectItem value="stock_level">Stock Level</SelectItem>
                         </SelectContent>
                       </Select>
-                    </div>
+        </div>
                     
                     {/* Filter operator selection */}
                     {selectedFilterColumn && (
@@ -834,8 +834,8 @@ export default function Materials() {
                         >
                           <SelectTrigger className="h-8">
                             <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
+          </SelectTrigger>
+          <SelectContent>
                             {selectedFilterColumn === 'category' || selectedFilterColumn === 'stock_level' ? (
                               <>
                                 <SelectItem value="equals">Equals</SelectItem>
@@ -873,11 +873,11 @@ export default function Materials() {
                               <SelectValue placeholder="Select category..." />
                             </SelectTrigger>
                             <SelectContent>
-                              {getCategories().map((cat) => (
+            {getCategories().map((cat) => (
                                 <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+            ))}
+          </SelectContent>
+        </Select>
                         ) : (
                           <Input
                             placeholder={`Filter by ${selectedFilterColumn}...`}
@@ -902,7 +902,7 @@ export default function Materials() {
                     
                     {/* Apply button */}
                     {selectedFilterColumn && filterValue && (
-                      <Button
+        <Button
                         size="sm"
                         className="w-full"
                         onClick={() => {
@@ -914,59 +914,59 @@ export default function Materials() {
                           setFilterValue('');
                           setFilterOperator('contains');
                         }}
-                      >
+        >
                         Apply Filter
-                      </Button>
+        </Button>
                     )}
                   </div>
                 </DropdownMenuContent>
               </DropdownMenu>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="icon">
                     <Columns className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
+            </Button>
+          </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-[250px]">
-                  <DropdownMenuLabel>Toggle columns</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  {table
-                    .getAllColumns()
+            <DropdownMenuLabel>Toggle columns</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {table
+              .getAllColumns()
                     .filter((column) => column.getCanHide && column.getCanHide())
-                    .map((column) => {
+              .map((column) => {
                       const columnId = column.id || '';
-                      const columnLabels: Record<string, string> = {
-                        name: 'Name',
-                        price_per_unit: 'Price/Unit',
+                const columnLabels: Record<string, string> = {
+                  name: 'Name',
+                  price_per_unit: 'Price/Unit',
                         quantity: 'Qty',
                         unit: 'Unit',
                         price: 'Total Price',
-                        details: 'Details',
-                        supplier: 'Supplier',
-                        supplier_link: 'Link',
-                        stock_level: 'Stock Level',
-                        reorder_point: 'Reorder Point',
-                        last_purchased_date: 'Last Purchased',
-                        category: 'Category',
-                      };
-                      return (
-                        <DropdownMenuCheckboxItem
+                  details: 'Details',
+                  supplier: 'Supplier',
+                  supplier_link: 'Link',
+                  stock_level: 'Stock Level',
+                  reorder_point: 'Reorder Point',
+                  last_purchased_date: 'Last Purchased',
+                  category: 'Category',
+                };
+                return (
+                  <DropdownMenuCheckboxItem
                           key={columnId}
-                          className="capitalize"
+                    className="capitalize"
                           checked={column.getIsVisible ? column.getIsVisible() : true}
                           onSelect={(e) => e.preventDefault()}
                           onCheckedChange={(value) => {
                             if (column.toggleVisibility) {
                               column.toggleVisibility(!!value);
-                            }
+                    }
                           }}
-                        >
+                  >
                           {columnLabels[columnId] || columnId}
-                        </DropdownMenuCheckboxItem>
-                      );
-                    })}
-                </DropdownMenuContent>
-              </DropdownMenu>
+                  </DropdownMenuCheckboxItem>
+                );
+              })}
+          </DropdownMenuContent>
+        </DropdownMenu>
             </>
           )}
           <Button onClick={() => setIsAddDialogOpen(true)}>
