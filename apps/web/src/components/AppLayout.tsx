@@ -2,14 +2,13 @@ import { type ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from './AppSidebar';
-import { useAuth } from '@/hooks/useAuth';
 
 interface AppLayoutProps {
   children: ReactNode;
 }
 
-// Page titles mapping - will get user name dynamically
-const getPageTitle = (pathname: string, userName?: string): string => {
+// Page titles mapping
+const getPageTitle = (pathname: string): string => {
   if (pathname === '/') {
     return 'Home';
   }
@@ -26,8 +25,7 @@ const getPageTitle = (pathname: string, userName?: string): string => {
 
 export function AppLayout({ children }: AppLayoutProps) {
   const location = useLocation();
-  const { user } = useAuth();
-  const pageTitle = getPageTitle(location.pathname, user?.name);
+  const pageTitle = getPageTitle(location.pathname);
   
   // Close sidebar by default on Materials page
   const defaultOpen = location.pathname !== '/materials';
