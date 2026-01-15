@@ -353,10 +353,10 @@ export default function Materials() {
   };
 
   // Get available units from settings
-  const units = useMemo(() => {
-    return settings.units && settings.units.length > 0
-      ? settings.units
-      : ['ml', 'L', 'fl oz', 'pt', 'qt', 'gal', 'g', 'kg', 'oz', 'lb', 'mm', 'cm', 'm', 'in', 'ft', 'yd', 'm²', 'ft²', 'pcs', 'piece', 'unit', 'set', 'pack', 'box', 'roll', 'sheet', 'yard'];
+  const availableUnits = useMemo(() => {
+    return settings.units && settings.units.length > 0 
+      ? [...settings.units].sort() 
+      : ['ml', 'L', 'g', 'kg', 'mm', 'cm', 'm', 'm²', 'pcs'];
   }, [settings.units]);
 
   // Custom filter functions
@@ -503,7 +503,7 @@ export default function Materials() {
                 await updateMaterial(material.id, { unit: value as string });
               }}
               type="select"
-              options={units}
+              options={availableUnits}
             />
           );
         },
@@ -742,7 +742,7 @@ export default function Materials() {
         },
       },
     ],
-    [settings.currency, units, materials]
+    [settings.currency, availableUnits, materials]
   );
 
   // Table instance

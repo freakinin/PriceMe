@@ -12,16 +12,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/use-toast';
 import api from '@/lib/api';
-import { Save } from 'lucide-react';
+import { Save, Plus, X } from 'lucide-react';
+import { useSettings } from '@/hooks/useSettings';
 
 const settingsSchema = z.object({
   currency: z.string().length(3),
   tax_percentage: z.number().min(0).max(100),
   revenue_goal: z.number().min(0).optional().or(z.null()),
   labor_hourly_cost: z.number().min(0).optional().or(z.null()),
+  unit_system: z.enum(['imperial', 'metric']),
+  units: z.array(z.string()).min(1),
 });
 
 type SettingsFormValues = z.infer<typeof settingsSchema>;
@@ -40,11 +45,34 @@ const CURRENCIES = [
   { code: 'BRL', symbol: 'R$', name: 'Brazilian Real' },
 ];
 
+// Curated units list
+const METRIC_UNITS = {
+  Volume: ['ml', 'L'],
+  Weight: ['g', 'kg'],
+  Length: ['mm', 'cm', 'm'],
+  Area: ['m²'],
+  Count: ['pcs'],
+};
+
+const IMPERIAL_UNITS = {
+  Volume: ['fl oz', 'pt', 'qt', 'gal'],
+  Weight: ['oz', 'lb'],
+  Length: ['in', 'ft', 'yd'],
+  Area: ['ft²'],
+  Count: ['pcs'],
+};
+
+// Default selected units
+const DEFAULT_METRIC_UNITS = ['ml', 'g', 'kg', 'pcs', 'm', 'cm', 'in'];
+const DEFAULT_IMPERIAL_UNITS = ['fl oz', 'oz', 'lb', 'pcs', 'in', 'ft', 'yd'];
+
 export default function Settings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [customUnit, setCustomUnit] = useState('');
   const { toast } = useToast();
+  const { refetch: refetchSettings } = useSettings();
 
   const form = useForm<SettingsFormValues>({
     resolver: zodResolver(settingsSchema),
@@ -53,11 +81,17 @@ export default function Settings() {
       tax_percentage: 0,
       revenue_goal: null,
       labor_hourly_cost: null,
+      unit_system: 'metric',
+      units: DEFAULT_METRIC_UNITS,
     },
   });
 
+  const unitSystem = form.watch('unit_system') || 'metric';
+  const selectedUnits = form.watch('units') || [];
+
   useEffect(() => {
     fetchSettings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchSettings = async () => {
@@ -70,29 +104,42 @@ export default function Settings() {
       
       if (response.data && response.data.status === 'success') {
         const settings = response.data.data;
+        const units = settings.units && Array.isArray(settings.units) && settings.units.length > 0
+          ? settings.units
+          : (settings.unit_system === 'imperial' ? DEFAULT_IMPERIAL_UNITS : DEFAULT_METRIC_UNITS);
+        
+        const unitSystem = settings.unit_system === 'imperial' || settings.unit_system === 'metric' 
+          ? settings.unit_system 
+          : 'metric';
+        
         form.reset({
           currency: settings.currency || 'USD',
           tax_percentage: settings.tax_percentage || 0,
-          revenue_goal: settings.revenue_goal || null,
-          labor_hourly_cost: settings.labor_hourly_cost || null,
+          revenue_goal: settings.revenue_goal !== undefined ? settings.revenue_goal : null,
+          labor_hourly_cost: settings.labor_hourly_cost !== undefined ? settings.labor_hourly_cost : null,
+          unit_system: unitSystem,
+          units: Array.isArray(units) ? units : DEFAULT_METRIC_UNITS,
         });
-        // Clear any previous errors on success
         setError(null);
       } else if (response.data && response.data.status === 'error') {
-        // Only set error if status is explicitly 'error'
         setError(response.data.message || 'Failed to load settings');
       }
     } catch (err: any) {
       console.error('Error fetching settings:', err);
-      console.error('Error response:', err.response);
-      // Only show error if there's an actual error response (4xx or 5xx)
       if (err.response && err.response.status >= 400) {
         setError(err.response?.data?.message || 'Failed to load settings');
       } else if (!err.response) {
-        // Network error - show error
         setError('Network error. Please check your connection.');
       }
-      // If it's a 200 response with error status, we'll handle it above
+      // Reset form to defaults on error
+      form.reset({
+        currency: 'USD',
+        tax_percentage: 0,
+        revenue_goal: null,
+        labor_hourly_cost: null,
+        unit_system: 'metric',
+        units: DEFAULT_METRIC_UNITS,
+      });
     } finally {
       setLoading(false);
     }
@@ -106,9 +153,10 @@ export default function Settings() {
       const payload: any = {
         currency: data.currency,
         tax_percentage: data.tax_percentage,
+        unit_system: data.unit_system,
+        units: data.units,
       };
 
-      // Only include optional fields if they have values
       if (data.revenue_goal !== null && data.revenue_goal !== undefined) {
         payload.revenue_goal = data.revenue_goal;
       }
@@ -121,18 +169,16 @@ export default function Settings() {
       const response = await api.put('/settings', payload);
 
       if (response.data.status === 'success') {
-        // Show success toast
         toast({
           variant: 'success',
           title: 'Settings saved',
           description: 'Your settings have been saved successfully.',
         });
-        // Refresh settings to get updated values
+        refetchSettings();
         fetchSettings();
       }
     } catch (err: any) {
       console.error('Error saving settings:', err);
-      console.error('Error response:', err.response?.data);
       const errorMessage = err.response?.data?.message || 'Failed to save settings';
       const validationErrors = err.response?.data?.errors;
       if (validationErrors && Array.isArray(validationErrors)) {
@@ -146,14 +192,58 @@ export default function Settings() {
     }
   };
 
+  const toggleUnit = (unit: string) => {
+    const currentUnits = form.getValues('units') || [];
+    if (currentUnits.includes(unit)) {
+      form.setValue('units', currentUnits.filter(u => u !== unit));
+    } else {
+      form.setValue('units', [...currentUnits, unit]);
+    }
+  };
+
+  const addCustomUnit = () => {
+    if (!customUnit.trim()) return;
+    const trimmed = customUnit.trim();
+    const currentUnits = form.getValues('units') || [];
+    if (!currentUnits.includes(trimmed)) {
+      form.setValue('units', [...currentUnits, trimmed]);
+      setCustomUnit('');
+    }
+  };
+
+  const removeCustomUnit = (unit: string) => {
+    const currentUnits = form.getValues('units') || [];
+    form.setValue('units', currentUnits.filter(u => u !== unit));
+  };
+
+  const handleUnitSystemChange = (system: 'imperial' | 'metric') => {
+    form.setValue('unit_system', system);
+    // Reset to default units for the selected system
+    const defaultUnits = system === 'imperial' ? DEFAULT_IMPERIAL_UNITS : DEFAULT_METRIC_UNITS;
+    form.setValue('units', defaultUnits);
+  };
+
+  const getAvailableUnits = () => {
+    const system = unitSystem || 'metric';
+    return system === 'imperial' ? IMPERIAL_UNITS : METRIC_UNITS;
+  };
+
+  const getCuratedUnits = () => {
+    const available = getAvailableUnits();
+    return Object.values(available).flat();
+  };
+
+  const getCustomUnits = () => {
+    if (!selectedUnits || !Array.isArray(selectedUnits)) return [];
+    const curated = getCuratedUnits();
+    return selectedUnits.filter(u => u && !curated.includes(u));
+  };
+
   if (loading) {
     return (
       <div className="p-6">
-        <div className="mb-6">
-          <h1 className="text-2xl font-semibold mb-2">Settings</h1>
-          <p className="text-muted-foreground">Manage your application settings</p>
-        </div>
-        <div className="space-y-6 max-w-2xl">
+        <Skeleton className="h-5 w-64 mb-6" />
+        <div className="space-y-6 max-w-4xl">
           <Skeleton className="h-32 w-full" />
           <Skeleton className="h-32 w-full" />
           <Skeleton className="h-32 w-full" />
@@ -164,21 +254,18 @@ export default function Settings() {
 
   return (
     <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold mb-2">Settings</h1>
-        <p className="text-muted-foreground">Manage your application settings and defaults</p>
-      </div>
-
-      {error && (
-        <div className="mb-4 rounded-lg border border-destructive bg-destructive/10 p-4">
-          <p className="text-destructive">{error}</p>
-        </div>
-      )}
+        <p className="text-sm text-muted-foreground mb-6">Manage your application settings and defaults</p>
+        
+        {error && (
+          <div className="mb-4 rounded-lg border border-destructive bg-destructive/10 p-4">
+            <p className="text-destructive">{error}</p>
+          </div>
+        )}
 
       <div className="max-w-4xl">
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-2 gap-6">
               {/* Currency */}
               <FormField
                 control={form.control}
@@ -288,6 +375,102 @@ export default function Settings() {
               />
             </div>
 
+            {/* Unit Management Section */}
+            <div className="space-y-4 border rounded-lg p-6">
+              <FormField
+                control={form.control}
+                name="unit_system"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Material Units</FormLabel>
+                    <FormControl>
+                      <Tabs value={field.value || 'metric'} onValueChange={(value) => handleUnitSystemChange(value as 'imperial' | 'metric')}>
+                        <TabsList>
+                          <TabsTrigger value="metric">Metric</TabsTrigger>
+                          <TabsTrigger value="imperial">Imperial</TabsTrigger>
+                        </TabsList>
+                      </Tabs>
+                    </FormControl>
+                    <FormDescription>
+                      Select which units are available when adding materials. Choose between Imperial and Metric systems.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Available Units */}
+                <div>
+                  <label className="text-sm font-medium mb-3 block">Available Units</label>
+                  <div className="space-y-3">
+                    {Object.entries(getAvailableUnits()).map(([category, units]) => (
+                      <div key={category}>
+                        <h4 className="text-sm font-medium text-muted-foreground mb-2">{category}</h4>
+                        <div className="flex flex-wrap gap-3">
+                          {units.map((unit) => (
+                            <div key={unit} className="flex items-center space-x-2">
+                              <Checkbox
+                                id={`unit-${unit}`}
+                                checked={selectedUnits.includes(unit)}
+                                onCheckedChange={() => toggleUnit(unit)}
+                              />
+                              <label
+                                htmlFor={`unit-${unit}`}
+                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                              >
+                                {unit}
+                              </label>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Custom Units */}
+                <div>
+                  <label className="text-sm font-medium mb-3 block">Custom Units</label>
+                  <div className="flex gap-2 mb-3">
+                    <Input
+                      placeholder="Add custom unit"
+                      value={customUnit}
+                      onChange={(e) => setCustomUnit(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          addCustomUnit();
+                        }
+                      }}
+                    />
+                    <Button type="button" onClick={addCustomUnit} size="icon">
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  {getCustomUnits().length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {getCustomUnits().map((unit) => (
+                        <div
+                          key={unit}
+                          className="flex items-center gap-2 px-3 py-1 bg-muted rounded-md"
+                        >
+                          <span className="text-sm">{unit}</span>
+                          <button
+                            type="button"
+                            onClick={() => removeCustomUnit(unit)}
+                            className="text-muted-foreground hover:text-foreground"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
             <div className="flex justify-end">
               <Button type="submit" disabled={saving}>
                 <Save className="mr-2 h-4 w-4" />
@@ -296,8 +479,7 @@ export default function Settings() {
             </div>
           </form>
         </Form>
-      </div>
+        </div>
     </div>
   );
 }
-

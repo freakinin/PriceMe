@@ -29,6 +29,8 @@ const updateSettingsSchema = z.object({
     },
     z.number().min(0).optional().nullable()
   ),
+  unit_system: z.enum(['imperial', 'metric']).optional(),
+  units: z.array(z.string()).min(1).optional(),
 });
 
 export const getSettings = async (req: AuthRequest, res: Response) => {
@@ -42,13 +44,17 @@ export const getSettings = async (req: AuthRequest, res: Response) => {
 
     try {
       const settingsResult = await db`
-        SELECT currency, tax_percentage, revenue_goal, labor_hourly_cost
+        SELECT currency, tax_percentage, revenue_goal, labor_hourly_cost, unit_system, units
         FROM user_settings
         WHERE user_id = ${req.userId}
       `;
 
       const settingsList = Array.isArray(settingsResult) ? settingsResult : (settingsResult.rows || []);
       const settings = settingsList && settingsList.length > 0 ? settingsList[0] : null;
+
+      // Default units based on system
+      const defaultMetricUnits = ['ml', 'L', 'g', 'kg', 'mm', 'cm', 'm', 'm²', 'pcs'];
+      const defaultImperialUnits = ['fl oz', 'pt', 'qt', 'gal', 'oz', 'lb', 'in', 'ft', 'yd', 'ft²', 'pcs'];
 
       // If no settings exist, return defaults
       if (!settings) {
@@ -59,6 +65,8 @@ export const getSettings = async (req: AuthRequest, res: Response) => {
             tax_percentage: 0,
             revenue_goal: null,
             labor_hourly_cost: null,
+            unit_system: 'metric',
+            units: defaultMetricUnits,
           },
         });
       }
@@ -71,6 +79,10 @@ export const getSettings = async (req: AuthRequest, res: Response) => {
           tax_percentage: settings.tax_percentage ? Number(settings.tax_percentage) : 0,
           revenue_goal: settings.revenue_goal ? Number(settings.revenue_goal) : null,
           labor_hourly_cost: settings.labor_hourly_cost ? Number(settings.labor_hourly_cost) : null,
+          unit_system: settings.unit_system || 'metric',
+          units: settings.units && Array.isArray(settings.units) && settings.units.length > 0 
+            ? settings.units 
+            : (settings.unit_system === 'imperial' ? defaultImperialUnits : defaultMetricUnits),
         },
       });
     } catch (dbError: any) {
@@ -83,6 +95,8 @@ export const getSettings = async (req: AuthRequest, res: Response) => {
           tax_percentage: 0,
           revenue_goal: null,
           labor_hourly_cost: null,
+          unit_system: 'metric',
+          units: ['ml', 'L', 'g', 'kg', 'mm', 'cm', 'm', 'm²', 'pcs'],
         },
       });
     }
@@ -97,6 +111,8 @@ export const getSettings = async (req: AuthRequest, res: Response) => {
         tax_percentage: 0,
         revenue_goal: null,
         labor_hourly_cost: null,
+        unit_system: 'metric',
+        units: ['ml', 'L', 'g', 'kg', 'mm', 'cm', 'm', 'm²', 'pcs'],
       },
     });
   }
@@ -116,7 +132,7 @@ export const updateSettings = async (req: AuthRequest, res: Response) => {
     // Validate input
     const validatedData = updateSettingsSchema.parse(req.body);
     console.log('Validated data:', validatedData);
-    const { currency, tax_percentage, revenue_goal, labor_hourly_cost } = validatedData;
+    const { currency, tax_percentage, revenue_goal, labor_hourly_cost, unit_system, units } = validatedData;
 
     // Check if settings exist
     const existingSettings = await db`
@@ -131,7 +147,7 @@ export const updateSettings = async (req: AuthRequest, res: Response) => {
     if (settingsExists) {
       // Update existing settings - fetch current values first, then update
       const currentSettings = await db`
-        SELECT currency, tax_percentage, revenue_goal, labor_hourly_cost
+        SELECT currency, tax_percentage, revenue_goal, labor_hourly_cost, unit_system, units
         FROM user_settings
         WHERE user_id = ${req.userId}
       `;
@@ -142,6 +158,8 @@ export const updateSettings = async (req: AuthRequest, res: Response) => {
       const finalTaxPercentage = tax_percentage !== undefined ? tax_percentage : current.tax_percentage;
       const finalRevenueGoal = revenue_goal !== undefined ? revenue_goal : current.revenue_goal;
       const finalLaborHourlyCost = labor_hourly_cost !== undefined ? labor_hourly_cost : current.labor_hourly_cost;
+      const finalUnitSystem = unit_system !== undefined ? unit_system : (current.unit_system || 'metric');
+      const finalUnits = units !== undefined ? units : (current.units || []);
 
       await db`
         UPDATE user_settings
@@ -150,26 +168,35 @@ export const updateSettings = async (req: AuthRequest, res: Response) => {
           tax_percentage = ${finalTaxPercentage},
           revenue_goal = ${finalRevenueGoal},
           labor_hourly_cost = ${finalLaborHourlyCost},
+          unit_system = ${finalUnitSystem},
+          units = ${finalUnits},
           updated_at = CURRENT_TIMESTAMP
         WHERE user_id = ${req.userId}
       `;
     } else {
+      // Default units based on system
+      const defaultUnits = unit_system === 'imperial' 
+        ? ['fl oz', 'pt', 'qt', 'gal', 'oz', 'lb', 'in', 'ft', 'yd', 'ft²', 'pcs']
+        : ['ml', 'L', 'g', 'kg', 'mm', 'cm', 'm', 'm²', 'pcs'];
+
       // Create new settings
       await db`
-        INSERT INTO user_settings (user_id, currency, tax_percentage, revenue_goal, labor_hourly_cost)
+        INSERT INTO user_settings (user_id, currency, tax_percentage, revenue_goal, labor_hourly_cost, unit_system, units)
         VALUES (
           ${req.userId},
           ${currency || 'USD'},
           ${tax_percentage !== undefined ? tax_percentage : 0},
           ${revenue_goal !== undefined ? revenue_goal : null},
-          ${labor_hourly_cost !== undefined ? labor_hourly_cost : null}
+          ${labor_hourly_cost !== undefined ? labor_hourly_cost : null},
+          ${unit_system || 'metric'},
+          ${units || defaultUnits}
         )
       `;
     }
 
     // Fetch updated settings
     const updatedSettings = await db`
-      SELECT currency, tax_percentage, revenue_goal, labor_hourly_cost
+      SELECT currency, tax_percentage, revenue_goal, labor_hourly_cost, unit_system, units
       FROM user_settings
       WHERE user_id = ${req.userId}
     `;
@@ -185,6 +212,8 @@ export const updateSettings = async (req: AuthRequest, res: Response) => {
         tax_percentage: settings.tax_percentage ? Number(settings.tax_percentage) : 0,
         revenue_goal: settings.revenue_goal ? Number(settings.revenue_goal) : null,
         labor_hourly_cost: settings.labor_hourly_cost ? Number(settings.labor_hourly_cost) : null,
+        unit_system: settings.unit_system || 'metric',
+        units: settings.units && Array.isArray(settings.units) ? settings.units : [],
       },
     });
   } catch (error: any) {

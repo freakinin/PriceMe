@@ -6,6 +6,7 @@ export interface UserSettings {
   tax_percentage: number;
   revenue_goal: number | null;
   labor_hourly_cost: number | null;
+  unit_system?: 'imperial' | 'metric';
   units?: string[];
 }
 
@@ -14,18 +15,8 @@ const defaultSettings: UserSettings = {
   tax_percentage: 0,
   revenue_goal: null,
   labor_hourly_cost: null,
-  units: [
-    // Volume
-    'ml', 'L', 'fl oz', 'pt', 'qt', 'gal',
-    // Weight
-    'g', 'kg', 'oz', 'lb',
-    // Length
-    'mm', 'cm', 'm', 'in', 'ft', 'yd',
-    // Area
-    'm²', 'ft²',
-    // Count/Pieces
-    'pcs', 'piece', 'unit', 'set', 'pack', 'box', 'roll', 'sheet', 'yard'
-  ],
+  unit_system: 'metric',
+  units: ['ml', 'L', 'g', 'kg', 'mm', 'cm', 'm', 'm²', 'pcs'],
 };
 
 export function useSettings() {
@@ -50,7 +41,10 @@ export function useSettings() {
           tax_percentage: data.tax_percentage || 0,
           revenue_goal: data.revenue_goal || null,
           labor_hourly_cost: data.labor_hourly_cost || null,
-          units: data.units || ['ml', 'pcs', 'g', 'oz', 'lb', 'kg'],
+          unit_system: data.unit_system || 'metric',
+          units: data.units && Array.isArray(data.units) && data.units.length > 0 
+            ? data.units 
+            : defaultSettings.units,
         });
       } else {
         // Use defaults if no settings found

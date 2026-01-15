@@ -72,6 +72,19 @@ export async function initializeDatabase() {
         await sql`ALTER TABLE user_settings ADD COLUMN labor_hourly_cost DECIMAL(10, 2)`;
         console.log('✅ Added labor_hourly_cost column');
       }
+
+      // Check and add unit_system
+      const unitSystemExists = await sql`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name='user_settings' AND column_name='unit_system'
+      `;
+      const unitSystemRows = Array.isArray(unitSystemExists) ? unitSystemExists : unitSystemExists.rows || [];
+      if (unitSystemRows.length === 0) {
+        console.log('Adding unit_system column to user_settings table...');
+        await sql`ALTER TABLE user_settings ADD COLUMN unit_system VARCHAR(10) DEFAULT 'metric'`;
+        console.log('✅ Added unit_system column');
+      }
     } catch (error: any) {
       console.error('Error adding columns to user_settings table:', error.message);
       console.error('Error stack:', error.stack);

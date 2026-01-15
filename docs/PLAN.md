@@ -1,13 +1,7 @@
 # PriceMe Project Plan
 
-## Overview
-A pricing tool for physical products (handmade items) sold on Etsy, Shopify, etc. Users can calculate product costs and pricing based on materials, labor, equipment, and other costs.
-
----
-
-## Completed Features ✅
-
 ### Core Features
+
 - ✅ **Authentication System**
   - User registration and login
   - JWT-based authentication
@@ -73,6 +67,7 @@ A pricing tool for physical products (handmade items) sold on Etsy, Shopify, etc
 ## Future Features 🚀
 
 ### High Priority
+
 1. **Product Templates**
    - Save product configurations as templates
    - Quick product creation from templates
@@ -101,6 +96,7 @@ A pricing tool for physical products (handmade items) sold on Etsy, Shopify, etc
    - Category-based analytics
 
 ### Medium Priority
+
 6. **Inventory Tracking**
    - Stock levels per product
    - Low stock alerts
@@ -131,6 +127,7 @@ A pricing tool for physical products (handmade items) sold on Etsy, Shopify, etc
     - Profitability comparison
 
 ### Low Priority / Future Enhancements
+
 11. **Multi-currency Support**
     - Currency conversion
     - Multi-currency pricing

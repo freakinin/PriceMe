@@ -7,6 +7,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { ChevronRight, ChevronLeft, Plus, Trash2, Package, Users, DollarSign, Calculator, Info } from 'lucide-react';
 import { useSidebar } from '@/components/ui/sidebar';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -554,27 +561,43 @@ export default function CreateProduct() {
                     <FormField
                       control={materialForm.control}
                       name="unit"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="flex items-center gap-1.5">
-                            Measurement Unit *
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>Unit of measurement (grams, milliliters, pieces, etc.)</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          </FormLabel>
-                          <FormControl>
-                            <Input placeholder="e.g., g, ml, pcs, oz" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
+                      render={({ field }) => {
+                        const availableUnits = settings.units && settings.units.length > 0 
+                          ? [...settings.units].sort() 
+                          : ['ml', 'L', 'g', 'kg', 'mm', 'cm', 'm', 'm²', 'pcs'];
+                        return (
+                          <FormItem>
+                            <FormLabel className="flex items-center gap-1.5">
+                              Measurement Unit *
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>Unit of measurement (grams, milliliters, pieces, etc.)</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            </FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select unit" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {availableUnits.map((unit) => (
+                                  <SelectItem key={unit} value={unit}>
+                                    {unit}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        );
+                      }}
                     />
                     <FormField
                       control={materialForm.control}

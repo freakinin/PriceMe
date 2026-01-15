@@ -113,19 +113,6 @@ interface EditMaterialDialogProps {
   existingCategories: string[];
 }
 
-const DEFAULT_UNITS = [
-  // Volume
-  'ml', 'L', 'fl oz', 'pt', 'qt', 'gal',
-  // Weight
-  'g', 'kg', 'oz', 'lb',
-  // Length
-  'mm', 'cm', 'm', 'in', 'ft', 'yd',
-  // Area
-  'm²', 'ft²',
-  // Count/Pieces
-  'pcs', 'piece', 'unit', 'set', 'pack', 'box', 'roll', 'sheet', 'yard'
-];
-
 // Units that should show width/length dimensions
 const DIMENSION_UNITS = ['m²', 'ft²', 'sheet', 'roll', 'yard', 'mm', 'cm', 'm', 'in', 'ft', 'yd'];
 
@@ -253,9 +240,10 @@ export default function EditMaterialDialog({
     }
   };
 
-  // Always use DEFAULT_UNITS, but merge with user's custom units if they exist
-  const userUnits = settings.units && settings.units.length > 0 ? settings.units : [];
-  const units = [...new Set([...DEFAULT_UNITS, ...userUnits])].sort();
+  // Use units from settings, fallback to defaults if not available
+  const units = settings.units && settings.units.length > 0 
+    ? [...settings.units].sort() 
+    : ['ml', 'L', 'g', 'kg', 'mm', 'cm', 'm', 'm²', 'pcs'];
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
