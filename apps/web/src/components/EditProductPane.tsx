@@ -17,7 +17,6 @@ import {
 import api from '@/lib/api';
 import { useSettings } from '@/hooks/useSettings';
 import { formatCurrency, getCurrencySymbol } from '@/utils/currency';
-import { MaterialSelector } from '@/components/MaterialSelector';
 import { MaterialNameInput } from '@/components/MaterialNameInput';
 import { useToast } from '@/components/ui/use-toast';
 
@@ -390,6 +389,7 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
       unit: '',
       price_per_unit: 0,
       units_made: 1,
+      user_material_id: undefined,
     },
   });
 
@@ -902,28 +902,6 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
             {currentStep === 2 && (
               <div className="space-y-4">
                 <h2 className="text-base font-semibold">Materials</h2>
-                <div>
-                  <MaterialSelector
-                    onSelect={(material, quantity) => {
-                      const unitsMade = 1; // Default, user can edit
-                      setMaterials([
-                        ...materials,
-                        {
-                          name: material.name,
-                          quantity: quantity,
-                          unit: material.unit,
-                          price_per_unit: material.price_per_unit,
-                          units_made: unitsMade,
-                          user_material_id: material.id,
-                          width: material.width,
-                          length: material.length,
-                          total_cost: (quantity * material.price_per_unit) / unitsMade,
-                        },
-                      ]);
-                      materialForm.reset();
-                    }}
-                  />
-                </div>
                 <div className="relative">
                   <div className="absolute inset-0 flex items-center">
                     <span className="w-full border-t" />
@@ -948,9 +926,10 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
                                   field.onChange(value);
                                 }}
                                 onMaterialSelect={(material) => {
-                                  // Auto-fill unit and price_per_unit if material is selected
+                                  // Auto-fill unit, price_per_unit, and user_material_id if material is selected from library
                                   materialForm.setValue('unit', material.unit);
                                   materialForm.setValue('price_per_unit', material.price_per_unit);
+                                  materialForm.setValue('user_material_id', material.id);
                                 }}
                                 onAddToLibrary={async (name) => {
                                   // Optionally add to library

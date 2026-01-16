@@ -401,7 +401,10 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
     console.log('After validation - validatedData:', JSON.stringify(validatedData, null, 2));
     console.log('Has materials:', hasMaterials, 'Has labor:', hasLaborCosts, 'Has other:', hasOtherCosts);
 
-    // Update product
+    // Check if status is changing to 'on_sale' - if so, reduce stock
+    const isChangingToOnSale = status === 'on_sale' && currentProduct.status !== 'on_sale';
+    
+    // Update product first
     await db`
       UPDATE products
       SET name = ${name},
@@ -416,6 +419,52 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
           updated_at = CURRENT_TIMESTAMP
       WHERE id = ${productId} AND user_id = ${req.userId}
     `;
+
+    // If status changed to 'on_sale', reduce stock for materials with user_material_id
+    if (isChangingToOnSale) {
+      const effectiveBatchSize = batch_size || currentProduct.batch_size || 1;
+      
+      console.log('Status changing to on_sale, batch_size:', effectiveBatchSize);
+      
+      // Get product materials from database
+      const materialsResult = await db`
+        SELECT user_material_id, quantity, units_made
+        FROM materials
+        WHERE product_id = ${productId}
+      `;
+      const materialsList = Array.isArray(materialsResult) ? materialsResult : materialsResult.rows || [];
+
+      console.log('Product materials found:', materialsList.length);
+
+      // Reduce stock for each material that has user_material_id
+      for (const material of materialsList) {
+        if (!material.user_material_id) {
+          // Skip materials without user_material_id (custom materials not in library)
+          console.log('Skipping material without user_material_id');
+          continue;
+        }
+
+        const unitsMade = material.units_made || 1;
+        const requiredQuantity = (material.quantity * effectiveBatchSize) / unitsMade;
+
+        console.log(`Reducing stock for material ${material.user_material_id}:`, {
+          quantity: material.quantity,
+          batch_size: effectiveBatchSize,
+          units_made: unitsMade,
+          required: requiredQuantity,
+        });
+
+        // Reduce stock
+        await db`
+          UPDATE user_materials
+          SET stock_level = stock_level - ${requiredQuantity},
+              updated_at = CURRENT_TIMESTAMP
+          WHERE id = ${material.user_material_id} AND user_id = ${req.userId}
+        `;
+        
+        console.log(`Stock reduced for material ${material.user_material_id} by ${requiredQuantity}`);
+      }
+    }
 
     // Only update materials/labor/other_costs if they were explicitly provided in the request
     if (hasMaterials) {

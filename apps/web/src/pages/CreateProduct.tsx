@@ -20,7 +20,6 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import api from '@/lib/api';
 import { useSettings } from '@/hooks/useSettings';
 import { formatCurrency, getCurrencySymbol } from '@/utils/currency';
-import { MaterialSelector } from '@/components/MaterialSelector';
 import { MaterialNameInput } from '@/components/MaterialNameInput';
 import { useToast } from '@/components/ui/use-toast';
 
@@ -65,7 +64,7 @@ const otherCostSchema = z.object({
 });
 
 type Step1FormValues = z.infer<typeof step1Schema>;
-type MaterialFormValues = z.infer<typeof materialSchema> & { total_cost?: number; user_material_id?: number; width?: number; length?: number; units_made?: number };
+type MaterialFormValues = z.infer<typeof materialSchema> & { total_cost?: number; user_material_id?: number; width?: number; length?: number; units_made?: number; stock_level?: number };
 type LaborFormValues = z.infer<typeof laborSchema> & { total_cost?: number };
 type OtherCostFormValues = z.infer<typeof otherCostSchema> & { total_cost?: number };
 
@@ -101,6 +100,8 @@ export default function CreateProduct() {
       unit: '',
       price_per_unit: 0,
       units_made: 1,
+      user_material_id: undefined,
+      stock_level: undefined,
     },
   });
 
@@ -147,9 +148,24 @@ export default function CreateProduct() {
   };
 
   const onAddMaterial = (data: MaterialFormValues) => {
-    const totalCost = data.quantity * data.price_per_unit;
-    setMaterials([...materials, { ...data, total_cost: totalCost }]);
+    console.log('onAddMaterial called, received data:', data);
+    const unitsMade = data.units_made || 1;
+    const totalCost = (data.quantity * data.price_per_unit) / unitsMade;
+    // Get user_material_id and stock_level from form state (they're not in schema)
+    const userMaterialId = materialForm.getValues('user_material_id');
+    const stockLevel = materialForm.getValues('stock_level');
+    const materialData = { 
+      ...data, 
+      total_cost: totalCost,
+      user_material_id: userMaterialId,
+      stock_level: stockLevel,
+    };
+    console.log('Adding material with full data:', materialData);
+    setMaterials([...materials, materialData]);
     materialForm.reset();
+    // Reset user_material_id and stock_level for next material
+    materialForm.setValue('user_material_id', undefined);
+    materialForm.setValue('stock_level', undefined);
   };
 
   const onRemoveMaterial = (index: number) => {
@@ -464,36 +480,16 @@ export default function CreateProduct() {
           </div>
           <div className="space-y-4">
             <div>
-              <MaterialSelector
-                onSelect={(material, quantity) => {
-                  setMaterials([
-                    ...materials,
-                    {
-                      name: material.name,
-                      quantity: quantity,
-                      unit: material.unit,
-                      price_per_unit: material.price_per_unit,
-                      units_made: 1, // Default, user can edit in the table
-                      user_material_id: material.id,
-                      width: material.width,
-                      length: material.length,
-                    },
-                  ]);
-                  materialForm.reset();
-                }}
-              />
-            </div>
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">Or add manually</span>
-              </div>
-            </div>
-            <div>
               <Form {...materialForm}>
-                <form onSubmit={materialForm.handleSubmit(onAddMaterial)} className="space-y-4">
+                <form onSubmit={(e) => {
+                  e.preventDefault();
+                  console.log('Form submit triggered');
+                  console.log('Form values:', materialForm.getValues());
+                  materialForm.handleSubmit(onAddMaterial, (errors) => {
+                    console.error('Form validation errors:', errors);
+                    console.error('Validation failed, errors:', JSON.stringify(errors, null, 2));
+                  })(e);
+                }} className="space-y-4">
                   <div className="grid grid-cols-4 gap-4">
                     <FormField
                       control={materialForm.control}
@@ -508,11 +504,15 @@ export default function CreateProduct() {
                                 field.onChange(value);
                               }}
                               onMaterialSelect={(material) => {
-                                // Auto-fill unit and price_per_unit if material is selected
+                                // Auto-fill unit, price_per_unit, user_material_id, and stock_level if material is selected from library
                                 materialForm.setValue('unit', material.unit);
                                 // Round to 2 decimal places to avoid trailing zeros
                                 const roundedPricePerUnit = Math.round(material.price_per_unit * 100) / 100;
                                 materialForm.setValue('price_per_unit', roundedPricePerUnit);
+                                materialForm.setValue('user_material_id', material.id);
+                                if (material.stock_level !== undefined) {
+                                  materialForm.setValue('stock_level', material.stock_level);
+                                }
                               }}
                               onAddToLibrary={async (name) => {
                                 // Optionally add to library - for now just use the name
@@ -705,9 +705,6 @@ export default function CreateProduct() {
             <div className="mt-6">
               <div className="mb-4">
                 <h3 className="text-base font-semibold">Materials List</h3>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Materials are entered per single product. Total batch cost is calculated automatically.
-                </p>
               </div>
               <div>
                 <div className="space-y-4">
@@ -720,14 +717,22 @@ export default function CreateProduct() {
                           <th className="text-left p-3 text-sm font-medium">Unit</th>
                           <th className="text-left p-3 text-sm font-medium">Price per Unit</th>
                           <th className="text-left p-3 text-sm font-medium">Units Made</th>
+                          <th className="text-left p-3 text-sm font-medium">Stock</th>
                           <th className="text-left p-3 text-sm font-medium">Cost Per Product</th>
-                          <th className="text-right p-3 text-sm font-medium">Actions</th>
+                          <th className="text-right p-3 text-sm font-medium"></th>
                         </tr>
                       </thead>
                       <tbody>
                         {materials.map((material, index) => {
                           const unitsMade = material.units_made || 1;
                           const costPerProduct = (material.quantity * material.price_per_unit) / unitsMade;
+                          const stockLevel = (material as any).stock_level;
+                          // Calculate required quantity for this batch
+                          const requiredQuantity = (material.quantity * batchSize) / unitsMade;
+                          // Calculate remaining stock after this batch
+                          const remainingStock = stockLevel !== undefined && stockLevel !== null
+                            ? stockLevel - requiredQuantity
+                            : null;
                           return (
                             <tr key={index} className="border-t">
                               <td className="p-3">
@@ -744,6 +749,18 @@ export default function CreateProduct() {
                               <td className="p-3">{material.unit}</td>
                               <td className="p-3">{formatCurrency(material.price_per_unit, settings.currency)}</td>
                               <td className="p-3">{material.units_made || 1}</td>
+                              <td className="p-3">
+                                {remainingStock !== null ? (
+                                  <span className={remainingStock < 0 ? 'text-red-600 font-medium' : ''}>
+                                    {Number.isInteger(Number(remainingStock)) 
+                                      ? Number(remainingStock).toString()
+                                      : parseFloat(Number(remainingStock).toFixed(2)).toString()
+                                    }
+                                  </span>
+                                ) : (
+                                  <span className="text-muted-foreground">-</span>
+                                )}
+                              </td>
                               <td className="p-3 font-medium">{formatCurrency(costPerProduct, settings.currency)}</td>
                               <td className="p-3 text-right">
                                 <Button
@@ -758,9 +775,9 @@ export default function CreateProduct() {
                           );
                         })}
                       </tbody>
-                      <tfoot className="bg-slate-100 dark:bg-slate-800 font-semibold">
-                        <tr>
-                          <td colSpan={4} className="p-3 text-right">Total Cost Per Product:</td>
+                      <tfoot>
+                        <tr className="border-t font-semibold">
+                          <td colSpan={6} className="p-3 text-right">Total Cost Per Product:</td>
                           <td className="p-3">{formatCurrency(totalMaterialsCost, settings.currency)}</td>
                           <td></td>
                         </tr>

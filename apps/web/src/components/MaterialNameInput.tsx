@@ -21,6 +21,7 @@ interface UserMaterial {
   unit: string;
   price_per_unit: number;
   category?: string;
+  stock_level?: number;
 }
 
 interface MaterialNameInputProps {
@@ -92,6 +93,7 @@ export function MaterialNameInput({
   const showAddOption = searchQuery.trim().length > 0 && !exactMatch;
 
   const handleSelect = (material: UserMaterial) => {
+    console.log('Material selected:', material, 'stock_level:', material.stock_level);
     onChange(material.name);
     if (onMaterialSelect) {
       onMaterialSelect(material);
