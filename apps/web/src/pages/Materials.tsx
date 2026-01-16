@@ -343,6 +343,31 @@ export default function Materials() {
     return material.stock_level <= material.reorder_point;
   };
 
+  const getStockBadgeVariant = (material: Material) => {
+    const stockLevel = Number(material.stock_level) || 0;
+    const reorderPoint = Number(material.reorder_point) || 0;
+    
+    // If stock is at or below reorder point, it's critical (red)
+    if (stockLevel <= reorderPoint) {
+      return 'destructive'; // Red
+    }
+    
+    // Calculate how far above the reorder point we are
+    // Use ratio for better scaling: if reorder is 10, stock of 30 is 3x = good
+    // If reorder is 3, stock of 5 is only 1.67x = getting close
+    const ratio = reorderPoint > 0 ? stockLevel / reorderPoint : Infinity;
+    
+    // If stock is less than 2x the reorder point, it's getting close (yellow/orange)
+    // Example: reorder 10, stock 15 = 1.5x → yellow
+    // Example: reorder 3, stock 5 = 1.67x → yellow
+    if (ratio < 2) {
+      return 'secondary'; // Yellow/Warning
+    }
+    
+    // Stock is well above reorder point (more than 2x) = green/good
+    return 'default'; // Green
+  };
+
   const formatDate = (dateString?: string) => {
     if (!dateString) return '-';
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -634,11 +659,32 @@ export default function Materials() {
                 await updateMaterial(material.id, { stock_level: value as number });
               }}
               type="number"
-              formatDisplay={() => (
-                <Badge variant={isLowStock(material) ? 'destructive' : 'default'}>
-                  {stockLevel}
-                </Badge>
-              )}
+              formatDisplay={() => {
+                const variant = getStockBadgeVariant(material);
+                // Ensure stockLevel is a number
+                const stockNum = Number(stockLevel) || 0;
+                // Format stock level to remove trailing zeros
+                const formattedStock = Number.isInteger(stockNum) 
+                  ? stockNum.toString()
+                  : parseFloat(stockNum.toFixed(2)).toString();
+                
+                // Determine color based on variant
+                const badgeClassName = 
+                  variant === 'destructive' 
+                    ? 'bg-red-500 text-white' 
+                    : variant === 'secondary'
+                    ? 'bg-yellow-500 text-white'
+                    : 'bg-green-500 text-white';
+                
+                return (
+                  <Badge 
+                    variant={variant}
+                    className={badgeClassName}
+                  >
+                    {formattedStock}
+                  </Badge>
+                );
+              }}
             />
           );
         },
