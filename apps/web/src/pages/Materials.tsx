@@ -339,10 +339,6 @@ export default function Materials() {
     return Array.from(categories).sort();
   };
 
-  const isLowStock = (material: Material) => {
-    return material.stock_level <= material.reorder_point;
-  };
-
   const getStockBadgeVariant = (material: Material) => {
     const stockLevel = Number(material.stock_level) || 0;
     const reorderPoint = Number(material.reorder_point) || 0;
