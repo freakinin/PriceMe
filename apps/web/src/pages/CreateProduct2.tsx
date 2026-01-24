@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Trash2, X, Package, Clock, Receipt } from 'lucide-react';
+import { Plus, X, Package, Clock, Receipt } from 'lucide-react';
 import { useSidebar } from '@/components/ui/sidebar';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import api from '@/lib/api';
@@ -94,7 +94,7 @@ export default function CreateProduct2() {
   // Labor form state
   const [laborActivity, setLaborActivity] = useState('');
   const [laborMinutes, setLaborMinutes] = useState('');
-  const [laborRate, setLaborRate] = useState(settings.default_hourly_rate?.toString() || '50');
+  const [laborRate, setLaborRate] = useState(settings.labor_hourly_cost?.toString() || '50');
   const [laborPerBatch, setLaborPerBatch] = useState(false);
 
   // Other cost form state
