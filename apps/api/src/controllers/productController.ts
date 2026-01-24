@@ -82,6 +82,43 @@ export const createProduct = async (req: AuthRequest, res: Response) => {
       }
     }
 
+    // If product status is 'on_sale', reduce stock for materials with user_material_id
+    const effectiveStatus = status || 'draft';
+    const effectiveBatchSize = batch_size || 1;
+    
+    if (effectiveStatus === 'on_sale' && materials && materials.length > 0) {
+      console.log('Product created with on_sale status, reducing stock. Batch size:', effectiveBatchSize);
+      
+      // Reduce stock for each material that has user_material_id
+      for (const material of materials) {
+        if (!material.user_material_id) {
+          // Skip materials without user_material_id (custom materials not in library)
+          console.log('Skipping material without user_material_id:', material.name);
+          continue;
+        }
+
+        // Calculate required quantity: quantity is per product, so for the batch we need: quantity * batchSize
+        const requiredQuantity = material.quantity * effectiveBatchSize;
+
+        console.log(`Reducing stock for material ${material.user_material_id}:`, {
+          name: material.name,
+          quantity: material.quantity,
+          batch_size: effectiveBatchSize,
+          required: requiredQuantity,
+        });
+
+        // Reduce stock
+        await db`
+          UPDATE user_materials
+          SET stock_level = stock_level - ${requiredQuantity},
+              updated_at = CURRENT_TIMESTAMP
+          WHERE id = ${material.user_material_id} AND user_id = ${req.userId}
+        `;
+        
+        console.log(`Stock reduced for material ${material.user_material_id} by ${requiredQuantity}`);
+      }
+    }
+
     return res.status(201).json({
       status: 'success',
       message: 'Product created successfully',
@@ -444,13 +481,12 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
           continue;
         }
 
-        const unitsMade = material.units_made || 1;
-        const requiredQuantity = (material.quantity * effectiveBatchSize) / unitsMade;
+        // Calculate required quantity: quantity is per product, so for the batch we need: quantity * batchSize
+        const requiredQuantity = material.quantity * effectiveBatchSize;
 
         console.log(`Reducing stock for material ${material.user_material_id}:`, {
           quantity: material.quantity,
           batch_size: effectiveBatchSize,
-          units_made: unitsMade,
           required: requiredQuantity,
         });
 

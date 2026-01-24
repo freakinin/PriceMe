@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { ChevronRight, ChevronLeft, Plus, Trash2, Package, Users, DollarSign, Calculator, Info } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Plus, Trash2, Package, Users, DollarSign, Calculator, Info, Save } from 'lucide-react';
 import { useSidebar } from '@/components/ui/sidebar';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import api from '@/lib/api';
@@ -170,6 +170,55 @@ export default function CreateProduct() {
 
   const onRemoveMaterial = (index: number) => {
     setMaterials(materials.filter((_, i) => i !== index));
+  };
+
+  const onSaveMaterialToLibrary = async (index: number) => {
+    const material = materials[index];
+    if (!material || material.user_material_id) {
+      // Already in library or invalid
+      return;
+    }
+
+    try {
+      // Calculate price (total cost for the quantity)
+      const price = material.quantity * material.price_per_unit;
+
+      // Call API to create material in library
+      const response = await api.post('/materials', {
+        name: material.name,
+        price: price,
+        quantity: material.quantity,
+        unit: material.unit,
+        price_per_unit: material.price_per_unit,
+        stock_level: 0, // Start with 0 stock, user can update later
+      });
+
+      if (response.data.status === 'success') {
+        const savedMaterial = response.data.data;
+        
+        // Update the material in local state to link it to library
+        const updatedMaterials = [...materials];
+        updatedMaterials[index] = {
+          ...updatedMaterials[index],
+          user_material_id: savedMaterial.id,
+          stock_level: savedMaterial.stock_level || 0,
+        };
+        setMaterials(updatedMaterials);
+
+        toast({
+          variant: 'success',
+          title: 'Material saved',
+          description: `${material.name} has been added to your library.`,
+        });
+      }
+    } catch (error: any) {
+      console.error('Error saving material to library:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: error.response?.data?.message || 'Failed to save material to library',
+      });
+    }
   };
 
   const onAddLabor = (data: LaborFormValues) => {
@@ -490,7 +539,7 @@ export default function CreateProduct() {
                     console.error('Validation failed, errors:', JSON.stringify(errors, null, 2));
                   })(e);
                 }} className="space-y-4">
-                  <div className="grid grid-cols-4 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                     <FormField
                       control={materialForm.control}
                       name="name"
@@ -703,9 +752,6 @@ export default function CreateProduct() {
           {/* Materials List */}
           {materials.length > 0 && (
             <div className="mt-6">
-              <div className="mb-4">
-                <h3 className="text-base font-semibold">Materials List</h3>
-              </div>
               <div>
                 <div className="space-y-4">
                   <div className="border rounded-lg">
@@ -719,18 +765,21 @@ export default function CreateProduct() {
                           <th className="text-left p-3 text-sm font-medium">Units Made</th>
                           <th className="text-left p-3 text-sm font-medium">Stock</th>
                           <th className="text-left p-3 text-sm font-medium">Cost Per Product</th>
-                          <th className="text-right p-3 text-sm font-medium"></th>
+                          <th className="text-right p-3 text-sm font-medium">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
                         {materials.map((material, index) => {
                           const unitsMade = material.units_made || 1;
                           const costPerProduct = (material.quantity * material.price_per_unit) / unitsMade;
+                          const userMaterialId = (material as any).user_material_id;
                           const stockLevel = (material as any).stock_level;
+                          // Only calculate stock if material is from library (has user_material_id)
                           // Calculate required quantity for this batch
-                          const requiredQuantity = (material.quantity * batchSize) / unitsMade;
-                          // Calculate remaining stock after this batch
-                          const remainingStock = stockLevel !== undefined && stockLevel !== null
+                          // quantity is per product, so for the batch we need: quantity * batchSize
+                          const requiredQuantity = material.quantity * batchSize;
+                          // Calculate remaining stock after this batch (only if material is from library)
+                          const remainingStock = userMaterialId && stockLevel !== undefined && stockLevel !== null
                             ? stockLevel - requiredQuantity
                             : null;
                           return (
@@ -763,13 +812,33 @@ export default function CreateProduct() {
                               </td>
                               <td className="p-3 font-medium">{formatCurrency(costPerProduct, settings.currency)}</td>
                               <td className="p-3 text-right">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => onRemoveMaterial(index)}
-                                >
-                                  <Trash2 className="h-4 w-4 text-destructive" />
-                                </Button>
+                                <div className="flex items-center justify-end gap-1">
+                                  {!userMaterialId && (
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => onSaveMaterialToLibrary(index)}
+                                          >
+                                            <Save className="h-4 w-4 text-primary" />
+                                          </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          <p>Save to library</p>
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  )}
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => onRemoveMaterial(index)}
+                                  >
+                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                  </Button>
+                                </div>
                               </td>
                             </tr>
                           );

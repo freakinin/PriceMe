@@ -1,6 +1,10 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
 import bcrypt from 'bcryptjs';
 import { sql } from '@vercel/postgres';
+
+// Load .env.local first, then .env (same as server.ts)
+dotenv.config({ path: '.env.local' });
+dotenv.config();
 
 async function resetPassword() {
   const email = 'amir@test.com';

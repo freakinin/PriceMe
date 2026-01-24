@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Package, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Columns, Filter, X, Search } from 'lucide-react';
+import { Plus, Package, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Columns, Filter, X, Search, AlertTriangle } from 'lucide-react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -48,6 +48,30 @@ import {
   calculateProfitFromPrice,
 } from '@/utils/profitCalculations';
 import { useToast } from '@/components/ui/use-toast';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+
+// Helper function to format numbers - remove trailing zeros
+const formatNumberDisplay = (val: string | number | null | undefined): string => {
+  if (val === null || val === undefined) return '-';
+  let num: number;
+  if (typeof val === 'number') {
+    num = val;
+  } else {
+    num = parseFloat(val);
+    if (isNaN(num)) return val.toString();
+  }
+  // Remove trailing zeros: 4.0000 -> 4, 4.5000 -> 4.5, 4.1230 -> 4.123
+  return num % 1 === 0 
+    ? num.toString() 
+    : num.toString().replace(/\.?0+$/, '');
+};
 
 // Inline editable cell component - matches Materials exactly
 function EditableCell({
@@ -138,22 +162,6 @@ function EditableCell({
     );
   }
 
-  // Format number display to remove trailing zeros
-  const formatNumberDisplay = (val: string | number | null | undefined): string => {
-    if (val === null || val === undefined) return '-';
-    let num: number;
-    if (typeof val === 'number') {
-      num = val;
-    } else {
-      num = parseFloat(val);
-      if (isNaN(num)) return val.toString();
-    }
-    // Remove trailing zeros: 4.0000 -> 4, 4.5000 -> 4.5, 4.1230 -> 4.123
-    return num % 1 === 0 
-      ? num.toString() 
-      : num.toString().replace(/\.?0+$/, '');
-  };
-
   const displayValue = formatDisplay 
     ? formatDisplay(value) 
     : (type === 'number' ? formatNumberDisplay(value) : (value?.toString() || '-'));
@@ -216,6 +224,9 @@ export default function Products() {
   const [selectedFilterColumn, setSelectedFilterColumn] = useState<string>('');
   const [filterOperator, setFilterOperator] = useState<string>('contains');
   const [filterValue, setFilterValue] = useState<string>('');
+  const [stockWarningOpen, setStockWarningOpen] = useState(false);
+  const [pendingStatusChange, setPendingStatusChange] = useState<{ productId: number; newStatus: ProductStatus } | null>(null);
+  const [stockIssues, setStockIssues] = useState<Array<{ material: string; currentStock: number; required: number; shortfall: number; unit: string }>>([]);
   const navigate = useNavigate();
   const { setOpen: setSidebarOpen } = useSidebar();
 
@@ -476,10 +487,81 @@ export default function Products() {
     }
   };
 
-  const handleSaveField = async (productId: number, field: string, value: string | number) => {
+  // Check stock levels before changing status to 'on_sale'
+  const checkStockLevels = async (productId: number, batchSize: number): Promise<Array<{ material: string; currentStock: number; required: number; shortfall: number; unit: string }>> => {
+    try {
+      const response = await api.get(`/products/${productId}`);
+      const product = response.data.data;
+      const materials = product.materials || [];
+      const issues: Array<{ material: string; currentStock: number; required: number; shortfall: number; unit: string }> = [];
+
+      for (const material of materials) {
+        // Only check materials from library (have user_material_id)
+        if (material.user_material_id) {
+          try {
+            // Get current stock level from library
+            const materialResponse = await api.get(`/materials/${material.user_material_id}`);
+            if (materialResponse.data.status === 'success' && materialResponse.data.data) {
+              const libraryMaterial = materialResponse.data.data;
+              const currentStock = libraryMaterial.stock_level || 0;
+              
+              // Calculate required quantity: quantity is per product, so for the batch we need: quantity * batchSize
+              const requiredQuantity = material.quantity * batchSize;
+              
+              if (currentStock < requiredQuantity) {
+                issues.push({
+                  material: material.name,
+                  currentStock: currentStock,
+                  required: requiredQuantity,
+                  shortfall: requiredQuantity - currentStock,
+                  unit: material.unit,
+                });
+              }
+            }
+          } catch (materialError) {
+            // If material fetch fails, skip it but continue checking others
+            console.error(`Error fetching material ${material.user_material_id}:`, materialError);
+            // Still add it as an issue since we can't verify stock
+            issues.push({
+              material: material.name,
+              currentStock: 0,
+              required: material.quantity * batchSize,
+              shortfall: material.quantity * batchSize,
+              unit: material.unit,
+            });
+          }
+        }
+      }
+
+      return issues;
+    } catch (error) {
+      console.error('Error checking stock levels:', error);
+      return [];
+    }
+  };
+
+  const handleSaveField = async (productId: number, field: string, value: string | number, skipStockCheck = false) => {
     try {
       const product = products.find(p => p.id === productId);
       if (!product) return;
+
+      // If changing status to 'on_sale', check stock first (unless skipping check)
+      if (!skipStockCheck && field === 'status' && value === 'on_sale' && product.status !== 'on_sale') {
+        const stockIssues = await checkStockLevels(productId, product.batch_size);
+        
+        if (stockIssues.length > 0) {
+          // Show warning dialog
+          setStockIssues(stockIssues);
+          setPendingStatusChange({ productId, newStatus: value as ProductStatus });
+          setStockWarningOpen(true);
+          setSavingFields(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(productId);
+            return newSet;
+          });
+          return; // Don't proceed with status change yet
+        }
+      }
 
       // Mark as saving
       setSavingFields(prev => new Set(prev).add(productId));
@@ -1544,6 +1626,65 @@ export default function Products() {
           fetchProducts(); // Refresh the products list
         }}
       />
+
+      {/* Stock Warning Dialog */}
+      <Dialog open={stockWarningOpen} onOpenChange={setStockWarningOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-yellow-600" />
+              Insufficient Stock Warning
+            </DialogTitle>
+            <DialogDescription>
+              Some materials don't have enough stock to complete this batch. Stock will be reduced to negative values if you proceed.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="py-4">
+            <div className="space-y-3">
+              {stockIssues.map((issue, index) => (
+                <div key={index} className="border rounded-lg p-3 bg-yellow-50 dark:bg-yellow-900/20">
+                  <div className="font-medium text-sm">{issue.material} ({issue.unit})</div>
+                  <div className="text-sm text-muted-foreground mt-1 space-y-1">
+                    <div>Current Stock: <span className="font-medium">{formatNumberDisplay(issue.currentStock)}</span></div>
+                    <div>Required: <span className="font-medium">{formatNumberDisplay(issue.required)}</span></div>
+                    <div className="text-red-600 dark:text-red-400 font-medium">
+                      Shortfall: {formatNumberDisplay(issue.shortfall)}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setStockWarningOpen(false);
+                setPendingStatusChange(null);
+                setStockIssues([]);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="default"
+              onClick={async () => {
+                if (pendingStatusChange) {
+                  setStockWarningOpen(false);
+                  // Proceed with status change (skip stock check since we already did it)
+                  await handleSaveField(pendingStatusChange.productId, 'status', pendingStatusChange.newStatus, true);
+                  setPendingStatusChange(null);
+                  setStockIssues([]);
+                }
+              }}
+            >
+              Proceed Anyway
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
