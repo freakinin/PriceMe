@@ -26,6 +26,11 @@ const menuItems = [
     icon: PlusCircle,
   },
   {
+    title: 'Add Product 2',
+    url: '/products/add2',
+    icon: PlusCircle,
+  },
+  {
     title: 'Products',
     url: '/products',
     icon: Package,

@@ -278,6 +278,7 @@ export default function Materials() {
   const [addStockPrice, setAddStockPrice] = useState<string>('');
   const [isAddingStock, setIsAddingStock] = useState(false);
   const [showOutOfStockOnly, setShowOutOfStockOnly] = useState(false);
+  const [deleteConfirmMaterial, setDeleteConfirmMaterial] = useState<Material | null>(null);
 
   useEffect(() => {
     // Close sidebar when Materials page loads
@@ -329,16 +330,21 @@ export default function Materials() {
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this material?')) return;
+  const handleDelete = (material: Material) => {
+    setDeleteConfirmMaterial(material);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirmMaterial) return;
 
     try {
-      await api.delete(`/materials/${id}`);
+      await api.delete(`/materials/${deleteConfirmMaterial.id}`);
       toast({
         variant: 'success',
         title: 'Success',
         description: 'Material deleted successfully',
       });
+      setDeleteConfirmMaterial(null);
       fetchMaterials();
     } catch (error: any) {
       console.error('Error deleting material:', error);
@@ -878,7 +884,7 @@ export default function Materials() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => handleDelete(material.id)}
+                      onClick={() => handleDelete(material)}
                     >
                       <Trash2 className="h-4 w-4 text-destructive" />
                     </Button>
@@ -1370,6 +1376,34 @@ export default function Materials() {
               disabled={isAddingStock || !addStockQuantity || Number(addStockQuantity) <= 0}
             >
               {isAddingStock ? 'Adding...' : 'Add Stock'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteConfirmMaterial !== null} onOpenChange={(open) => {
+        if (!open) setDeleteConfirmMaterial(null);
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete Material</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete <strong>{deleteConfirmMaterial?.name}</strong>? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setDeleteConfirmMaterial(null)}
+            >
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive"
+              onClick={confirmDelete}
+            >
+              Delete
             </Button>
           </DialogFooter>
         </DialogContent>
