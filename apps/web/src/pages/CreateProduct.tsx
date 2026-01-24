@@ -14,96 +14,97 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { ChevronRight, ChevronLeft, Plus, Trash2, Package, Users, DollarSign, Calculator, Info, Save } from 'lucide-react';
+import { Plus, X, Package, Clock, Receipt, Save } from 'lucide-react';
 import { useSidebar } from '@/components/ui/sidebar';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import api from '@/lib/api';
 import { useSettings } from '@/hooks/useSettings';
 import { formatCurrency, getCurrencySymbol } from '@/utils/currency';
 import { MaterialNameInput } from '@/components/MaterialNameInput';
 import { useToast } from '@/components/ui/use-toast';
+import { Card, CardContent } from '@/components/ui/card';
 
-const step1Schema = z.object({
+// Schemas
+const productSchema = z.object({
   name: z.string().min(1, 'Product name is required'),
   sku: z.string().optional(),
-  description: z.string().optional(),
-  category: z.string().optional(),
-  batch_size: z.number().int().positive().min(1, 'Batch size must be at least 1').default(1),
-  target_price: z.number().positive('Target price must be greater than 0').optional(),
+  batch_size: z.number().int().positive().min(1).default(1),
+  target_price: z.number().positive().optional(),
 });
 
-const materialSchema = z.object({
-  name: z.string().min(1, 'Material name is required'),
-  quantity: z.preprocess(
-    (val) => (val === '' || val === null || val === undefined ? 0 : Number(val)),
-    z.number().nonnegative('Quantity must be 0 or greater')
-  ).optional(),
-  unit: z.string().min(1, 'Unit is required'),
-  price_per_unit: z.preprocess(
-    (val) => (val === '' || val === null || val === undefined ? 0 : Number(val)),
-    z.number().nonnegative('Price must be 0 or greater')
-  ),
-  units_made: z.preprocess(
-    (val) => (val === '' || val === null || val === undefined ? 1 : Number(val)),
-    z.number().positive('Units made must be greater than 0')
-  ),
-  quantity_type: z.enum(['exact', 'percentage']).default('exact'),
-  quantity_percentage: z.preprocess(
-    (val) => (val === '' || val === null || val === undefined ? undefined : Number(val)),
-    z.number().min(0).max(100).optional()
-  ),
-  quantity_per_item_or_batch: z.enum(['item', 'batch']).default('item').optional(),
-}).refine((data) => {
-  // If quantity_type is 'exact', quantity is required
-  if (data.quantity_type === 'exact') {
-    return data.quantity !== undefined && data.quantity > 0;
-  }
-  // If quantity_type is 'percentage', quantity_percentage is required
-  if (data.quantity_type === 'percentage') {
-    return data.quantity_percentage !== undefined && data.quantity_percentage > 0;
-  }
-  return true;
-}, {
-  message: 'Either quantity (for exact) or percentage (for percentage mode) is required',
-  path: ['quantity'],
-});
+type ProductFormValues = z.infer<typeof productSchema>;
 
-const laborSchema = z.object({
-  activity: z.string().min(1, 'Activity name is required'),
-  time_spent_minutes: z.number().int().positive('Time must be greater than 0'),
-  hourly_rate: z.number().nonnegative('Hourly rate must be 0 or greater'),
-  per_unit: z.boolean().default(true),
-});
+interface Material {
+  id: string;
+  name: string;
+  quantity: number;
+  unit: string;
+  price_per_unit: number;
+  quantity_type: 'exact' | 'percentage';
+  quantity_percentage?: number;
+  per_batch: boolean;
+  units_made: number;
+  user_material_id?: number;
+  stock_level?: number;
+}
 
-const otherCostSchema = z.object({
-  item: z.string().min(1, 'Item name is required'),
-  quantity: z.number().positive('Quantity must be greater than 0'),
-  cost: z.number().nonnegative('Cost must be 0 or greater'),
-  per_unit: z.boolean().default(true),
-});
+interface Labor {
+  id: string;
+  activity: string;
+  time_minutes: number;
+  hourly_rate: number;
+  per_batch: boolean;
+}
 
-type Step1FormValues = z.infer<typeof step1Schema>;
-type MaterialFormValues = z.infer<typeof materialSchema> & { total_cost?: number; user_material_id?: number; width?: number; length?: number; units_made?: number; stock_level?: number };
-type LaborFormValues = z.infer<typeof laborSchema> & { total_cost?: number };
-type OtherCostFormValues = z.infer<typeof otherCostSchema> & { total_cost?: number };
+interface OtherCost {
+  id: string;
+  item: string;
+  quantity: number;
+  cost: number;
+  per_batch: boolean;
+}
 
-export default function CreateProduct() {
+export default function CreateProduct2() {
   const navigate = useNavigate();
-  const { state: sidebarState, isMobile } = useSidebar();
+  const { setOpen } = useSidebar();
   const { settings } = useSettings();
   const { toast } = useToast();
-  const [currentStep, setCurrentStep] = useState(1);
-  const [materials, setMaterials] = useState<MaterialFormValues[]>([]);
-  const [laborCosts, setLaborCosts] = useState<LaborFormValues[]>([]);
-  const [otherCosts, setOtherCosts] = useState<OtherCostFormValues[]>([]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // Calculate sidebar width for footer positioning (only on desktop)
-  const footerLeft = isMobile ? '0' : (sidebarState === 'collapsed' ? '3rem' : '16rem');
+  // Collapse sidebar on mount
+  useEffect(() => {
+    setOpen(false);
+  }, [setOpen]);
+  
+  const [materials, setMaterials] = useState<Material[]>([]);
+  const [laborCosts, setLaborCosts] = useState<Labor[]>([]);
+  const [otherCosts, setOtherCosts] = useState<OtherCost[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const step1Form = useForm<Step1FormValues>({
-    resolver: zodResolver(step1Schema),
+  // Material form state
+  const [materialName, setMaterialName] = useState('');
+  const [materialQuantity, setMaterialQuantity] = useState('');
+  const [materialUnit, setMaterialUnit] = useState('pcs');
+  const [materialPrice, setMaterialPrice] = useState('');
+  const [materialQtyType, setMaterialQtyType] = useState<'exact' | 'percentage'>('exact');
+  const [materialPercentage, setMaterialPercentage] = useState('10');
+  const [materialPerBatch, setMaterialPerBatch] = useState(false);
+  const [materialUnitsMade, setMaterialUnitsMade] = useState('1');
+  const [selectedMaterial, setSelectedMaterial] = useState<any>(null);
+
+  // Labor form state
+  const [laborActivity, setLaborActivity] = useState('');
+  const [laborMinutes, setLaborMinutes] = useState('');
+  const [laborRate, setLaborRate] = useState(settings.labor_hourly_cost?.toString() || '50');
+  const [laborPerBatch, setLaborPerBatch] = useState(false);
+
+  // Other cost form state
+  const [otherItem, setOtherItem] = useState('');
+  const [otherQuantity, setOtherQuantity] = useState('1');
+  const [otherCost, setOtherCost] = useState('');
+  const [otherPerBatch, setOtherPerBatch] = useState(false);
+
+  const form = useForm<ProductFormValues>({
+    resolver: zodResolver(productSchema),
     defaultValues: {
       name: '',
       sku: '',
@@ -112,172 +113,138 @@ export default function CreateProduct() {
     },
   });
 
-  const materialForm = useForm<MaterialFormValues>({
-    resolver: zodResolver(materialSchema),
-    defaultValues: {
-      name: '',
-      quantity: 0,
-      unit: '',
-      price_per_unit: 0,
-      units_made: 1,
-      user_material_id: undefined,
-      stock_level: undefined,
-      quantity_type: 'exact',
-      quantity_percentage: undefined,
-      quantity_per_item_or_batch: 'item',
-    },
-  });
+  const batchSize = form.watch('batch_size') || 1;
 
-  const laborForm = useForm<LaborFormValues>({
-    resolver: zodResolver(laborSchema),
-    defaultValues: {
-      activity: '',
-      time_spent_minutes: 0,
-      hourly_rate: settings.labor_hourly_cost || 0,
-      per_unit: true,
-    },
-  });
-
-  const otherCostForm = useForm<OtherCostFormValues>({
-    resolver: zodResolver(otherCostSchema),
-    defaultValues: {
-      item: '',
-      quantity: 1,
-      cost: 0,
-      per_unit: true,
-    },
-  });
-
-  // Helper function to get effective quantity for a material (handles both exact and percentage modes)
-  const getEffectiveQuantity = (material: MaterialFormValues, batchSize: number = 1): number => {
-    if (material.quantity_type === 'percentage') {
-      const stockLevel = (material as any).stock_level;
-      const percentage = material.quantity_percentage || 0;
-      const perItemOrBatch = material.quantity_per_item_or_batch || 'item';
-      
-      // For percentage mode, we need stock level. If not available, return 0 (will show as 0 cost)
-      if (stockLevel === undefined || stockLevel === null) {
-        return 0;
-      }
-      
-      if (perItemOrBatch === 'item') {
-        // Percentage per item, so multiply by batch size
-        // e.g., 30% of 1000ml per item = 300ml per item, for batch of 10 = 3000ml total
-        return (stockLevel * percentage / 100) * batchSize;
+  // Calculate totals
+  const totalMaterialsCost = materials.reduce((sum, m) => {
+    const unitsMade = m.units_made || 1;
+    let costPerProduct = 0;
+    if (m.quantity_type === 'percentage' && m.quantity_percentage) {
+      const percentage = m.quantity_percentage / 100;
+      if (m.per_batch) {
+        costPerProduct = (m.price_per_unit * percentage) / batchSize;
       } else {
-        // Percentage per batch
-        // e.g., 30% of 1000ml for entire batch = 300ml total
-        return stockLevel * percentage / 100;
-      }
-    }
-    // Exact quantity mode
-    return material.quantity || 0;
-  };
-
-  // Update hourly_rate default when settings are loaded (only if field is empty/zero)
-  useEffect(() => {
-    if (settings.labor_hourly_cost !== null && settings.labor_hourly_cost !== undefined) {
-      const currentValue = laborForm.getValues('hourly_rate');
-      if (currentValue === 0 || currentValue === null || currentValue === undefined) {
-        laborForm.setValue('hourly_rate', settings.labor_hourly_cost);
-      }
-    }
-  }, [settings.labor_hourly_cost]);
-
-  const onStep1Submit = (_data: Step1FormValues) => {
-    setCurrentStep(2);
-  };
-
-  const onStep2Submit = () => {
-    setCurrentStep(3);
-  };
-
-  const onStep3Submit = () => {
-    setCurrentStep(4);
-  };
-
-  const onAddMaterial = (data: MaterialFormValues) => {
-    console.log('onAddMaterial called, received data:', data);
-    
-    // For percentage per batch, units_made doesn't apply, so set it to 1
-    const unitsMade = (data.quantity_type === 'percentage' && data.quantity_per_item_or_batch === 'batch') 
-      ? 1 
-      : (data.units_made || 1);
-    
-    // Calculate total cost based on quantity type
-    let totalCost = 0;
-    const stockLevel = materialForm.getValues('stock_level');
-    const batchSize = step1Form.getValues('batch_size') || 1;
-    
-    if (data.quantity_type === 'percentage') {
-      // For percentage mode, we need stock level
-      if (stockLevel !== undefined && stockLevel !== null) {
-        const percentage = data.quantity_percentage || 0;
-        const perItemOrBatch = data.quantity_per_item_or_batch || 'item';
-        
-        if (perItemOrBatch === 'item') {
-          // Percentage per item: each item uses X% of stock
-          const quantityPerItem = stockLevel * percentage / 100;
-          totalCost = (quantityPerItem * data.price_per_unit) / unitsMade;
-        } else {
-          // Percentage per batch: entire batch uses X% of stock
-          const quantityForBatch = stockLevel * percentage / 100;
-          totalCost = (quantityForBatch * data.price_per_unit) / batchSize;
-        }
+        costPerProduct = m.price_per_unit * percentage;
       }
     } else {
-      // Exact quantity mode
-      const quantity = data.quantity || 0;
-      totalCost = (quantity * data.price_per_unit) / unitsMade;
+      costPerProduct = (m.quantity * m.price_per_unit) / unitsMade;
     }
+    return sum + costPerProduct;
+  }, 0);
+
+  const totalLaborCost = laborCosts.reduce((sum, l) => {
+    const cost = (l.time_minutes / 60) * l.hourly_rate;
+    return sum + (l.per_batch ? cost / batchSize : cost);
+  }, 0);
+
+  const totalOtherCost = otherCosts.reduce((sum, o) => {
+    const cost = o.quantity * o.cost;
+    return sum + (o.per_batch ? cost / batchSize : cost);
+  }, 0);
+
+  const totalCostPerProduct = totalMaterialsCost + totalLaborCost + totalOtherCost;
+
+  // Add material
+  const addMaterial = () => {
+    if (!materialName) return;
     
-    // Get user_material_id and stock_level from form state (they're not in schema)
-    const userMaterialId = materialForm.getValues('user_material_id');
-    const materialData = { 
-      ...data, 
-      quantity: data.quantity || 0, // Ensure quantity is always a number
-      units_made: unitsMade, // Use calculated units_made
-      total_cost: totalCost,
-      user_material_id: userMaterialId,
-      stock_level: stockLevel,
+    const quantity = materialQtyType === 'exact' ? parseFloat(materialQuantity) || 0 : 0;
+    const percentage = materialQtyType === 'percentage' ? parseFloat(materialPercentage) : undefined;
+    // For percentage per batch, units_made is always 1 (doesn't apply)
+    const unitsMade = (materialQtyType === 'percentage' && materialPerBatch) 
+      ? 1 
+      : parseInt(materialUnitsMade) || 1;
+    
+    const newMaterial: Material = {
+      id: crypto.randomUUID(),
+      name: materialName,
+      quantity,
+      unit: materialUnit,
+      price_per_unit: parseFloat(materialPrice) || 0,
+      quantity_type: materialQtyType,
+      quantity_percentage: percentage,
+      per_batch: materialPerBatch,
+      units_made: unitsMade,
+      user_material_id: selectedMaterial?.id,
+      stock_level: selectedMaterial?.stock_level,
     };
-    console.log('Adding material with full data:', materialData);
-    setMaterials([...materials, materialData]);
-    materialForm.reset();
-    // Reset user_material_id and stock_level for next material
-    materialForm.setValue('user_material_id', undefined);
-    materialForm.setValue('stock_level', undefined);
+    
+    setMaterials([...materials, newMaterial]);
+    resetMaterialForm();
   };
 
-  const onRemoveMaterial = (index: number) => {
-    setMaterials(materials.filter((_, i) => i !== index));
+  const resetMaterialForm = () => {
+    setMaterialName('');
+    setMaterialQuantity('');
+    setMaterialUnit('pcs');
+    setMaterialPrice('');
+    setMaterialQtyType('exact');
+    setMaterialPercentage('10');
+    setMaterialPerBatch(false);
+    setMaterialUnitsMade('1');
+    setSelectedMaterial(null);
   };
 
-  const onSaveMaterialToLibrary = async (index: number) => {
-    const material = materials[index];
-    if (!material || material.user_material_id) {
-      // Already in library or invalid
-      return;
-    }
+  // Add labor
+  const addLabor = () => {
+    if (!laborActivity || !laborMinutes) return;
+    
+    const newLabor: Labor = {
+      id: crypto.randomUUID(),
+      activity: laborActivity,
+      time_minutes: parseInt(laborMinutes) || 0,
+      hourly_rate: parseFloat(laborRate) || 0,
+      per_batch: laborPerBatch,
+    };
+    
+    setLaborCosts([...laborCosts, newLabor]);
+    setLaborActivity('');
+    setLaborMinutes('');
+    setLaborPerBatch(false);
+  };
+
+  // Add other cost
+  const addOtherCost = () => {
+    if (!otherItem || !otherCost) return;
+    
+    const newCost: OtherCost = {
+      id: crypto.randomUUID(),
+      item: otherItem,
+      quantity: parseFloat(otherQuantity) || 1,
+      cost: parseFloat(otherCost) || 0,
+      per_batch: otherPerBatch,
+    };
+    
+    setOtherCosts([...otherCosts, newCost]);
+    setOtherItem('');
+    setOtherQuantity('1');
+    setOtherCost('');
+    setOtherPerBatch(false);
+  };
+
+  // Remove functions
+  const removeMaterial = (id: string) => setMaterials(materials.filter(m => m.id !== id));
+  const removeLabor = (id: string) => setLaborCosts(laborCosts.filter(l => l.id !== id));
+  const removeOther = (id: string) => setOtherCosts(otherCosts.filter(o => o.id !== id));
+
+  // Save material to library
+  const saveMaterialToLibrary = async (material: Material) => {
+    if (material.user_material_id) return; // Already in library
 
     try {
-      // Calculate quantity and stock level
       let quantity = 0;
       let stockLevel = 0;
       
       if (material.quantity_type === 'percentage') {
-        // For percentage mode, assume 1 unit if not in library, or use library stock level
-        stockLevel = (material as any).stock_level || 1;
-        quantity = stockLevel; // Use stock level as the quantity
+        stockLevel = material.stock_level || 1;
+        quantity = stockLevel;
       } else {
-        // Exact quantity mode
         quantity = material.quantity || 0;
-        stockLevel = (material as any).stock_level || quantity; // Use quantity as initial stock
+        stockLevel = material.stock_level || quantity;
       }
       
       const price = quantity * material.price_per_unit;
 
-      // Call API to create material in library
       const response = await api.post('/materials', {
         name: material.name,
         price: price,
@@ -291,13 +258,11 @@ export default function CreateProduct() {
         const savedMaterial = response.data.data;
         
         // Update the material in local state to link it to library
-        const updatedMaterials = [...materials];
-        updatedMaterials[index] = {
-          ...updatedMaterials[index],
-          user_material_id: savedMaterial.id,
-          stock_level: savedMaterial.stock_level || 0,
-        };
-        setMaterials(updatedMaterials);
+        setMaterials(materials.map(m => 
+          m.id === material.id 
+            ? { ...m, user_material_id: savedMaterial.id, stock_level: savedMaterial.stock_level || 0 }
+            : m
+        ));
 
         toast({
           variant: 'success',
@@ -306,7 +271,6 @@ export default function CreateProduct() {
         });
       }
     } catch (error: any) {
-      console.error('Error saving material to library:', error);
       toast({
         variant: 'destructive',
         title: 'Error',
@@ -315,1224 +279,598 @@ export default function CreateProduct() {
     }
   };
 
-  const onAddLabor = (data: LaborFormValues) => {
-    // Calculate total cost: (time in minutes / 60) * hourly_rate
-    const totalCost = (data.time_spent_minutes / 60) * data.hourly_rate;
-    setLaborCosts([...laborCosts, { ...data, total_cost: totalCost }]);
-    laborForm.reset();
+  // Handle material selection from library
+  const handleMaterialSelect = (material: any) => {
+    setSelectedMaterial(material);
+    setMaterialName(material.name);
+    setMaterialUnit(material.unit || 'pcs');
+    setMaterialPrice(material.price_per_unit?.toString() || '');
+    if (material.is_percentage_type) {
+      setMaterialQtyType('percentage');
+    }
   };
 
-  const onRemoveLabor = (index: number) => {
-    setLaborCosts(laborCosts.filter((_, i) => i !== index));
+  // Calculate cost for display
+  const getMaterialCost = (m: Material) => {
+    const unitsMade = m.units_made || 1;
+    if (m.quantity_type === 'percentage' && m.quantity_percentage) {
+      const cost = m.price_per_unit * (m.quantity_percentage / 100);
+      return m.per_batch ? cost / batchSize : cost;
+    }
+    const cost = m.quantity * m.price_per_unit;
+    return cost / unitsMade;
   };
 
-  const onAddOtherCost = (data: OtherCostFormValues) => {
-    // Calculate total cost: quantity × cost
-    const totalCost = data.quantity * data.cost;
-    setOtherCosts([...otherCosts, { ...data, total_cost: totalCost }]);
-    otherCostForm.reset();
+  const getLaborCost = (l: Labor) => {
+    const cost = (l.time_minutes / 60) * l.hourly_rate;
+    return l.per_batch ? cost / batchSize : cost;
   };
 
-  const onRemoveOtherCost = (index: number) => {
-    setOtherCosts(otherCosts.filter((_, i) => i !== index));
+  const getOtherCost = (o: OtherCost) => {
+    const cost = o.quantity * o.cost;
+    return o.per_batch ? cost / batchSize : cost;
   };
 
-  const onFinalSubmit = async () => {
+  // Submit
+  const onSubmit = async (data: ProductFormValues) => {
     setIsSubmitting(true);
-    const step1Data = step1Form.getValues();
-    
     try {
-      // Prepare materials data
-      const materialsData = materials.map(m => ({
-        name: m.name,
-        quantity: m.quantity || 0,
-        unit: m.unit,
-        price_per_unit: m.price_per_unit,
-        units_made: m.units_made || 1,
-        user_material_id: m.user_material_id,
-        quantity_type: m.quantity_type || 'exact',
-        quantity_percentage: m.quantity_percentage,
-        quantity_per_item_or_batch: m.quantity_per_item_or_batch || 'item',
-      }));
-
-      // Prepare labor costs data
-      const laborCostsData = laborCosts.map(l => ({
-        activity: l.activity,
-        time_spent_minutes: l.time_spent_minutes,
-        hourly_rate: l.hourly_rate,
-        per_unit: l.per_unit,
-      }));
-
-      // Prepare other costs data
-      const otherCostsData = otherCosts.map(o => ({
-        item: o.item,
-        quantity: o.quantity,
-        cost: o.cost,
-        per_unit: o.per_unit,
-      }));
-
       // Determine pricing method and value from target_price if provided
       let pricing_method: 'price' | undefined = undefined;
       let pricing_value: number | undefined = undefined;
       
-      if (step1Data.target_price) {
+      if (data.target_price) {
         pricing_method = 'price';
-        pricing_value = step1Data.target_price;
+        pricing_value = data.target_price;
       }
 
-      // Call API to create product
-      await api.post('/products', {
-        name: step1Data.name,
-        sku: step1Data.sku,
-        description: step1Data.description,
-        category: step1Data.category,
-        batch_size: step1Data.batch_size,
-        target_price: step1Data.target_price,
-        pricing_method: pricing_method,
-        pricing_value: pricing_value,
-        materials: materialsData,
-        labor_costs: laborCostsData,
-        other_costs: otherCostsData,
-      });
+      const productData = {
+        name: data.name,
+        sku: data.sku,
+        batch_size: data.batch_size,
+        target_price: data.target_price,
+        pricing_method,
+        pricing_value,
+        materials: materials.map(m => ({
+          name: m.name,
+          quantity: m.quantity || 0,
+          unit: m.unit,
+          price_per_unit: m.price_per_unit,
+          quantity_type: m.quantity_type,
+          quantity_percentage: m.quantity_percentage,
+          quantity_per_item_or_batch: m.per_batch ? 'batch' : 'item',
+          user_material_id: m.user_material_id,
+          units_made: m.units_made || 1,
+        })),
+        labor_costs: laborCosts.map(l => ({
+          activity: l.activity,
+          time_spent_minutes: l.time_minutes,
+          hourly_rate: l.hourly_rate,
+          per_unit: !l.per_batch,
+        })),
+        other_costs: otherCosts.map(o => ({
+          item: o.item,
+          quantity: o.quantity,
+          cost: o.cost,
+          per_unit: !o.per_batch,
+        })),
+      };
 
-      // Navigate to products list
+      await api.post('/products', productData);
+      toast({ variant: 'success', title: 'Product created successfully' });
       navigate('/products');
     } catch (error: any) {
-      console.error('Error creating product:', error);
-      // TODO: Show error message to user
-      alert(error.response?.data?.message || 'Failed to create product. Please try again.');
+      toast({ variant: 'destructive', title: 'Error', description: error.response?.data?.message || error.message });
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Calculations
-  const batchSize = step1Form.watch('batch_size') || 1;
-  
-  // Total cost per single product (materials cost is divided by units_made)
-  const totalMaterialsCost = materials.reduce((sum, m) => {
-    const unitsMade = m.units_made || 1;
-    const effectiveQuantity = getEffectiveQuantity(m, batchSize);
-    return sum + ((effectiveQuantity * m.price_per_unit) / unitsMade);
-  }, 0);
-  
-  // Labor costs: per_unit costs are per product, others are per batch
-  const laborPerProduct = laborCosts
-    .filter(l => l.per_unit)
-    .reduce((sum, l) => sum + (l.total_cost || 0), 0);
-  
-  const laborPerBatch = laborCosts
-    .filter(l => !l.per_unit)
-    .reduce((sum, l) => sum + (l.total_cost || 0), 0);
-  
-  // Total labor cost per product (per_unit costs + batch costs divided by batch size)
-  const totalLaborCostPerProduct = laborPerProduct + (batchSize > 0 ? laborPerBatch / batchSize : 0);
-  
-  // Other costs: per_unit costs are per product, others are per batch
-  const otherCostsPerProduct = otherCosts
-    .filter(o => o.per_unit)
-    .reduce((sum, o) => sum + (o.total_cost || 0), 0);
-  
-  const otherCostsPerBatch = otherCosts
-    .filter(o => !o.per_unit)
-    .reduce((sum, o) => sum + (o.total_cost || 0), 0);
-  
-  // Total other costs per product (per_unit costs + batch costs divided by batch size)
-  const totalOtherCostsPerProduct = otherCostsPerProduct + (batchSize > 0 ? otherCostsPerBatch / batchSize : 0);
-  
-  // Total cost per product
-  const totalCostPerProduct = totalMaterialsCost + totalLaborCostPerProduct + totalOtherCostsPerProduct;
-  
-  // Total batch cost
-  const totalBatchCost = totalCostPerProduct * batchSize;
-
   return (
-    <div className="pb-32">
-      {/* Step Indicator in Header Area */}
-      <div className="sticky top-0 z-40 bg-background border-b py-2 mb-6 px-6">
-        <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5">
-              <div className={`flex items-center justify-center w-5 h-5 rounded-full text-xs font-medium ${currentStep >= 1 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
-                1
-              </div>
-              <span className={`text-xs font-medium ${currentStep >= 1 ? 'text-foreground' : 'text-muted-foreground'}`}>
-                Basic Info
-              </span>
-            </div>
-            <div className="flex-1 h-px bg-muted max-w-8" />
-            <div className="flex items-center gap-1.5">
-              <div className={`flex items-center justify-center w-5 h-5 rounded-full text-xs font-medium ${currentStep >= 2 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
-                2
-              </div>
-              <span className={`text-xs font-medium ${currentStep >= 2 ? 'text-foreground' : 'text-muted-foreground'}`}>
-                Materials
-              </span>
-            </div>
-            <div className="flex-1 h-px bg-muted max-w-8" />
-            <div className="flex items-center gap-1.5">
-              <div className={`flex items-center justify-center w-5 h-5 rounded-full text-xs font-medium ${currentStep >= 3 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
-                3
-              </div>
-              <span className={`text-xs font-medium ${currentStep >= 3 ? 'text-foreground' : 'text-muted-foreground'}`}>
-                Labor
-              </span>
-            </div>
-            <div className="flex-1 h-px bg-muted max-w-8" />
-            <div className="flex items-center gap-1.5">
-              <div className={`flex items-center justify-center w-5 h-5 rounded-full text-xs font-medium ${currentStep >= 4 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
-                4
-              </div>
-              <span className={`text-xs font-medium ${currentStep >= 4 ? 'text-foreground' : 'text-muted-foreground'}`}>
-                Other Costs
-              </span>
-            </div>
-          </div>
-      </div>
-
-      <div className="px-6 py-6">
-
-      {/* Step 1: Basic Info */}
-      {currentStep === 1 && (
-        <div>
-          <div className="mb-4">
-            <h2 className="text-lg font-semibold">Product Information</h2>
-            <p className="text-sm text-muted-foreground mt-1">Enter the basic details about your product</p>
-          </div>
-          <div>
-            <Form {...step1Form}>
-              <form onSubmit={step1Form.handleSubmit(onStep1Submit)} className="space-y-4">
-                <div className="grid grid-cols-3 gap-4">
-                  <FormField
-                    control={step1Form.control}
-                    name="name"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Product Name *</FormLabel>
-                        <FormControl>
-                          <Input placeholder="e.g., Lavender Candle" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={step1Form.control}
-                    name="sku"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="flex items-center gap-1.5">
-                          SKU (Optional)
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>Stock Keeping Unit - a unique identifier for your product</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        </FormLabel>
-                        <FormControl>
-                          <Input placeholder="e.g., LVDR_CNDLE_1" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={step1Form.control}
-                    name="batch_size"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="flex items-center gap-1.5">
-                          Products Per Batch *
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>How many products do you create in one batch?</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        </FormLabel>
-                        <FormControl>
-                          <Input 
-                            type="number" 
-                            min="1"
-                            {...field}
-                            onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={step1Form.control}
-                    name="target_price"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="flex items-center gap-1.5">
-                          Target Price ({getCurrencySymbol(settings.currency)}) (Optional)
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>The price you want to set for this product</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        </FormLabel>
-                        <FormControl>
-                          <Input 
-                            type="number" 
-                            step="0.01"
-                            min="0.01"
-                            placeholder="0.00"
-                            {...field}
-                            onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : undefined)}
-                            value={field.value || ''}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-                <div className="flex justify-end">
-                  <Button type="submit">
-                    Next: Materials
-                    <ChevronRight className="ml-2 h-4 w-4" />
-                  </Button>
-                </div>
-              </form>
-            </Form>
-          </div>
-        </div>
-      )}
-
-      {/* Step 2: Materials */}
-      {currentStep === 2 && (
-        <div className="space-y-6">
-          <div className="mb-4">
-            <h2 className="text-lg font-semibold">Add Materials</h2>
-            <p className="text-sm text-muted-foreground mt-1">
-              Enter material quantities for <strong>one product</strong>. The batch cost will be calculated automatically.
-            </p>
-          </div>
-          <div className="space-y-4">
-            <div>
-              <Form {...materialForm}>
-                <form onSubmit={(e) => {
-                  e.preventDefault();
-                  console.log('Form submit triggered');
-                  console.log('Form values:', materialForm.getValues());
-                  materialForm.handleSubmit(onAddMaterial, (errors) => {
-                    console.error('Form validation errors:', errors);
-                    console.error('Validation failed, errors:', JSON.stringify(errors, null, 2));
-                  })(e);
-                }} className="space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-                      <FormField
-                        control={materialForm.control}
-                        name="name"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Material Name *</FormLabel>
-                            <FormControl>
-                              <MaterialNameInput
-                                value={field.value || ''}
-                                onChange={(value) => {
-                                  field.onChange(value);
-                                }}
-                                onMaterialSelect={(material) => {
-                                  // Auto-fill unit, price_per_unit, user_material_id, and stock_level if material is selected from library
-                                  materialForm.setValue('unit', material.unit);
-                                  // Round to 2 decimal places to avoid trailing zeros
-                                  const roundedPricePerUnit = Math.round(material.price_per_unit * 100) / 100;
-                                  materialForm.setValue('price_per_unit', roundedPricePerUnit);
-                                  materialForm.setValue('user_material_id', material.id);
-                                  if (material.stock_level !== undefined) {
-                                    materialForm.setValue('stock_level', material.stock_level);
-                                  }
-                                  // If material is marked as percentage type, default to percentage mode
-                                  if ((material as any).is_percentage_type) {
-                                    materialForm.setValue('quantity_type', 'percentage');
-                                  }
-                                }}
-                                onAddToLibrary={async (name) => {
-                                  // Optionally add to library - for now just use the name
-                                  // User can add it properly later from Materials page
-                                  toast({
-                                    variant: 'success',
-                                    title: 'Note',
-                                    description: `Using "${name}". You can add it to your library later from the Materials page.`,
-                                  });
-                                }}
-                                placeholder="Search or type material name..."
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
+    <div className="flex flex-col h-[calc(100vh-4rem)] overflow-hidden">
+      {/* Scrollable content */}
+      <div className="flex-1 overflow-y-auto p-6">
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            
+            {/* Product Info Row */}
+            <div className="grid grid-cols-4 gap-4 items-end">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Product Name *</FormLabel>
+                    <FormControl>
+                      <Input placeholder="My Product" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="sku"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>SKU</FormLabel>
+                    <FormControl>
+                      <Input placeholder="SKU-001" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="batch_size"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Batch Size</FormLabel>
+                    <FormControl>
+                      <Input 
+                        type="number" 
+                        min={1}
+                        {...field}
+                        onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
                       />
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Quantity *</label>
-                          <FormField
-                            control={materialForm.control}
-                            name="quantity_type"
-                            render={({ field }) => (
-                              <Tabs 
-                                value={field.value || 'exact'} 
-                                onValueChange={field.onChange}
-                                className="h-6"
-                              >
-                                <TabsList className="h-6 p-0.5">
-                                  <TabsTrigger value="exact" className="px-2 py-0.5 text-xs h-5">Qt</TabsTrigger>
-                                  <TabsTrigger value="percentage" className="px-2 py-0.5 text-xs h-5">%</TabsTrigger>
-                                </TabsList>
-                              </Tabs>
-                            )}
-                          />
-                        </div>
-                        {materialForm.watch('quantity_type') === 'exact' ? (
-                          <FormField
-                            control={materialForm.control}
-                            name="quantity"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormControl>
-                                  <Input 
-                                    type="number" 
-                                    step="0.01"
-                                    placeholder="0"
-                                    {...field}
-                                    value={field.value || ''}
-                                    onChange={(e) => {
-                                      const value = e.target.value;
-                                      if (value === '' || value === null || value === undefined) {
-                                        field.onChange(0);
-                                      } else {
-                                        const numValue = parseFloat(value);
-                                        field.onChange(isNaN(numValue) ? 0 : numValue);
-                                      }
-                                    }}
-                                  />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                        ) : (
-                          <FormField
-                            control={materialForm.control}
-                            name="quantity_percentage"
-                            render={({ field }) => (
-                              <FormItem>
-                                <Select 
-                                  onValueChange={(value) => field.onChange(parseFloat(value))} 
-                                  value={field.value?.toString() || ''}
-                                >
-                                  <FormControl>
-                                    <SelectTrigger>
-                                      <SelectValue placeholder="Select %" />
-                                    </SelectTrigger>
-                                  </FormControl>
-                                  <SelectContent>
-                                    {[10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map((val) => (
-                                      <SelectItem key={val} value={val.toString()}>{val}%</SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                        )}
-                      </div>
-                      <FormField
-                        control={materialForm.control}
-                        name="quantity_per_item_or_batch"
-                        render={({ field }) => (
-                          <FormItem className="flex flex-row items-center space-x-2 space-y-0 pt-7">
-                            <FormControl>
-                              <Checkbox
-                                checked={field.value === 'batch'}
-                                onCheckedChange={(checked) => {
-                                  field.onChange(checked ? 'batch' : 'item');
-                                }}
-                              />
-                            </FormControl>
-                            <FormLabel className="text-sm font-normal cursor-pointer mb-0">
-                              Per batch
-                            </FormLabel>
-                          </FormItem>
-                        )}
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="target_price"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Target Price ({getCurrencySymbol(settings.currency)})</FormLabel>
+                    <FormControl>
+                      <Input 
+                        type="number" 
+                        step="0.01"
+                        placeholder="0.00"
+                        {...field}
+                        value={field.value || ''}
+                        onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : undefined)}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            {/* 3-Column Grid: Materials, Labor, Other */}
+            <div className="grid grid-cols-3 gap-6">
+              
+              {/* Materials Column */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                  <Package className="h-4 w-4" />
+                  Materials
+                </div>
+                
+                {/* Add Material Form */}
+                <div className="space-y-3 p-4 border rounded-lg bg-muted/20">
+                  <div>
+                    <label className="text-xs text-muted-foreground">Material Name</label>
+                    <MaterialNameInput
+                      value={materialName}
+                      onChange={setMaterialName}
+                      onMaterialSelect={handleMaterialSelect}
+                      placeholder="Search or add new material"
+                    />
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-xs text-muted-foreground flex items-center gap-1">
+                        Qty
+                        <Tabs value={materialQtyType} onValueChange={(v) => setMaterialQtyType(v as 'exact' | 'percentage')}>
+                          <TabsList className="h-5">
+                            <TabsTrigger value="exact" className="text-[10px] px-1.5 h-4">Qt</TabsTrigger>
+                            <TabsTrigger value="percentage" className="text-[10px] px-1.5 h-4">%</TabsTrigger>
+                          </TabsList>
+                        </Tabs>
+                      </label>
+                      {materialQtyType === 'exact' ? (
+                        <Input
+                          type="number"
+                          step="0.01"
+                          placeholder="0"
+                          value={materialQuantity}
+                          onChange={(e) => setMaterialQuantity(e.target.value)}
+                          className="h-9"
+                        />
+                      ) : (
+                        <Select value={materialPercentage} onValueChange={setMaterialPercentage}>
+                          <SelectTrigger className="h-9">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {[10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map(p => (
+                              <SelectItem key={p} value={p.toString()}>{p}%</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground">Unit</label>
+                      <Select value={materialUnit} onValueChange={setMaterialUnit}>
+                        <SelectTrigger className="h-9">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {['pcs', 'mm', 'cm', 'm', 'ml', 'L', 'g', 'kg'].map(u => (
+                            <SelectItem key={u} value={u}>{u}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-xs text-muted-foreground">Price/Unit ({getCurrencySymbol(settings.currency)})</label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        placeholder="0.00"
+                        value={materialPrice}
+                        onChange={(e) => setMaterialPrice(e.target.value)}
+                        disabled={!!selectedMaterial}
+                        className="h-9"
                       />
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-                      <FormField
-                        control={materialForm.control}
-                        name="unit"
-                      render={({ field }) => {
-                        const availableUnits = settings.units && settings.units.length > 0 
-                          ? [...settings.units].sort() 
-                          : ['ml', 'L', 'g', 'kg', 'mm', 'cm', 'm', 'm²', 'pcs'];
-                        const userMaterialId = materialForm.watch('user_material_id');
-                        const isFromLibrary = !!userMaterialId;
-                        
-                        return (
-                          <FormItem>
-                            <FormLabel className="flex items-center gap-1.5">
-                              Unit *
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p>Unit of measurement (grams, milliliters, pieces, etc.)</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                            </FormLabel>
-                            <Select onValueChange={field.onChange} value={field.value} disabled={isFromLibrary}>
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select unit" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {availableUnits.map((unit) => (
-                                  <SelectItem key={unit} value={unit}>
-                                    {unit}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        );
-                      }}
-                    />
-                    <FormField
-                      control={materialForm.control}
-                      name="price_per_unit"
-                      render={({ field }) => {
-                        const userMaterialId = materialForm.watch('user_material_id');
-                        const isFromLibrary = !!userMaterialId;
-                        
-                        return (
-                          <FormItem>
-                            <FormLabel className="flex items-center gap-1.5">
-                              Cost *
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p>Price per 1 unit of this material</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                            </FormLabel>
-                            <FormControl>
-                              <Input 
-                                type="number" 
-                                step="0.01"
-                                placeholder="0.00"
-                                {...field}
-                                value={field.value ?? ''}
-                                disabled={isFromLibrary}
-                                onChange={(e) => {
-                                  if (isFromLibrary) return; // Don't allow editing if from library
-                                  const value = e.target.value;
-                                  if (value === '' || value === null || value === undefined) {
-                                    field.onChange(0);
-                                  } else {
-                                    const numValue = parseFloat(value);
-                                    if (!isNaN(numValue)) {
-                                      // Round to 2 decimal places to avoid trailing zeros
-                                      const rounded = Math.round(numValue * 100) / 100;
-                                      field.onChange(rounded);
-                                    } else {
-                                      field.onChange(0);
-                                    }
-                                  }
-                                }}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        );
-                      }}
-                    />
-                    {!(materialForm.watch('quantity_type') === 'percentage' && materialForm.watch('quantity_per_item_or_batch') === 'batch') && (
-                      <FormField
-                        control={materialForm.control}
-                        name="units_made"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="flex items-center gap-1.5">
-                              Items From This Quantity *
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p>How many items you can make from this quantity of material</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                            </FormLabel>
-                            <FormControl>
-                              <Input 
-                                type="number" 
-                                step="1"
-                                min="1"
-                                placeholder="1"
-                                {...field}
-                                value={field.value ?? ''}
-                                onChange={(e) => {
-                                  const value = e.target.value;
-                                  if (value === '' || value === null || value === undefined) {
-                                    field.onChange(1);
-                                  } else {
-                                    const numValue = parseFloat(value);
-                                    if (!isNaN(numValue) && numValue > 0) {
-                                      field.onChange(numValue);
-                                    } else {
-                                      field.onChange(1);
-                                    }
-                                  }
-                                }}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                    {/* Hide units_made when percentage + per batch */}
+                    {!(materialQtyType === 'percentage' && materialPerBatch) && (
+                      <div>
+                        <label className="text-xs text-muted-foreground">Items Made</label>
+                        <Input
+                          type="number"
+                          min={1}
+                          value={materialUnitsMade}
+                          onChange={(e) => setMaterialUnitsMade(e.target.value)}
+                          className="h-9"
+                        />
+                      </div>
                     )}
                   </div>
-                  <Button type="submit" variant="outline">
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add Material
-                  </Button>
-                </form>
-              </Form>
-            </div>
-          </div>
-
-          {/* Materials List */}
-          {materials.length > 0 && (
-            <div className="mt-6">
-              <div>
-                <div className="space-y-4">
-                  <div className="border rounded-lg">
-                    <table className="w-full">
-                      <thead className="bg-slate-100 dark:bg-slate-800">
-                        <tr>
-                          <th className="text-left p-3 text-sm font-medium">Material</th>
-                          <th className="text-left p-3 text-sm font-medium">Quantity</th>
-                          <th className="text-left p-3 text-sm font-medium">Unit</th>
-                          <th className="text-left p-3 text-sm font-medium">Price per Unit</th>
-                          <th className="text-left p-3 text-sm font-medium">Items From Quantity</th>
-                          <th className="text-left p-3 text-sm font-medium">Stock</th>
-                          <th className="text-left p-3 text-sm font-medium">Cost Per Product</th>
-                          <th className="text-right p-3 text-sm font-medium">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {materials.map((material, index) => {
-                          const unitsMade = material.units_made || 1;
-                          const userMaterialId = (material as any).user_material_id;
-                          const stockLevel = (material as any).stock_level;
-                          
-                          // Calculate effective quantity and cost
-                          let effectiveQuantity = 0;
-                          let costPerProduct = 0;
-                          
-                          if (material.quantity_type === 'percentage') {
-                            // For percentage mode, use stock level from library, or assume 1 unit if not in library
-                            const materialStockLevel = stockLevel !== undefined && stockLevel !== null ? stockLevel : 1;
-                            const percentage = material.quantity_percentage || 0;
-                            const perItemOrBatch = material.quantity_per_item_or_batch || 'item';
-                            
-                            if (perItemOrBatch === 'item') {
-                              // Percentage per item: each item uses X% of stock
-                              // e.g., 30% per item with 1000ml stock = 300ml per item
-                              const quantityPerItem = materialStockLevel * percentage / 100;
-                              effectiveQuantity = quantityPerItem * batchSize; // Total for batch
-                              // Cost per product = (quantity per item * price_per_unit) / unitsMade
-                              costPerProduct = (quantityPerItem * material.price_per_unit) / unitsMade;
-                            } else {
-                              // Percentage per batch: entire batch uses X% of stock
-                              // e.g., 30% per batch with 1000ml stock = 300ml for entire batch
-                              effectiveQuantity = materialStockLevel * percentage / 100;
-                              // Cost per product = (total quantity for batch * price_per_unit) / batchSize
-                              // unitsMade doesn't apply here because percentage is for the batch
-                              costPerProduct = (effectiveQuantity * material.price_per_unit) / batchSize;
-                            }
-                          } else {
-                            // Exact quantity mode
-                            effectiveQuantity = material.quantity || 0;
-                            costPerProduct = (effectiveQuantity * material.price_per_unit) / unitsMade;
-                          }
-                          
-                          // Only calculate stock if material is from library (has user_material_id)
-                          // Calculate required quantity for this batch
-                          const requiredQuantity = effectiveQuantity;
-                          // Calculate remaining stock after this batch (only if material is from library)
-                          const remainingStock = userMaterialId && stockLevel !== undefined && stockLevel !== null
-                            ? stockLevel - requiredQuantity
-                            : null;
-                          
-                          // Display quantity based on type
-                          const quantityDisplay = material.quantity_type === 'percentage' 
-                            ? `${material.quantity_percentage || 0}% ${material.quantity_per_item_or_batch === 'batch' ? 'per batch' : 'per item'}`
-                            : (material.quantity || 0);
-                          
-                          return (
-                            <tr key={index} className="border-t">
-                              <td className="p-3">
-                                <div>
-                                  <div className="font-medium">{material.name}</div>
-                                  {(material as any).width && (material as any).length && (
-                                    <div className="text-xs text-muted-foreground">
-                                      {(material as any).width} × {(material as any).length} {material.unit === 'm²' || material.unit === 'ft²' ? material.unit.replace('²', '') : material.unit}
-                                    </div>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="p-3">{quantityDisplay}</td>
-                              <td className="p-3">{material.unit}</td>
-                              <td className="p-3">{formatCurrency(material.price_per_unit, settings.currency)}</td>
-                              <td className="p-3">
-                                {material.quantity_type === 'percentage' && material.quantity_per_item_or_batch === 'batch' 
-                                  ? '-' 
-                                  : (material.units_made || 1)
-                                }
-                              </td>
-                              <td className="p-3">
-                                {remainingStock !== null ? (
-                                  <span className={remainingStock < 0 ? 'text-red-600 font-medium' : ''}>
-                                    {Number.isInteger(Number(remainingStock)) 
-                                      ? Number(remainingStock).toString()
-                                      : parseFloat(Number(remainingStock).toFixed(2)).toString()
-                                    }
-                                  </span>
-                                ) : (
-                                  <span className="text-muted-foreground">-</span>
-                                )}
-                              </td>
-                              <td className="p-3 font-medium">
-                                {formatCurrency(costPerProduct, settings.currency)}
-                              </td>
-                              <td className="p-3 text-right">
-                                <div className="flex items-center justify-end gap-1">
-                                  {!userMaterialId && (
-                                    <TooltipProvider>
-                                      <Tooltip>
-                                        <TooltipTrigger asChild>
-                                          <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => onSaveMaterialToLibrary(index)}
-                                          >
-                                            <Save className="h-4 w-4 text-primary" />
-                                          </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>
-                                          <p>Save to library</p>
-                                        </TooltipContent>
-                                      </Tooltip>
-                                    </TooltipProvider>
-                                  )}
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => onRemoveMaterial(index)}
-                                  >
-                                    <Trash2 className="h-4 w-4 text-destructive" />
-                                  </Button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                      <tfoot>
-                        <tr className="border-t font-semibold">
-                          <td colSpan={6} className="p-3 text-right">Total Cost Per Product:</td>
-                          <td className="p-3">{formatCurrency(totalMaterialsCost, settings.currency)}</td>
-                          <td></td>
-                        </tr>
-                      </tfoot>
-                    </table>
+                  
+                  <div className="flex items-center gap-1.5">
+                    <Checkbox 
+                      checked={materialPerBatch} 
+                      onCheckedChange={(c) => setMaterialPerBatch(!!c)}
+                      id="mat-batch"
+                    />
+                    <label htmlFor="mat-batch" className="text-xs">Per batch</label>
                   </div>
+                  
+                  <Button type="button" size="sm" className="w-full" onClick={addMaterial}>
+                    <Plus className="h-3 w-3 mr-1" /> Add
+                  </Button>
+                </div>
+
+                {/* Material Cards */}
+                <div className="space-y-2">
+                  {materials.map((m) => (
+                    <Card key={m.id} className="relative">
+                      <div className="absolute top-2 right-2 flex gap-1">
+                        {!m.user_material_id && (
+                          <button
+                            type="button"
+                            onClick={() => saveMaterialToLibrary(m)}
+                            className="text-muted-foreground hover:text-primary"
+                            title="Save to library"
+                          >
+                            <Save className="h-3 w-3" />
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => removeMaterial(m.id)}
+                          className="text-muted-foreground hover:text-destructive"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                      <CardContent className="p-3">
+                        <div className="font-medium text-sm truncate pr-8">{m.name}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {m.quantity_type === 'percentage' 
+                            ? `${m.quantity_percentage}%` 
+                            : `${m.quantity} ${m.unit}`}
+                          {m.units_made > 1 && ` → ${m.units_made} items`}
+                          {m.per_batch && ' / batch'}
+                          {m.user_material_id && ' ✓'}
+                        </div>
+                        <div className="text-sm font-semibold text-primary mt-1">
+                          {formatCurrency(getMaterialCost(m), settings.currency)}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+
+              {/* Labor Column */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                  <Clock className="h-4 w-4" />
+                  Labor
+                </div>
+                
+                {/* Add Labor Form */}
+                <div className="space-y-3 p-4 border rounded-lg bg-muted/20">
+                  <div>
+                    <label className="text-xs text-muted-foreground">Activity</label>
+                    <Input
+                      placeholder="Assembly, Painting..."
+                      value={laborActivity}
+                      onChange={(e) => setLaborActivity(e.target.value)}
+                      className="h-9"
+                    />
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-xs text-muted-foreground">Minutes</label>
+                      <Input
+                        type="number"
+                        placeholder="30"
+                        value={laborMinutes}
+                        onChange={(e) => setLaborMinutes(e.target.value)}
+                        className="h-9"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground">Rate/hr ({getCurrencySymbol(settings.currency)})</label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={laborRate}
+                        onChange={(e) => setLaborRate(e.target.value)}
+                        className="h-9"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-1.5">
+                    <Checkbox 
+                      checked={laborPerBatch} 
+                      onCheckedChange={(c) => setLaborPerBatch(!!c)}
+                      id="labor-batch"
+                    />
+                    <label htmlFor="labor-batch" className="text-xs">Per batch</label>
+                  </div>
+                  
+                  <Button type="button" size="sm" className="w-full" onClick={addLabor}>
+                    <Plus className="h-3 w-3 mr-1" /> Add
+                  </Button>
+                </div>
+
+                {/* Labor Cards */}
+                <div className="space-y-2">
+                  {laborCosts.map((l) => (
+                    <Card key={l.id} className="relative">
+                      <button
+                        type="button"
+                        onClick={() => removeLabor(l.id)}
+                        className="absolute top-2 right-2 text-muted-foreground hover:text-destructive"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                      <CardContent className="p-3">
+                        <div className="font-medium text-sm truncate pr-4">{l.activity}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {l.time_minutes} min @ {formatCurrency(l.hourly_rate, settings.currency)}/hr
+                          {l.per_batch && ' / batch'}
+                        </div>
+                        <div className="text-sm font-semibold text-primary mt-1">
+                          {formatCurrency(getLaborCost(l), settings.currency)}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+
+              {/* Other Costs Column */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                  <Receipt className="h-4 w-4" />
+                  Other Costs
+                </div>
+                
+                {/* Add Other Cost Form */}
+                <div className="space-y-3 p-4 border rounded-lg bg-muted/20">
+                  <div>
+                    <label className="text-xs text-muted-foreground">Item</label>
+                    <Input
+                      placeholder="Packaging, Shipping..."
+                      value={otherItem}
+                      onChange={(e) => setOtherItem(e.target.value)}
+                      className="h-9"
+                    />
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-xs text-muted-foreground">Qty</label>
+                      <Input
+                        type="number"
+                        value={otherQuantity}
+                        onChange={(e) => setOtherQuantity(e.target.value)}
+                        className="h-9"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground">Cost ({getCurrencySymbol(settings.currency)})</label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        placeholder="0.00"
+                        value={otherCost}
+                        onChange={(e) => setOtherCost(e.target.value)}
+                        className="h-9"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-1.5">
+                    <Checkbox 
+                      checked={otherPerBatch} 
+                      onCheckedChange={(c) => setOtherPerBatch(!!c)}
+                      id="other-batch"
+                    />
+                    <label htmlFor="other-batch" className="text-xs">Per batch</label>
+                  </div>
+                  
+                  <Button type="button" size="sm" className="w-full" onClick={addOtherCost}>
+                    <Plus className="h-3 w-3 mr-1" /> Add
+                  </Button>
+                </div>
+
+                {/* Other Cost Cards */}
+                <div className="space-y-2">
+                  {otherCosts.map((o) => (
+                    <Card key={o.id} className="relative">
+                      <button
+                        type="button"
+                        onClick={() => removeOther(o.id)}
+                        className="absolute top-2 right-2 text-muted-foreground hover:text-destructive"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                      <CardContent className="p-3">
+                        <div className="font-medium text-sm truncate pr-4">{o.item}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {o.quantity} × {formatCurrency(o.cost, settings.currency)}
+                          {o.per_batch && ' / batch'}
+                        </div>
+                        <div className="text-sm font-semibold text-primary mt-1">
+                          {formatCurrency(getOtherCost(o), settings.currency)}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
                 </div>
               </div>
             </div>
-          )}
-
-          {/* Navigation Buttons */}
-          <div className="flex justify-between">
-            <Button variant="outline" onClick={() => setCurrentStep(1)}>
-              <ChevronLeft className="mr-2 h-4 w-4" />
-              Back
-            </Button>
-            <Button onClick={onStep2Submit}>
-              Next: Labor
-              <ChevronRight className="ml-2 h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* Step 3: Labor Costs */}
-      {currentStep === 3 && (
-        <div className="space-y-6">
-          <div className="mb-4">
-            <h2 className="text-lg font-semibold">Add Labor Costs</h2>
-            <p className="text-sm text-muted-foreground mt-1">
-              Track time spent on activities. Check "Per Unit" if the cost applies to each product, or leave unchecked if it's a batch activity.
-            </p>
-          </div>
-          <div>
-              <Form {...laborForm}>
-                <form onSubmit={laborForm.handleSubmit(onAddLabor)} className="space-y-4">
-                  <div className="grid grid-cols-4 gap-4">
-                    <FormField
-                      control={laborForm.control}
-                      name="activity"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Activity *</FormLabel>
-                          <FormControl>
-                            <Input placeholder="e.g., Making Candle" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={laborForm.control}
-                      name="time_spent_minutes"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Time Spent (Minutes) *</FormLabel>
-                          <FormControl>
-                            <Input 
-                              type="number" 
-                              min="1"
-                              placeholder="0"
-                              {...field}
-                              onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={laborForm.control}
-                      name="hourly_rate"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Hourly Rate ({getCurrencySymbol(settings.currency)}) *</FormLabel>
-                          <FormControl>
-                            <Input 
-                              type="number" 
-                              step="0.01"
-                              placeholder="0.00"
-                              {...field}
-                              onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={laborForm.control}
-                      name="per_unit"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
-                          <FormControl>
-                            <Checkbox
-                              checked={field.value}
-                              onCheckedChange={field.onChange}
-                            />
-                          </FormControl>
-                          <div className="space-y-1 leading-none">
-                            <FormLabel className="flex items-center gap-1.5">
-                              Per Unit
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p>Check if this cost applies to each product. Uncheck if it's a batch activity.</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                            </FormLabel>
-                          </div>
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                  <Button type="submit" variant="outline">
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add Labor Activity
-                  </Button>
-                </form>
-              </Form>
-          </div>
-
-          {/* Labor Costs List */}
-          {laborCosts.length > 0 && (
-            <div className="mt-6">
-              <div className="mb-4">
-                <h3 className="text-base font-semibold">Labor Costs List</h3>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Review and manage your labor activities
-                </p>
-              </div>
-              <div>
-                <div className="space-y-4">
-                  <div className="border rounded-lg">
-                    <table className="w-full">
-                      <thead className="bg-slate-100 dark:bg-slate-800">
-                        <tr>
-                          <th className="text-left p-3 text-sm font-medium">Activity</th>
-                          <th className="text-left p-3 text-sm font-medium">Time Spent</th>
-                          <th className="text-left p-3 text-sm font-medium">Hourly Rate</th>
-                          <th className="text-left p-3 text-sm font-medium">Total Cost</th>
-                          <th className="text-left p-3 text-sm font-medium">Per Unit</th>
-                          <th className="text-right p-3 text-sm font-medium">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {laborCosts.map((labor, index) => {
-                          const totalCost = labor.total_cost || 0;
-                          return (
-                            <tr key={index} className="border-t">
-                              <td className="p-3">{labor.activity}</td>
-                              <td className="p-3">{labor.time_spent_minutes} min</td>
-                              <td className="p-3">{formatCurrency(labor.hourly_rate, settings.currency)}</td>
-                              <td className="p-3 font-medium">{formatCurrency(totalCost, settings.currency)}</td>
-                              <td className="p-3">
-                                {labor.per_unit ? (
-                                  <span className="text-sm text-muted-foreground">Yes</span>
-                                ) : (
-                                  <span className="text-sm text-muted-foreground">Batch</span>
-                                )}
-                              </td>
-                              <td className="p-3 text-right">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => onRemoveLabor(index)}
-                                >
-                                  <Trash2 className="h-4 w-4 text-destructive" />
-                                </Button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                      <tfoot className="bg-slate-100 dark:bg-slate-800 font-semibold">
-                        <tr>
-                          <td colSpan={3} className="p-3 text-right">Total Labor Cost Per Product:</td>
-                          <td className="p-3">{formatCurrency(totalLaborCostPerProduct, settings.currency)}</td>
-                          <td colSpan={2}></td>
-                        </tr>
-                      </tfoot>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Navigation Buttons */}
-          <div className="flex justify-between">
-            <Button variant="outline" onClick={() => setCurrentStep(2)}>
-              <ChevronLeft className="mr-2 h-4 w-4" />
-              Back
-            </Button>
-            <Button onClick={onStep3Submit}>
-              Next: Other Costs
-              <ChevronRight className="ml-2 h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* Step 4: Other Costs */}
-      {currentStep === 4 && (
-        <div className="space-y-6">
-          <div className="mb-4">
-            <h2 className="text-lg font-semibold">Add Other Costs</h2>
-            <p className="text-sm text-muted-foreground mt-1">
-              Track additional expenses like shipping, marketing, platform fees, etc. Check "Per Unit" if the cost applies to each product, or leave unchecked if it's a batch expense.
-            </p>
-          </div>
-          <div>
-              <Form {...otherCostForm}>
-                <form onSubmit={otherCostForm.handleSubmit(onAddOtherCost)} className="space-y-4">
-                  <div className="grid grid-cols-4 gap-4">
-                    <FormField
-                      control={otherCostForm.control}
-                      name="item"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Item *</FormLabel>
-                          <FormControl>
-                            <Input placeholder="e.g., Shipping" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={otherCostForm.control}
-                      name="quantity"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="flex items-center gap-1.5">
-                            # of Items *
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>Quantity or factor for this cost</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          </FormLabel>
-                          <FormControl>
-                            <Input 
-                              type="number" 
-                              step="0.01"
-                              min="0.01"
-                              placeholder="1"
-                              {...field}
-                              onChange={(e) => field.onChange(parseFloat(e.target.value) || 1)}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={otherCostForm.control}
-                      name="cost"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Cost ({getCurrencySymbol(settings.currency)}) *</FormLabel>
-                          <FormControl>
-                            <Input 
-                              type="number" 
-                              step="0.01"
-                              placeholder="0.00"
-                              {...field}
-                              onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={otherCostForm.control}
-                      name="per_unit"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
-                          <FormControl>
-                            <Checkbox
-                              checked={field.value}
-                              onCheckedChange={field.onChange}
-                            />
-                          </FormControl>
-                          <div className="space-y-1 leading-none">
-                            <FormLabel className="flex items-center gap-1.5">
-                              Per Unit
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p>Check if this cost applies to each product. Uncheck if it's a batch expense.</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                            </FormLabel>
-                          </div>
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                  <Button type="submit" variant="outline">
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add Other Cost
-                  </Button>
-                </form>
-              </Form>
-          </div>
-
-          {/* Other Costs List */}
-          {otherCosts.length > 0 && (
-            <div className="mt-6">
-              <div className="mb-4">
-                <h3 className="text-base font-semibold">Other Costs List</h3>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Review and manage your other expenses
-                </p>
-              </div>
-              <div>
-                <div className="space-y-4">
-                  <div className="border rounded-lg">
-                    <table className="w-full">
-                      <thead className="bg-slate-100 dark:bg-slate-800">
-                        <tr>
-                          <th className="text-left p-3 text-sm font-medium">Item</th>
-                          <th className="text-left p-3 text-sm font-medium"># of Items</th>
-                          <th className="text-left p-3 text-sm font-medium">Cost</th>
-                          <th className="text-left p-3 text-sm font-medium">Total Cost</th>
-                          <th className="text-left p-3 text-sm font-medium">Per Unit</th>
-                          <th className="text-right p-3 text-sm font-medium">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {otherCosts.map((cost, index) => {
-                          const totalCost = cost.total_cost || 0;
-                          return (
-                            <tr key={index} className="border-t">
-                              <td className="p-3">{cost.item}</td>
-                              <td className="p-3">{cost.quantity}</td>
-                              <td className="p-3">{formatCurrency(cost.cost, settings.currency)}</td>
-                              <td className="p-3 font-medium">{formatCurrency(totalCost, settings.currency)}</td>
-                              <td className="p-3">
-                                {cost.per_unit ? (
-                                  <span className="text-sm text-muted-foreground">Yes</span>
-                                ) : (
-                                  <span className="text-sm text-muted-foreground">Batch</span>
-                                )}
-                              </td>
-                              <td className="p-3 text-right">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => onRemoveOtherCost(index)}
-                                >
-                                  <Trash2 className="h-4 w-4 text-destructive" />
-                                </Button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                      <tfoot className="bg-slate-100 dark:bg-slate-800 font-semibold">
-                        <tr>
-                          <td colSpan={3} className="p-3 text-right">Total Other Costs Per Product:</td>
-                          <td className="p-3">{formatCurrency(totalOtherCostsPerProduct, settings.currency)}</td>
-                          <td colSpan={2}></td>
-                        </tr>
-                      </tfoot>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Navigation Buttons */}
-          <div className="flex justify-between">
-            <Button variant="outline" onClick={() => setCurrentStep(3)}>
-              <ChevronLeft className="mr-2 h-4 w-4" />
-              Back
-            </Button>
-            <Button onClick={onFinalSubmit} disabled={isSubmitting}>
-              {isSubmitting ? 'Saving...' : 'Create Product'}
-            </Button>
-          </div>
-        </div>
-      )}
+          </form>
+        </Form>
       </div>
 
-      {/* Sticky Summary Bar */}
-      <div 
-        className="fixed bottom-0 right-0 bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-sm border-t shadow-lg z-40 transition-[left] duration-200 ease-linear"
-        style={{ left: footerLeft }}
-      >
-        <div className="max-w-7xl mx-auto px-6 py-3">
-          {/* Product Info */}
-          <div className="flex items-center gap-4 mb-3 pb-3 border-b">
-            <div className="flex items-center gap-2">
-              <Package className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium">{step1Form.watch('name') || 'New Product'}</span>
-            </div>
-            {step1Form.watch('sku') && (
-              <>
-                <div className="h-4 w-px bg-border" />
-                <span className="text-xs text-muted-foreground">SKU: {step1Form.watch('sku')}</span>
-              </>
-            )}
-          </div>
-          
+      {/* Fixed Total Section at Bottom */}
+      <div className="shrink-0 bg-background border-t px-6 py-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
+        <div className="flex items-center">
           {/* Cost Breakdown */}
-          <div className="flex items-center justify-between gap-6">
-            <div className="flex items-center gap-6">
-              <div className="flex items-center gap-2">
-                <Package className="h-4 w-4 text-muted-foreground" />
-                <div>
-                  <div className="text-xs text-muted-foreground">Materials</div>
-                  <div className="text-base font-semibold">{formatCurrency(totalMaterialsCost, settings.currency)}</div>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Users className="h-4 w-4 text-muted-foreground" />
-                <div>
-                  <div className="text-xs text-muted-foreground">Labor</div>
-                  <div className="text-base font-semibold">{formatCurrency(totalLaborCostPerProduct, settings.currency)}</div>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <DollarSign className="h-4 w-4 text-muted-foreground" />
-                <div>
-                  <div className="text-xs text-muted-foreground">Other Costs</div>
-                  <div className="text-base font-semibold">{formatCurrency(totalOtherCostsPerProduct, settings.currency)}</div>
-                </div>
-              </div>
-              <div className="h-10 w-px bg-border" />
-              <div className="flex items-center gap-2">
-                <Calculator className="h-4 w-4 text-primary" />
-                <div>
-                  <div className="text-xs text-muted-foreground">Total Cost (Per Product)</div>
-                  <div className="text-lg font-bold text-primary">{formatCurrency(totalCostPerProduct, settings.currency)}</div>
-                </div>
-              </div>
+          <div className="flex gap-8">
+            <div>
+              <div className="text-xs text-muted-foreground">Materials</div>
+              <div className="font-semibold">{formatCurrency(totalMaterialsCost, settings.currency)}</div>
             </div>
-            <div className="text-right">
-              <div className="text-xs text-muted-foreground">
-                Total Batch Cost ({batchSize} products)
-              </div>
-              <div className="text-xl font-bold text-primary">{formatCurrency(totalBatchCost, settings.currency)}</div>
+            <div>
+              <div className="text-xs text-muted-foreground">Labor</div>
+              <div className="font-semibold">{formatCurrency(totalLaborCost, settings.currency)}</div>
             </div>
+            <div>
+              <div className="text-xs text-muted-foreground">Other</div>
+              <div className="font-semibold">{formatCurrency(totalOtherCost, settings.currency)}</div>
+            </div>
+            <div className="border-l pl-8">
+              <div className="text-xs text-muted-foreground">Total Cost</div>
+              <div className="text-lg font-bold">{formatCurrency(totalCostPerProduct, settings.currency)}</div>
+            </div>
+          </div>
+
+          {/* Circular Metrics - Centered */}
+          {(() => {
+            const targetPrice = form.watch('target_price') || 0;
+            const profit = targetPrice - totalCostPerProduct;
+            const profitMargin = targetPrice > 0 ? (profit / targetPrice) * 100 : 0;
+            const markup = totalCostPerProduct > 0 ? (profit / totalCostPerProduct) * 100 : 0;
+            const hasData = totalCostPerProduct > 0 || targetPrice > 0;
+            
+            return hasData ? (
+              <div className="flex-1 flex justify-center px-8">
+                <div className="flex gap-5 items-center">
+                  {/* Profit Circle - Teal/Mint tones */}
+                  <div className="flex flex-col items-center">
+                    <div 
+                      className={`w-11 h-11 rounded-full flex items-center justify-center text-[11px] font-semibold border-[3px] ${
+                        profit > 0 
+                          ? 'border-teal-300 bg-teal-50 text-teal-600' 
+                          : profit < 0 
+                            ? 'border-rose-300 bg-rose-50 text-rose-600'
+                            : 'border-gray-200 bg-gray-50 text-gray-400'
+                      }`}
+                    >
+                      {targetPrice > 0 ? formatCurrency(profit, settings.currency).replace(/[₪$€£]/g, '') : '-'}
+                    </div>
+                    <span className="text-[9px] text-muted-foreground mt-1">Profit</span>
+                  </div>
+
+                  {/* Margin Circle - Purple/Violet tones */}
+                  <div className="flex flex-col items-center">
+                    <div 
+                      className={`w-11 h-11 rounded-full flex items-center justify-center text-[11px] font-semibold border-[3px] ${
+                        profitMargin >= 30 
+                          ? 'border-violet-300 bg-violet-50 text-violet-600'
+                          : profitMargin >= 15
+                            ? 'border-purple-300 bg-purple-50 text-purple-600'
+                            : profitMargin > 0
+                              ? 'border-fuchsia-300 bg-fuchsia-50 text-fuchsia-600'
+                              : 'border-gray-200 bg-gray-50 text-gray-400'
+                      }`}
+                    >
+                      {targetPrice > 0 ? `${profitMargin.toFixed(0)}%` : '-'}
+                    </div>
+                    <span className="text-[9px] text-muted-foreground mt-1">Margin</span>
+                  </div>
+
+                  {/* Markup Circle - Rose/Pink tones */}
+                  <div className="flex flex-col items-center">
+                    <div 
+                      className={`w-11 h-11 rounded-full flex items-center justify-center text-[11px] font-semibold border-[3px] ${
+                        markup >= 50 
+                          ? 'border-pink-300 bg-pink-50 text-pink-600'
+                        : markup >= 25
+                          ? 'border-rose-300 bg-rose-50 text-rose-500'
+                          : markup > 0
+                            ? 'border-red-200 bg-red-50 text-red-400'
+                            : 'border-gray-200 bg-gray-50 text-gray-400'
+                      }`}
+                    >
+                      {targetPrice > 0 && totalCostPerProduct > 0 ? `${markup.toFixed(0)}%` : '-'}
+                    </div>
+                    <span className="text-[9px] text-muted-foreground mt-1">Markup</span>
+                  </div>
+
+                  {/* Target Price Display */}
+                  {targetPrice > 0 && (
+                    <div className="border-l pl-6 ml-3">
+                      <div className="text-[10px] text-muted-foreground">Sell Price</div>
+                      <div className="text-base font-bold text-primary">{formatCurrency(targetPrice, settings.currency)}</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : <div className="flex-1" />;
+          })()}
+          
+          <div className="flex gap-4">
+            <Button type="button" variant="outline" onClick={() => navigate('/products')}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={form.handleSubmit(onSubmit)} 
+              disabled={isSubmitting || !form.watch('name')}
+            >
+              {isSubmitting ? 'Saving...' : 'Save Product'}
+            </Button>
           </div>
         </div>
       </div>

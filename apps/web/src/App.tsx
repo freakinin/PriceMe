@@ -3,7 +3,6 @@ import { AppLayout } from './components/AppLayout';
 import { Toaster } from './components/ui/toaster';
 import Home from './pages/Home';
 import CreateProduct from './pages/CreateProduct';
-import CreateProduct2 from './pages/CreateProduct2';
 import Products from './pages/Products';
 import Materials from './pages/Materials';
 import Settings from './pages/Settings';
@@ -92,16 +91,6 @@ function App() {
             <ProtectedRoute>
               <AppLayout>
                 <CreateProduct />
-              </AppLayout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/products/add2"
-          element={
-            <ProtectedRoute>
-              <AppLayout>
-                <CreateProduct2 />
               </AppLayout>
             </ProtectedRoute>
           }

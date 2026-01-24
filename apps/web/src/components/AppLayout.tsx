@@ -13,8 +13,7 @@ const getPageTitle = (pathname: string): string => {
     return 'Home';
   }
   const titles: Record<string, string> = {
-    '/products/add': 'Create Product',
-    '/products/add2': 'Add New Product',
+    '/products/add': 'Add New Product',
     '/products': 'Products',
     '/materials': 'Materials',
     '/on-sale': 'On Sale',

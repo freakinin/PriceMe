@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, X, Package, Clock, Receipt } from 'lucide-react';
+import { Plus, X, Package, Clock, Receipt, Save } from 'lucide-react';
 import { useSidebar } from '@/components/ui/sidebar';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import api from '@/lib/api';
@@ -227,6 +227,58 @@ export default function CreateProduct2() {
   const removeLabor = (id: string) => setLaborCosts(laborCosts.filter(l => l.id !== id));
   const removeOther = (id: string) => setOtherCosts(otherCosts.filter(o => o.id !== id));
 
+  // Save material to library
+  const saveMaterialToLibrary = async (material: Material) => {
+    if (material.user_material_id) return; // Already in library
+
+    try {
+      let quantity = 0;
+      let stockLevel = 0;
+      
+      if (material.quantity_type === 'percentage') {
+        stockLevel = material.stock_level || 1;
+        quantity = stockLevel;
+      } else {
+        quantity = material.quantity || 0;
+        stockLevel = material.stock_level || quantity;
+      }
+      
+      const price = quantity * material.price_per_unit;
+
+      const response = await api.post('/materials', {
+        name: material.name,
+        price: price,
+        quantity: quantity,
+        unit: material.unit,
+        price_per_unit: material.price_per_unit,
+        stock_level: stockLevel,
+      });
+
+      if (response.data.status === 'success') {
+        const savedMaterial = response.data.data;
+        
+        // Update the material in local state to link it to library
+        setMaterials(materials.map(m => 
+          m.id === material.id 
+            ? { ...m, user_material_id: savedMaterial.id, stock_level: savedMaterial.stock_level || 0 }
+            : m
+        ));
+
+        toast({
+          variant: 'success',
+          title: 'Material saved',
+          description: `${material.name} has been added to your library.`,
+        });
+      }
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: error.response?.data?.message || 'Failed to save material to library',
+      });
+    }
+  };
+
   // Handle material selection from library
   const handleMaterialSelect = (material: any) => {
     setSelectedMaterial(material);
@@ -263,20 +315,34 @@ export default function CreateProduct2() {
   const onSubmit = async (data: ProductFormValues) => {
     setIsSubmitting(true);
     try {
+      // Determine pricing method and value from target_price if provided
+      let pricing_method: 'price' | undefined = undefined;
+      let pricing_value: number | undefined = undefined;
+      
+      if (data.target_price) {
+        pricing_method = 'price';
+        pricing_value = data.target_price;
+      }
+
       const productData = {
-        ...data,
+        name: data.name,
+        sku: data.sku,
+        batch_size: data.batch_size,
+        target_price: data.target_price,
+        pricing_method,
+        pricing_value,
         materials: materials.map(m => ({
           name: m.name,
-          quantity: m.quantity,
+          quantity: m.quantity || 0,
           unit: m.unit,
           price_per_unit: m.price_per_unit,
           quantity_type: m.quantity_type,
           quantity_percentage: m.quantity_percentage,
           quantity_per_item_or_batch: m.per_batch ? 'batch' : 'item',
           user_material_id: m.user_material_id,
-          units_made: m.per_batch ? batchSize : 1,
+          units_made: m.units_made || 1,
         })),
-        labor: laborCosts.map(l => ({
+        labor_costs: laborCosts.map(l => ({
           activity: l.activity,
           time_spent_minutes: l.time_minutes,
           hourly_rate: l.hourly_rate,
@@ -288,14 +354,13 @@ export default function CreateProduct2() {
           cost: o.cost,
           per_unit: !o.per_batch,
         })),
-        status: 'draft',
       };
 
       await api.post('/products', productData);
       toast({ variant: 'success', title: 'Product created successfully' });
       navigate('/products');
     } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Error', description: error.message });
+      toast({ variant: 'destructive', title: 'Error', description: error.response?.data?.message || error.message });
     } finally {
       setIsSubmitting(false);
     }
@@ -492,21 +557,34 @@ export default function CreateProduct2() {
                 <div className="space-y-2">
                   {materials.map((m) => (
                     <Card key={m.id} className="relative">
-                      <button
-                        type="button"
-                        onClick={() => removeMaterial(m.id)}
-                        className="absolute top-2 right-2 text-muted-foreground hover:text-destructive"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
+                      <div className="absolute top-2 right-2 flex gap-1">
+                        {!m.user_material_id && (
+                          <button
+                            type="button"
+                            onClick={() => saveMaterialToLibrary(m)}
+                            className="text-muted-foreground hover:text-primary"
+                            title="Save to library"
+                          >
+                            <Save className="h-3 w-3" />
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => removeMaterial(m.id)}
+                          className="text-muted-foreground hover:text-destructive"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
                       <CardContent className="p-3">
-                        <div className="font-medium text-sm truncate pr-4">{m.name}</div>
+                        <div className="font-medium text-sm truncate pr-8">{m.name}</div>
                         <div className="text-xs text-muted-foreground">
                           {m.quantity_type === 'percentage' 
                             ? `${m.quantity_percentage}%` 
                             : `${m.quantity} ${m.unit}`}
                           {m.units_made > 1 && ` → ${m.units_made} items`}
                           {m.per_batch && ' / batch'}
+                          {m.user_material_id && ' ✓'}
                         </div>
                         <div className="text-sm font-semibold text-primary mt-1">
                           {formatCurrency(getMaterialCost(m), settings.currency)}
