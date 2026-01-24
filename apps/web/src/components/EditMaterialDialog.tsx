@@ -5,13 +5,12 @@ import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet';
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   Form,
   FormControl,
@@ -269,25 +268,21 @@ export default function EditMaterialDialog({
     : [...baseUnits].sort();
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-2xl flex flex-col" side="right">
-        <SheetHeader>
-          <SheetTitle>
-            {material ? 'Edit Material' : 'Add New Material'}
-          </SheetTitle>
-          <SheetDescription>
-            {material 
-              ? 'Update the material information below.'
-              : 'Fill in the details to add a new material to your inventory.'}
-          </SheetDescription>
-        </SheetHeader>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-3xl max-h-[90vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle>
+            {material ? `Edit Material - ${material.name}` : 'Add New Material'}
+          </DialogTitle>
+        </DialogHeader>
         <Form {...form}>
           <form 
             onSubmit={form.handleSubmit(onSubmit)} 
             className="flex flex-col flex-1 overflow-hidden mt-6"
           >
-          <div className="flex-1 overflow-y-auto space-y-4 pr-1">
-            <div className="grid grid-cols-3 gap-4">
+          <div className="flex-1 overflow-y-auto space-y-5 px-1">
+            {/* Row 1: Name, Category, Consumable */}
+            <div className="grid grid-cols-3 gap-4 items-end">
               <FormField
                 control={form.control}
                 name="name"
@@ -313,7 +308,6 @@ export default function EditMaterialDialog({
                         onChange={field.onChange}
                         existingCategories={existingCategories}
                         onCreateCategory={(newCategory) => {
-                          // The category will be added to the list when the material is saved
                           field.onChange(newCategory);
                         }}
                       />
@@ -327,21 +321,21 @@ export default function EditMaterialDialog({
                 name="is_percentage_type"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="flex items-center gap-1.5">
+                    <FormLabel className="inline-flex items-center gap-1">
                       Consumable
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                            <Info className="h-3 w-3 text-muted-foreground cursor-help" />
                           </TooltipTrigger>
                           <TooltipContent className="max-w-xs">
-                            <p>Mark for materials used by percentage (oils, finishes, glue). When adding to products, you'll specify % used instead of exact quantity.</p>
+                            <p>For materials used by percentage (oils, finishes, glue).</p>
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
                     </FormLabel>
                     <FormControl>
-                      <div className="flex items-center h-10">
+                      <div className="flex items-center h-10 px-3 border rounded-md bg-background">
                         <input
                           type="checkbox"
                           checked={field.value || false}
@@ -357,7 +351,8 @@ export default function EditMaterialDialog({
               />
             </div>
 
-            <div className={`grid gap-4 ${isEditing ? 'grid-cols-2' : 'grid-cols-3'}`}>
+            {/* Row 2: Price per Unit, Quantity (when adding), Unit */}
+            <div className={`grid gap-4 items-end ${isEditing ? 'grid-cols-2' : 'grid-cols-3'}`}>
               <FormField
                 control={form.control}
                 name="price_per_unit"
@@ -374,7 +369,6 @@ export default function EditMaterialDialog({
                         onChange={(e) => {
                           const pricePerUnit = e.target.value ? parseFloat(e.target.value) : 0;
                           field.onChange(pricePerUnit);
-                          // Auto-calculate total price (only when adding)
                           if (!isEditing) {
                             const quantity = form.getValues('quantity') || 0;
                             form.setValue('price', parseFloat((pricePerUnit * quantity).toFixed(2)));
@@ -386,22 +380,21 @@ export default function EditMaterialDialog({
                   </FormItem>
                 )}
               />
-              {/* Only show quantity field when adding a new material */}
               {!isEditing && (
                 <FormField
                   control={form.control}
                   name="quantity"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="flex items-center gap-1.5">
-                        Quantity Bought *
+                      <FormLabel className="inline-flex items-center gap-1">
+                        Quantity *
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                              <Info className="h-3 w-3 text-muted-foreground cursor-help" />
                             </TooltipTrigger>
                             <TooltipContent className="max-w-xs">
-                              <p>Enter how much you're buying. This becomes your initial stock level.</p>
+                              <p>How much you're buying (becomes initial stock).</p>
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
@@ -416,7 +409,6 @@ export default function EditMaterialDialog({
                           onChange={(e) => {
                             const quantity = e.target.value ? parseFloat(e.target.value) : 0;
                             field.onChange(quantity);
-                            // Auto-calculate total price
                             const pricePerUnit = form.getValues('price_per_unit') || 0;
                             form.setValue('price', parseFloat((pricePerUnit * quantity).toFixed(2)));
                           }}
@@ -455,8 +447,9 @@ export default function EditMaterialDialog({
               />
             </div>
 
+            {/* Row 3: Width, Length (conditional) */}
             {shouldShowDimensions(form.watch('unit')) && !form.watch('is_percentage_type') && (
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-4 items-end">
                 <FormField
                   control={form.control}
                   name="width"
@@ -530,40 +523,42 @@ export default function EditMaterialDialog({
               </div>
             )}
 
-            {/* Only show Total Price when adding a new material */}
+            {/* Row 4: Total Price (when adding) */}
             {!isEditing && (
-              <FormField
-                control={form.control}
-                name="price"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Total Price ({getCurrencySymbol(settings.currency)})</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        placeholder="0.00"
-                        {...field}
-                        value={formatNumberForInput(field.value)}
-                        readOnly
-                        className="bg-muted"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                    <p className="text-xs text-muted-foreground">
-                      Automatically calculated from Price per Unit × Quantity
-                    </p>
-                  </FormItem>
-                )}
-              />
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="price"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Total Investment ({getCurrencySymbol(settings.currency)})</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          placeholder="0.00"
+                          {...field}
+                          value={formatNumberForInput(field.value)}
+                          readOnly
+                          className="bg-muted"
+                        />
+                      </FormControl>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Price × Quantity
+                      </p>
+                    </FormItem>
+                  )}
+                />
+              </div>
             )}
 
+            {/* Row 5: Details */}
             <FormField
               control={form.control}
               name="details"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Details</FormLabel>
+                  <FormLabel>Notes</FormLabel>
                   <FormControl>
                     <Input {...field} placeholder="Additional notes or details" />
                   </FormControl>
@@ -572,7 +567,8 @@ export default function EditMaterialDialog({
               )}
             />
 
-            <div className="grid grid-cols-3 gap-4">
+            {/* Row 6: Last Purchased, Price, Reorder */}
+            <div className="grid grid-cols-3 gap-4 items-end">
               <FormField
                 control={form.control}
                 name="last_purchased_date"
@@ -598,7 +594,7 @@ export default function EditMaterialDialog({
                 name="last_purchased_price"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Price ({getCurrencySymbol(settings.currency)})</FormLabel>
+                    <FormLabel>Last Price ({getCurrencySymbol(settings.currency)})</FormLabel>
                     <FormControl>
                       <Input
                         type="number"
@@ -618,15 +614,15 @@ export default function EditMaterialDialog({
                 name="reorder_point"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="flex items-center gap-1.5">
-                      Reorder
+                    <FormLabel className="inline-flex items-center gap-1">
+                      Reorder Point
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                            <Info className="h-3 w-3 text-muted-foreground cursor-help" />
                           </TooltipTrigger>
                           <TooltipContent className="max-w-xs">
-                            <p>Minimum stock level to trigger reorder alert.</p>
+                            <p>Alert when stock falls below this.</p>
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
@@ -648,9 +644,9 @@ export default function EditMaterialDialog({
             </div>
 
             {/* Supplier Section */}
-            <div className="mt-6 p-4 border rounded-lg bg-muted/30">
-              <h4 className="text-sm font-medium mb-4 text-muted-foreground">Supplier Information</h4>
-              <div className="grid grid-cols-2 gap-4">
+            <div className="mt-4 p-4 border rounded-lg bg-muted/30">
+              <h4 className="text-sm font-medium mb-3 text-muted-foreground">Supplier</h4>
+              <div className="grid grid-cols-2 gap-4 items-end">
                 <FormField
                   control={form.control}
                   name="supplier"
@@ -681,7 +677,7 @@ export default function EditMaterialDialog({
             </div>
             </div>
 
-            <SheetFooter className="mt-4 pt-4 border-t bg-background sticky bottom-0">
+            <DialogFooter className="mt-4 pt-4 border-t bg-background sticky bottom-0">
               <Button
                 type="button"
                 variant="outline"
@@ -695,11 +691,11 @@ export default function EditMaterialDialog({
               >
                 {saving ? 'Saving...' : material ? 'Update' : 'Create'}
               </Button>
-            </SheetFooter>
+            </DialogFooter>
           </form>
         </Form>
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   );
 }
 
