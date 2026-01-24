@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import type { ReactNode } from 'react';
-import { Plus, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown, Edit, Trash2, ExternalLink, Package, Columns, X, Info, PackagePlus } from 'lucide-react';
+import { Plus, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown, Edit, Trash2, ExternalLink, Package, Columns, X, Info, PackagePlus, AlertTriangle } from 'lucide-react';
 import { useSidebar } from '@/components/ui/sidebar';
 import {
   useReactTable,
@@ -277,6 +277,7 @@ export default function Materials() {
   const [addStockQuantity, setAddStockQuantity] = useState<string>('');
   const [addStockPrice, setAddStockPrice] = useState<string>('');
   const [isAddingStock, setIsAddingStock] = useState(false);
+  const [showOutOfStockOnly, setShowOutOfStockOnly] = useState(false);
 
   useEffect(() => {
     // Close sidebar when Materials page loads
@@ -763,7 +764,25 @@ export default function Materials() {
       },
       {
         accessorKey: 'last_purchased_date',
-        header: 'Last Purchased',
+        header: ({ column }) => {
+          return (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 -ml-2"
+              onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+            >
+              Last Purchased
+              {column.getIsSorted() === 'asc' ? (
+                <ArrowUp className="ml-2 h-3 w-3" />
+              ) : column.getIsSorted() === 'desc' ? (
+                <ArrowDown className="ml-2 h-3 w-3" />
+              ) : (
+                <ArrowUpDown className="ml-2 h-3 w-3 opacity-50" />
+              )}
+            </Button>
+          );
+        },
         cell: ({ row }) => {
           const material = row.original;
           const lastQty = Number(material.last_purchased_quantity) || 0;
@@ -877,9 +896,19 @@ export default function Materials() {
     [settings.currency, availableUnits, materials]
   );
 
+  // Filter materials based on out of stock toggle
+  const filteredMaterials = useMemo(() => {
+    if (!showOutOfStockOnly) return materials;
+    return materials.filter(m => {
+      const stock = Number(m.stock_level) || 0;
+      const reorderPoint = Number(m.reorder_point) || 0;
+      return stock <= reorderPoint; // Out of stock or below reorder point
+    });
+  }, [materials, showOutOfStockOnly]);
+
   // Table instance
   const table = useReactTable({
-    data: materials,
+    data: filteredMaterials,
     columns,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -923,6 +952,23 @@ export default function Materials() {
                   className="pl-9 h-10"
             />
           </div>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      variant={showOutOfStockOnly ? "default" : "outline"} 
+                      size="icon"
+                      onClick={() => setShowOutOfStockOnly(!showOutOfStockOnly)}
+                      className={showOutOfStockOnly ? "bg-red-500 hover:bg-red-600" : ""}
+                    >
+                      <AlertTriangle className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>{showOutOfStockOnly ? "Showing out of stock only" : "Show out of stock only"}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="icon">

@@ -257,13 +257,20 @@ export default function EditMaterialDialog({
   };
 
   // Use units from settings, fallback to defaults if not available
-  const units = settings.units && settings.units.length > 0 
-    ? [...settings.units].sort() 
-    : ['ml', 'L', 'g', 'kg', 'mm', 'cm', 'm', 'm²', 'pcs'];
+  const defaultUnits = ['ml', 'L', 'g', 'kg', 'mm', 'cm', 'm', 'm²', 'pcs', 'units', 'sheets', 'rolls'];
+  const baseUnits = settings.units && settings.units.length > 0 
+    ? [...settings.units] 
+    : defaultUnits;
+  
+  // Ensure the material's current unit is always in the list
+  const materialUnit = material?.unit;
+  const units = materialUnit && !baseUnits.includes(materialUnit)
+    ? [...baseUnits, materialUnit].sort()
+    : [...baseUnits].sort();
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-2xl overflow-y-auto" side="right">
+      <SheetContent className="w-full sm:max-w-2xl flex flex-col" side="right">
         <SheetHeader>
           <SheetTitle>
             {material ? 'Edit Material' : 'Add New Material'}
@@ -277,8 +284,9 @@ export default function EditMaterialDialog({
         <Form {...form}>
           <form 
             onSubmit={form.handleSubmit(onSubmit)} 
-            className="space-y-4 mt-6"
+            className="flex flex-col flex-1 overflow-hidden mt-6"
           >
+          <div className="flex-1 overflow-y-auto space-y-4 pr-1">
             <div className="grid grid-cols-3 gap-4">
               <FormField
                 control={form.control}
@@ -320,14 +328,14 @@ export default function EditMaterialDialog({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel className="flex items-center gap-1.5">
-                      % Type
+                      Consumable
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
                           </TooltipTrigger>
                           <TooltipContent className="max-w-xs">
-                            <p>Mark if this material is typically used as a percentage (e.g., oils, coatings). When adding to a product, it will default to % mode.</p>
+                            <p>Mark for materials used by percentage (oils, finishes, glue). When adding to products, you'll specify % used instead of exact quantity.</p>
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
@@ -425,10 +433,12 @@ export default function EditMaterialDialog({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Unit *</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value || ''}>
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Select unit" />
+                          <SelectValue placeholder="Select unit">
+                            {field.value || "Select unit"}
+                          </SelectValue>
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
@@ -445,7 +455,7 @@ export default function EditMaterialDialog({
               />
             </div>
 
-            {shouldShowDimensions(form.watch('unit')) && (
+            {shouldShowDimensions(form.watch('unit')) && !form.watch('is_percentage_type') && (
               <div className="grid grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
@@ -562,75 +572,13 @@ export default function EditMaterialDialog({
               )}
             />
 
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="supplier"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Supplier</FormLabel>
-                    <FormControl>
-                      <Input {...field} placeholder="Supplier name" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="supplier_link"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Supplier Link</FormLabel>
-                    <FormControl>
-                      <Input {...field} placeholder="https://..." type="url" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            <FormField
-              control={form.control}
-              name="reorder_point"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="flex items-center gap-1.5">
-                    Reorder Point
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
-                        </TooltipTrigger>
-                        <TooltipContent className="max-w-xs">
-                          <p>The minimum stock level at which you should reorder this material. When stock level drops to or below this point, the material will be flagged as "Low Stock".</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      placeholder="0"
-                      {...field}
-                      value={formatNumberForInput(field.value)}
-                      onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : 0)}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <FormField
                 control={form.control}
                 name="last_purchased_date"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Last Purchased Date</FormLabel>
+                    <FormLabel>Last Purchased</FormLabel>
                     <FormControl>
                       <Input 
                         type="date" 
@@ -650,7 +598,7 @@ export default function EditMaterialDialog({
                 name="last_purchased_price"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Last Purchased Price ({getCurrencySymbol(settings.currency)})</FormLabel>
+                    <FormLabel>Price ({getCurrencySymbol(settings.currency)})</FormLabel>
                     <FormControl>
                       <Input
                         type="number"
@@ -665,9 +613,75 @@ export default function EditMaterialDialog({
                   </FormItem>
                 )}
               />
+              <FormField
+                control={form.control}
+                name="reorder_point"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center gap-1.5">
+                      Reorder
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-xs">
+                            <p>Minimum stock level to trigger reorder alert.</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        placeholder="0"
+                        {...field}
+                        value={formatNumberForInput(field.value)}
+                        onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : 0)}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
 
-            <SheetFooter className="mt-6">
+            {/* Supplier Section */}
+            <div className="mt-6 p-4 border rounded-lg bg-muted/30">
+              <h4 className="text-sm font-medium mb-4 text-muted-foreground">Supplier Information</h4>
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="supplier"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Supplier Name</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="Supplier name" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="supplier_link"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Supplier Link</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="https://..." type="url" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </div>
+            </div>
+
+            <SheetFooter className="mt-4 pt-4 border-t bg-background sticky bottom-0">
               <Button
                 type="button"
                 variant="outline"
