@@ -503,21 +503,65 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
     }
 
     // Only update materials/labor/other_costs if they were explicitly provided in the request
-    if (hasMaterials) {
+if (hasMaterials) {
+      // Check if product is currently 'on_sale' to handle stock updates
+      const isCurrentlyOnSale = currentProduct.status === 'on_sale';
+      
       // Delete existing materials
-    await db`DELETE FROM materials WHERE product_id = ${productId}`;
+      await db`DELETE FROM materials WHERE product_id = ${productId}`;
 
-    // Insert new materials if provided
-    if (materials && materials.length > 0) {
-      for (const material of materials) {
-        const unitsMade = material.units_made || 1;
-        const totalCost = (material.quantity * material.price_per_unit) / unitsMade;
-        await db`
-          INSERT INTO materials (product_id, user_material_id, name, quantity, unit, price_per_unit, units_made, total_cost)
-          VALUES (${productId}, ${material.user_material_id || null}, ${material.name}, ${material.quantity}, ${material.unit}, ${material.price_per_unit}, ${unitsMade}, ${totalCost})
-        `;
+      // Insert new materials if provided
+      if (materials && materials.length > 0) {
+        for (const material of materials) {
+          const unitsMade = material.units_made || 1;
+          const totalCost = (material.quantity * material.price_per_unit) / unitsMade;
+          await db`
+            INSERT INTO materials (product_id, user_material_id, name, quantity, unit, price_per_unit, units_made, total_cost)
+            VALUES (${productId}, ${material.user_material_id || null}, ${material.name}, ${material.quantity}, ${material.unit}, ${material.price_per_unit}, ${unitsMade}, ${totalCost})
+          `;
+        }
+        
+        // If product is 'on_sale', recalculate stock reduction for all materials
+        if (isCurrentlyOnSale) {
+          const effectiveBatchSize = batch_size || currentProduct.batch_size || 1;
+          
+          console.log('Product is on_sale, recalculating stock after material update. Batch size:', effectiveBatchSize);
+          
+          // Get all materials for this product
+          const materialsResult = await db`
+            SELECT user_material_id, quantity, units_made
+            FROM materials
+            WHERE product_id = ${productId}
+          `;
+          const materialsList = Array.isArray(materialsResult) ? materialsResult : materialsResult.rows || [];
+
+          // Reduce stock for each material that has user_material_id
+          for (const material of materialsList) {
+            if (!material.user_material_id) {
+              continue;
+            }
+
+            // Calculate required quantity: quantity is per product, so for the batch we need: quantity * batchSize
+            const requiredQuantity = material.quantity * effectiveBatchSize;
+
+            console.log(`Recalculating stock for material ${material.user_material_id}:`, {
+              quantity: material.quantity,
+              batch_size: effectiveBatchSize,
+              required: requiredQuantity,
+            });
+
+            // Reduce stock
+            await db`
+              UPDATE user_materials
+              SET stock_level = stock_level - ${requiredQuantity},
+                  updated_at = CURRENT_TIMESTAMP
+              WHERE id = ${material.user_material_id} AND user_id = ${req.userId}
+            `;
+            
+            console.log(`Stock recalculated for material ${material.user_material_id}`);
+          }
+        }
       }
-    }
     }
 
     if (hasLaborCosts) {

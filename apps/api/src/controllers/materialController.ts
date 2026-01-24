@@ -3,25 +3,53 @@ import { db } from '../utils/db';
 import { AuthRequest } from '../middleware/auth';
 import { z } from 'zod';
 
+// Helper to preprocess numbers (handle strings from JSON)
+const numericPreprocess = (val: unknown) => {
+  if (val === '' || val === null || val === undefined) return undefined;
+  const num = typeof val === 'string' ? parseFloat(val) : Number(val);
+  return isNaN(num) ? undefined : num;
+};
+
 const createMaterialSchema = z.object({
   name: z.string().min(1, 'Name is required'),
-  price: z.number().nonnegative('Price must be 0 or greater'),
-  quantity: z.number().nonnegative('Quantity must be 0 or greater'),
+  price: z.preprocess(numericPreprocess, z.number().nonnegative('Price must be 0 or greater')),
+  quantity: z.preprocess(numericPreprocess, z.number().nonnegative('Quantity must be 0 or greater')),
   unit: z.string().min(1, 'Unit is required'),
-  price_per_unit: z.number().nonnegative('Price per unit must be 0 or greater'),
-  width: z.number().nonnegative().optional(),
-  length: z.number().nonnegative().optional(),
+  price_per_unit: z.preprocess(numericPreprocess, z.number().nonnegative('Price per unit must be 0 or greater')),
+  width: z.preprocess(numericPreprocess, z.number().nonnegative().optional()),
+  length: z.preprocess(numericPreprocess, z.number().nonnegative().optional()),
   details: z.string().optional(),
   supplier: z.string().optional(),
   supplier_link: z.string().url().optional().or(z.literal('')),
-  stock_level: z.number().nonnegative().optional(),
-  reorder_point: z.number().nonnegative().optional(),
+  stock_level: z.preprocess(numericPreprocess, z.number().optional()), // Allow negative for oversold situations
+  reorder_point: z.preprocess(numericPreprocess, z.number().nonnegative().optional()),
   last_purchased_date: z.string().optional(),
-  last_purchased_price: z.number().nonnegative().optional(),
+  last_purchased_price: z.preprocess(numericPreprocess, z.number().nonnegative().optional()),
+  last_purchased_quantity: z.preprocess(numericPreprocess, z.number().nonnegative().optional()),
   category: z.string().optional(),
+  is_percentage_type: z.boolean().optional(),
 });
 
-const updateMaterialSchema = createMaterialSchema.partial();
+// Update schema - all fields optional for partial updates
+const updateMaterialSchema = z.object({
+  name: z.string().min(1).optional(),
+  price: z.preprocess(numericPreprocess, z.number().nonnegative().optional()),
+  quantity: z.preprocess(numericPreprocess, z.number().nonnegative().optional()),
+  unit: z.string().min(1).optional(),
+  price_per_unit: z.preprocess(numericPreprocess, z.number().nonnegative().optional()),
+  width: z.preprocess(numericPreprocess, z.number().nonnegative().optional()),
+  length: z.preprocess(numericPreprocess, z.number().nonnegative().optional()),
+  details: z.string().optional(),
+  supplier: z.string().optional(),
+  supplier_link: z.string().url().optional().or(z.literal('')),
+  stock_level: z.preprocess(numericPreprocess, z.number().optional()), // Allow negative for oversold situations
+  reorder_point: z.preprocess(numericPreprocess, z.number().nonnegative().optional()),
+  last_purchased_date: z.string().optional(),
+  last_purchased_price: z.preprocess(numericPreprocess, z.number().nonnegative().optional()),
+  last_purchased_quantity: z.preprocess(numericPreprocess, z.number().nonnegative().optional()),
+  category: z.string().optional(),
+  is_percentage_type: z.boolean().optional(),
+});
 
 export const createMaterial = async (req: AuthRequest, res: Response) => {
   try {
@@ -49,19 +77,20 @@ export const createMaterial = async (req: AuthRequest, res: Response) => {
       last_purchased_date,
       last_purchased_price,
       category,
+      is_percentage_type,
     } = validatedData;
 
     const result = await db`
       INSERT INTO user_materials (
         user_id, name, price, quantity, unit, price_per_unit, width, length, details,
         supplier, supplier_link, stock_level, reorder_point,
-        last_purchased_date, last_purchased_price, category
+        last_purchased_date, last_purchased_price, category, is_percentage_type
       )
       VALUES (
         ${req.userId}, ${name}, ${price}, ${quantity || 0}, ${unit}, ${price_per_unit},
         ${width || null}, ${length || null}, ${details || null}, ${supplier || null}, ${supplier_link || null},
         ${stock_level || 0}, ${reorder_point || 0},
-        ${last_purchased_date || null}, ${last_purchased_price || null}, ${category || null}
+        ${last_purchased_date || null}, ${last_purchased_price || null}, ${category || null}, ${is_percentage_type || false}
       )
       RETURNING *
     `;
@@ -326,7 +355,19 @@ export const updateMaterial = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    const validatedData = updateMaterialSchema.parse(req.body);
+    console.log('Update material request body:', JSON.stringify(req.body, null, 2));
+    
+    let validatedData;
+    try {
+      validatedData = updateMaterialSchema.parse(req.body);
+    } catch (parseError: any) {
+      console.error('Validation error:', parseError.errors);
+      return res.status(400).json({
+        status: 'error',
+        message: 'Validation failed',
+        errors: parseError.errors,
+      });
+    }
 
     // Check if material exists and belongs to user
     const existingResult = await db`
@@ -372,7 +413,9 @@ export const updateMaterial = async (req: AuthRequest, res: Response) => {
       reorder_point: validatedData.reorder_point !== undefined ? validatedData.reorder_point : Number(current.reorder_point || 0),
       last_purchased_date: validatedData.last_purchased_date !== undefined ? validatedData.last_purchased_date : current.last_purchased_date,
       last_purchased_price: validatedData.last_purchased_price !== undefined ? validatedData.last_purchased_price : (current.last_purchased_price ? Number(current.last_purchased_price) : null),
+      last_purchased_quantity: validatedData.last_purchased_quantity !== undefined ? validatedData.last_purchased_quantity : (current.last_purchased_quantity ? Number(current.last_purchased_quantity) : null),
       category: validatedData.category !== undefined ? validatedData.category : current.category,
+      is_percentage_type: validatedData.is_percentage_type !== undefined ? validatedData.is_percentage_type : (current.is_percentage_type || false),
     };
 
     const finalResult = await db`
@@ -392,7 +435,9 @@ export const updateMaterial = async (req: AuthRequest, res: Response) => {
         reorder_point = ${mergedData.reorder_point},
         last_purchased_date = ${mergedData.last_purchased_date || null},
         last_purchased_price = ${mergedData.last_purchased_price || null},
+        last_purchased_quantity = ${mergedData.last_purchased_quantity || null},
         category = ${mergedData.category || null},
+        is_percentage_type = ${mergedData.is_percentage_type},
         updated_at = CURRENT_TIMESTAMP
       WHERE id = ${materialId} AND user_id = ${req.userId}
       RETURNING *

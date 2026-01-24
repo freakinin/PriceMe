@@ -362,6 +362,40 @@ export async function initializeDatabase() {
       console.log('Note: Migration check for width/length columns:', error.message);
     }
 
+    // Add is_percentage_type column if it doesn't exist (migration)
+    try {
+      const isPercentageTypeExists = await sql`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name='user_materials' AND column_name='is_percentage_type'
+      `;
+      const isPercentageTypeRows = Array.isArray(isPercentageTypeExists) ? isPercentageTypeExists : isPercentageTypeExists.rows || [];
+      if (isPercentageTypeRows.length === 0) {
+        console.log('Adding is_percentage_type column to user_materials table...');
+        await sql`ALTER TABLE user_materials ADD COLUMN is_percentage_type BOOLEAN DEFAULT FALSE`;
+        console.log('✅ Added is_percentage_type column');
+      }
+    } catch (error: any) {
+      console.log('Note: Migration check for is_percentage_type column:', error.message);
+    }
+
+    // Add last_purchased_quantity column if it doesn't exist (migration)
+    try {
+      const lastPurchasedQtyExists = await sql`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name='user_materials' AND column_name='last_purchased_quantity'
+      `;
+      const lastPurchasedQtyRows = Array.isArray(lastPurchasedQtyExists) ? lastPurchasedQtyExists : lastPurchasedQtyExists.rows || [];
+      if (lastPurchasedQtyRows.length === 0) {
+        console.log('Adding last_purchased_quantity column to user_materials table...');
+        await sql`ALTER TABLE user_materials ADD COLUMN last_purchased_quantity DECIMAL(10, 4)`;
+        console.log('✅ Added last_purchased_quantity column');
+      }
+    } catch (error: any) {
+      console.log('Note: Migration check for last_purchased_quantity column:', error.message);
+    }
+
     // Create roadmap_features table
     await sql`
       CREATE TABLE IF NOT EXISTS roadmap_features (

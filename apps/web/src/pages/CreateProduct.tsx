@@ -151,15 +151,22 @@ export default function CreateProduct() {
   // Helper function to get effective quantity for a material (handles both exact and percentage modes)
   const getEffectiveQuantity = (material: MaterialFormValues, batchSize: number = 1): number => {
     if (material.quantity_type === 'percentage') {
-      const stockLevel = (material as any).stock_level || 0;
+      const stockLevel = (material as any).stock_level;
       const percentage = material.quantity_percentage || 0;
       const perItemOrBatch = material.quantity_per_item_or_batch || 'item';
       
+      // For percentage mode, we need stock level. If not available, return 0 (will show as 0 cost)
+      if (stockLevel === undefined || stockLevel === null) {
+        return 0;
+      }
+      
       if (perItemOrBatch === 'item') {
         // Percentage per item, so multiply by batch size
+        // e.g., 30% of 1000ml per item = 300ml per item, for batch of 10 = 3000ml total
         return (stockLevel * percentage / 100) * batchSize;
       } else {
         // Percentage per batch
+        // e.g., 30% of 1000ml for entire batch = 300ml total
         return stockLevel * percentage / 100;
       }
     }
@@ -191,17 +198,33 @@ export default function CreateProduct() {
 
   const onAddMaterial = (data: MaterialFormValues) => {
     console.log('onAddMaterial called, received data:', data);
-    const unitsMade = data.units_made || 1;
+    
+    // For percentage per batch, units_made doesn't apply, so set it to 1
+    const unitsMade = (data.quantity_type === 'percentage' && data.quantity_per_item_or_batch === 'batch') 
+      ? 1 
+      : (data.units_made || 1);
     
     // Calculate total cost based on quantity type
     let totalCost = 0;
+    const stockLevel = materialForm.getValues('stock_level');
+    const batchSize = step1Form.getValues('batch_size') || 1;
+    
     if (data.quantity_type === 'percentage') {
-      // For percentage mode, we'll calculate cost based on stock level if available
-      // For now, we'll use a placeholder calculation - this will be refined when we handle stock
-      const stockLevel = materialForm.getValues('stock_level') || 0;
-      const percentage = data.quantity_percentage || 0;
-      const effectiveQuantity = (stockLevel * percentage) / 100;
-      totalCost = (effectiveQuantity * data.price_per_unit) / unitsMade;
+      // For percentage mode, we need stock level
+      if (stockLevel !== undefined && stockLevel !== null) {
+        const percentage = data.quantity_percentage || 0;
+        const perItemOrBatch = data.quantity_per_item_or_batch || 'item';
+        
+        if (perItemOrBatch === 'item') {
+          // Percentage per item: each item uses X% of stock
+          const quantityPerItem = stockLevel * percentage / 100;
+          totalCost = (quantityPerItem * data.price_per_unit) / unitsMade;
+        } else {
+          // Percentage per batch: entire batch uses X% of stock
+          const quantityForBatch = stockLevel * percentage / 100;
+          totalCost = (quantityForBatch * data.price_per_unit) / batchSize;
+        }
+      }
     } else {
       // Exact quantity mode
       const quantity = data.quantity || 0;
@@ -210,10 +233,10 @@ export default function CreateProduct() {
     
     // Get user_material_id and stock_level from form state (they're not in schema)
     const userMaterialId = materialForm.getValues('user_material_id');
-    const stockLevel = materialForm.getValues('stock_level');
     const materialData = { 
       ...data, 
       quantity: data.quantity || 0, // Ensure quantity is always a number
+      units_made: unitsMade, // Use calculated units_made
       total_cost: totalCost,
       user_material_id: userMaterialId,
       stock_level: stockLevel,
@@ -238,27 +261,30 @@ export default function CreateProduct() {
     }
 
     try {
-      // Calculate price (total cost for the quantity)
-      // For percentage mode, we can't save to library (needs stock level)
+      // Calculate quantity and stock level
+      let quantity = 0;
+      let stockLevel = 0;
+      
       if (material.quantity_type === 'percentage') {
-        toast({
-          variant: 'destructive',
-          title: 'Error',
-          description: 'Materials with percentage-based quantities cannot be saved to library. Please use exact quantity mode.',
-        });
-        return;
+        // For percentage mode, assume 1 unit if not in library, or use library stock level
+        stockLevel = (material as any).stock_level || 1;
+        quantity = stockLevel; // Use stock level as the quantity
+      } else {
+        // Exact quantity mode
+        quantity = material.quantity || 0;
+        stockLevel = (material as any).stock_level || quantity; // Use quantity as initial stock
       }
-      const quantity = material.quantity || 0;
+      
       const price = quantity * material.price_per_unit;
 
       // Call API to create material in library
       const response = await api.post('/materials', {
         name: material.name,
         price: price,
-        quantity: material.quantity || 0,
+        quantity: quantity,
         unit: material.unit,
         price_per_unit: material.price_per_unit,
-        stock_level: 0, // Start with 0 stock, user can update later
+        stock_level: stockLevel,
       });
 
       if (response.data.status === 'success') {
@@ -634,6 +660,10 @@ export default function CreateProduct() {
                                   if (material.stock_level !== undefined) {
                                     materialForm.setValue('stock_level', material.stock_level);
                                   }
+                                  // If material is marked as percentage type, default to percentage mode
+                                  if ((material as any).is_percentage_type) {
+                                    materialForm.setValue('quantity_type', 'percentage');
+                                  }
                                 }}
                                 onAddToLibrary={async (name) => {
                                   // Optionally add to library - for now just use the name
@@ -844,51 +874,53 @@ export default function CreateProduct() {
                         );
                       }}
                     />
-                    <FormField
-                      control={materialForm.control}
-                      name="units_made"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="flex items-center gap-1.5">
-                            Items From This Quantity *
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>How many items you can make from this quantity of material</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          </FormLabel>
-                          <FormControl>
-                            <Input 
-                              type="number" 
-                              step="1"
-                              min="1"
-                              placeholder="1"
-                              {...field}
-                              value={field.value ?? ''}
-                              onChange={(e) => {
-                                const value = e.target.value;
-                                if (value === '' || value === null || value === undefined) {
-                                  field.onChange(1);
-                                } else {
-                                  const numValue = parseFloat(value);
-                                  if (!isNaN(numValue) && numValue > 0) {
-                                    field.onChange(numValue);
-                                  } else {
+                    {!(materialForm.watch('quantity_type') === 'percentage' && materialForm.watch('quantity_per_item_or_batch') === 'batch') && (
+                      <FormField
+                        control={materialForm.control}
+                        name="units_made"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="flex items-center gap-1.5">
+                              Items From This Quantity *
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>How many items you can make from this quantity of material</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            </FormLabel>
+                            <FormControl>
+                              <Input 
+                                type="number" 
+                                step="1"
+                                min="1"
+                                placeholder="1"
+                                {...field}
+                                value={field.value ?? ''}
+                                onChange={(e) => {
+                                  const value = e.target.value;
+                                  if (value === '' || value === null || value === undefined) {
                                     field.onChange(1);
+                                  } else {
+                                    const numValue = parseFloat(value);
+                                    if (!isNaN(numValue) && numValue > 0) {
+                                      field.onChange(numValue);
+                                    } else {
+                                      field.onChange(1);
+                                    }
                                   }
-                                }
-                              }}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                                }}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    )}
                   </div>
                   <Button type="submit" variant="outline">
                     <Plus className="mr-2 h-4 w-4" />
@@ -921,10 +953,40 @@ export default function CreateProduct() {
                       <tbody>
                         {materials.map((material, index) => {
                           const unitsMade = material.units_made || 1;
-                          const effectiveQuantity = getEffectiveQuantity(material, batchSize);
-                          const costPerProduct = (effectiveQuantity * material.price_per_unit) / unitsMade;
                           const userMaterialId = (material as any).user_material_id;
                           const stockLevel = (material as any).stock_level;
+                          
+                          // Calculate effective quantity and cost
+                          let effectiveQuantity = 0;
+                          let costPerProduct = 0;
+                          
+                          if (material.quantity_type === 'percentage') {
+                            // For percentage mode, use stock level from library, or assume 1 unit if not in library
+                            const materialStockLevel = stockLevel !== undefined && stockLevel !== null ? stockLevel : 1;
+                            const percentage = material.quantity_percentage || 0;
+                            const perItemOrBatch = material.quantity_per_item_or_batch || 'item';
+                            
+                            if (perItemOrBatch === 'item') {
+                              // Percentage per item: each item uses X% of stock
+                              // e.g., 30% per item with 1000ml stock = 300ml per item
+                              const quantityPerItem = materialStockLevel * percentage / 100;
+                              effectiveQuantity = quantityPerItem * batchSize; // Total for batch
+                              // Cost per product = (quantity per item * price_per_unit) / unitsMade
+                              costPerProduct = (quantityPerItem * material.price_per_unit) / unitsMade;
+                            } else {
+                              // Percentage per batch: entire batch uses X% of stock
+                              // e.g., 30% per batch with 1000ml stock = 300ml for entire batch
+                              effectiveQuantity = materialStockLevel * percentage / 100;
+                              // Cost per product = (total quantity for batch * price_per_unit) / batchSize
+                              // unitsMade doesn't apply here because percentage is for the batch
+                              costPerProduct = (effectiveQuantity * material.price_per_unit) / batchSize;
+                            }
+                          } else {
+                            // Exact quantity mode
+                            effectiveQuantity = material.quantity || 0;
+                            costPerProduct = (effectiveQuantity * material.price_per_unit) / unitsMade;
+                          }
+                          
                           // Only calculate stock if material is from library (has user_material_id)
                           // Calculate required quantity for this batch
                           const requiredQuantity = effectiveQuantity;
@@ -953,7 +1015,12 @@ export default function CreateProduct() {
                               <td className="p-3">{quantityDisplay}</td>
                               <td className="p-3">{material.unit}</td>
                               <td className="p-3">{formatCurrency(material.price_per_unit, settings.currency)}</td>
-                              <td className="p-3">{material.units_made || 1}</td>
+                              <td className="p-3">
+                                {material.quantity_type === 'percentage' && material.quantity_per_item_or_batch === 'batch' 
+                                  ? '-' 
+                                  : (material.units_made || 1)
+                                }
+                              </td>
                               <td className="p-3">
                                 {remainingStock !== null ? (
                                   <span className={remainingStock < 0 ? 'text-red-600 font-medium' : ''}>
@@ -966,7 +1033,9 @@ export default function CreateProduct() {
                                   <span className="text-muted-foreground">-</span>
                                 )}
                               </td>
-                              <td className="p-3 font-medium">{formatCurrency(costPerProduct, settings.currency)}</td>
+                              <td className="p-3 font-medium">
+                                {formatCurrency(costPerProduct, settings.currency)}
+                              </td>
                               <td className="p-3 text-right">
                                 <div className="flex items-center justify-end gap-1">
                                   {!userMaterialId && (

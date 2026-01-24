@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import type { ReactNode } from 'react';
-import { Plus, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown, Edit, Trash2, ExternalLink, Package, Columns, X, Info } from 'lucide-react';
+import { Plus, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown, Edit, Trash2, ExternalLink, Package, Columns, X, Info, PackagePlus } from 'lucide-react';
 import { useSidebar } from '@/components/ui/sidebar';
 import {
   useReactTable,
@@ -41,6 +41,8 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 import { useSettings } from '@/hooks/useSettings';
 import { formatCurrency } from '@/utils/currency';
 import api from '@/lib/api';
@@ -63,6 +65,7 @@ interface Material {
   reorder_point: number;
   last_purchased_date?: string;
   last_purchased_price?: number;
+  last_purchased_quantity?: number;
   category?: string;
   created_at: string;
   updated_at: string;
@@ -85,14 +88,25 @@ function EditableCell({
   options?: string[];
 }) {
   const [isEditing, setIsEditing] = useState(false);
-  const [editValue, setEditValue] = useState<string>(value?.toString() || '');
+  // Format number to remove trailing zeros
+  const formatEditValue = (val: string | number | null | undefined): string => {
+    if (val === null || val === undefined || val === '') return '';
+    if (type === 'number') {
+      const num = typeof val === 'string' ? parseFloat(val) : val;
+      if (isNaN(num)) return '';
+      // Remove trailing zeros and unnecessary decimals
+      return num % 1 === 0 ? Math.round(num).toString() : parseFloat(num.toFixed(2)).toString();
+    }
+    return val.toString();
+  };
+  const [editValue, setEditValue] = useState<string>(formatEditValue(value));
   const [isSaving, setIsSaving] = useState(false);
   const [selectOpen, setSelectOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const cellRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setEditValue(value?.toString() || '');
+    setEditValue(formatEditValue(value));
   }, [value]);
 
   useEffect(() => {
@@ -117,14 +131,14 @@ function EditableCell({
       setIsEditing(false);
     } catch (error) {
       // Revert on error
-      setEditValue(value?.toString() || '');
+      setEditValue(formatEditValue(value));
     } finally {
       setIsSaving(false);
     }
   };
 
   const handleCancel = () => {
-    setEditValue(value?.toString() || '');
+    setEditValue(formatEditValue(value));
     setIsEditing(false);
   };
 
@@ -259,6 +273,10 @@ export default function Materials() {
   const [filterValue, setFilterValue] = useState<string>('');
   const [editingMaterial, setEditingMaterial] = useState<Material | null>(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [addStockMaterial, setAddStockMaterial] = useState<Material | null>(null);
+  const [addStockQuantity, setAddStockQuantity] = useState<string>('');
+  const [addStockPrice, setAddStockPrice] = useState<string>('');
+  const [isAddingStock, setIsAddingStock] = useState(false);
 
   useEffect(() => {
     // Close sidebar when Materials page loads
@@ -328,6 +346,70 @@ export default function Materials() {
         title: 'Error',
         description: error.response?.data?.message || 'Failed to delete material',
       });
+    }
+  };
+
+  const handleAddStock = async () => {
+    if (!addStockMaterial) return;
+    
+    const quantityToAdd = Number(addStockQuantity) || 0;
+    const newPricePerUnit = Number(addStockPrice) || 0;
+    
+    if (quantityToAdd <= 0) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Please enter a valid quantity',
+      });
+      return;
+    }
+
+    setIsAddingStock(true);
+    try {
+      const currentQuantity = Number(addStockMaterial.quantity) || 0;
+      const currentStock = Number(addStockMaterial.stock_level) || 0;
+      const newQuantity = currentQuantity + quantityToAdd;
+      const newStock = currentStock + quantityToAdd;
+      
+      // If new price is provided, update price_per_unit and recalculate total price
+      const updateData: Partial<Material> = {
+        quantity: newQuantity,
+        stock_level: newStock,
+        last_purchased_date: new Date().toISOString().split('T')[0],
+      };
+      
+      const existingPricePerUnit = Number(addStockMaterial.price_per_unit) || 0;
+      const existingTotalCost = Number(addStockMaterial.price) || 0;
+      
+      if (newPricePerUnit > 0 && newPricePerUnit !== existingPricePerUnit) {
+        // Calculate new total investment (old total + new purchase)
+        const newPurchaseCost = quantityToAdd * newPricePerUnit;
+        const newTotalInvestment = existingTotalCost + newPurchaseCost;
+        
+        updateData.price_per_unit = newPricePerUnit; // Last purchase price
+        updateData.price = newTotalInvestment; // Total investment
+        updateData.last_purchased_price = newPricePerUnit;
+        updateData.last_purchased_quantity = quantityToAdd;
+      } else {
+        // Same price or no price change - just add to investment
+        const priceToUse = newPricePerUnit > 0 ? newPricePerUnit : existingPricePerUnit;
+        const newPurchaseCost = quantityToAdd * priceToUse;
+        updateData.price = existingTotalCost + newPurchaseCost;
+        updateData.last_purchased_price = priceToUse;
+        updateData.last_purchased_quantity = quantityToAdd;
+      }
+
+      await updateMaterial(addStockMaterial.id, updateData);
+      
+      // Reset and close dialog
+      setAddStockMaterial(null);
+      setAddStockQuantity('');
+      setAddStockPrice('');
+      fetchMaterials(); // Refresh to get updated data
+    } catch (error) {
+      console.error('Error adding stock:', error);
+    } finally {
+      setIsAddingStock(false);
     }
   };
 
@@ -424,10 +506,10 @@ export default function Materials() {
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 -ml-3"
+              className="h-8 -ml-2"
               onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
             >
-              Name
+              Material
               {column.getIsSorted() === 'asc' ? (
                 <ArrowUp className="ml-2 h-3 w-3" />
               ) : column.getIsSorted() === 'desc' ? (
@@ -452,67 +534,6 @@ export default function Materials() {
         },
       },
       {
-        accessorKey: 'price_per_unit',
-        header: ({ column }) => {
-          return (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 -ml-3"
-              onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-            >
-              Price/Unit
-              {column.getIsSorted() === 'asc' ? (
-                <ArrowUp className="ml-2 h-3 w-3" />
-              ) : column.getIsSorted() === 'desc' ? (
-                <ArrowDown className="ml-2 h-3 w-3" />
-              ) : (
-                <ArrowUpDown className="ml-2 h-3 w-3 opacity-50" />
-              )}
-            </Button>
-          );
-        },
-        cell: ({ row }) => {
-          const material = row.original;
-          return (
-            <EditableCell
-              value={material.price_per_unit}
-              onSave={async (value) => {
-                const newPricePerUnit = value as number;
-                const newPrice = newPricePerUnit * material.quantity;
-                await updateMaterial(material.id, {
-                  price_per_unit: newPricePerUnit,
-                  price: newPrice,
-                });
-              }}
-              type="number"
-              formatDisplay={(val) => formatCurrency(val as number, settings.currency)}
-            />
-          );
-        },
-      },
-      {
-        accessorKey: 'quantity',
-        header: 'Qty',
-        cell: ({ row }) => {
-          const material = row.original;
-          return (
-            <EditableCell
-              value={material.quantity}
-              onSave={async (value) => {
-                const newQuantity = value as number;
-                const newPrice = material.price_per_unit * newQuantity;
-                await updateMaterial(material.id, {
-                  quantity: newQuantity,
-                  price: newPrice,
-                });
-              }}
-              type="number"
-            />
-          );
-        },
-      },
-      {
         accessorKey: 'unit',
         header: 'Unit',
         cell: ({ row }) => {
@@ -530,16 +551,69 @@ export default function Materials() {
         },
       },
       {
+        accessorKey: 'price_per_unit',
+        header: ({ column }) => {
+          return (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 -ml-2"
+              onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+            >
+              Price/Unit
+              {column.getIsSorted() === 'asc' ? (
+                <ArrowUp className="ml-2 h-3 w-3" />
+              ) : column.getIsSorted() === 'desc' ? (
+                <ArrowDown className="ml-2 h-3 w-3" />
+              ) : (
+                <ArrowUpDown className="ml-2 h-3 w-3 opacity-50" />
+              )}
+            </Button>
+          );
+        },
+        cell: ({ row }) => {
+          const material = row.original;
+          const quantity = Number(material.quantity) || 0;
+          const totalInvestment = Number(material.price) || 0;
+          const avgCost = quantity > 0 ? totalInvestment / quantity : 0;
+          const lastPrice = Number(material.price_per_unit) || 0;
+          
+          return (
+            <div className="px-2 py-1">
+              <EditableCell
+                value={material.price_per_unit}
+                onSave={async (value) => {
+                  const newPricePerUnit = Number(value) || 0;
+                  const qty = Number(material.quantity) || 0;
+                  const newPrice = newPricePerUnit * qty;
+                  await updateMaterial(material.id, {
+                    price_per_unit: newPricePerUnit,
+                    price: newPrice,
+                  });
+                }}
+                type="number"
+                formatDisplay={(val) => formatCurrency(Number(val) || 0, settings.currency)}
+              />
+              {avgCost !== lastPrice && avgCost > 0 && (
+                <div className="text-xs text-muted-foreground mt-0.5">
+                  Avg: {formatCurrency(avgCost, settings.currency)}
+                </div>
+              )}
+            </div>
+          );
+        },
+      },
+      {
         accessorKey: 'price',
         header: ({ column }) => {
           return (
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 -ml-3"
+              className="h-8 -ml-2"
               onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
             >
-              Total Price
+              Investment
               {column.getIsSorted() === 'asc' ? (
                 <ArrowUp className="ml-2 h-3 w-3" />
               ) : column.getIsSorted() === 'desc' ? (
@@ -556,23 +630,6 @@ export default function Materials() {
             <div className="text-sm px-2 py-1">
               {formatCurrency(material.price, settings.currency)}
             </div>
-          );
-        },
-      },
-      {
-        accessorKey: 'details',
-        header: 'Details',
-        cell: ({ row }) => {
-          const material = row.original;
-          return (
-            <EditableCell
-              value={material.details}
-              onSave={async (value) => {
-                await updateMaterial(material.id, { details: value as string });
-              }}
-              type="text"
-              className="max-w-[200px]"
-            />
           );
         },
       },
@@ -631,7 +688,7 @@ export default function Materials() {
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 -ml-3"
+              className="h-8 -ml-2"
               onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
             >
               Stock Level
@@ -648,40 +705,29 @@ export default function Materials() {
         cell: ({ row }) => {
           const material = row.original;
           const stockLevel = material.stock_level;
+          const variant = getStockBadgeVariant(material);
+          // Ensure stockLevel is a number
+          const stockNum = Number(stockLevel) || 0;
+          // Format stock level to remove trailing zeros
+          const formattedStock = Number.isInteger(stockNum) 
+            ? stockNum.toString()
+            : parseFloat(stockNum.toFixed(2)).toString();
+          
+          // Determine color based on variant
+          const badgeClassName = 
+            variant === 'destructive' 
+              ? 'bg-red-500 text-white' 
+              : variant === 'secondary'
+              ? 'bg-yellow-500 text-white'
+              : 'bg-green-500 text-white';
+          
           return (
-            <EditableCell
-              value={stockLevel}
-              onSave={async (value) => {
-                await updateMaterial(material.id, { stock_level: value as number });
-              }}
-              type="number"
-              formatDisplay={() => {
-                const variant = getStockBadgeVariant(material);
-                // Ensure stockLevel is a number
-                const stockNum = Number(stockLevel) || 0;
-                // Format stock level to remove trailing zeros
-                const formattedStock = Number.isInteger(stockNum) 
-                  ? stockNum.toString()
-                  : parseFloat(stockNum.toFixed(2)).toString();
-                
-                // Determine color based on variant
-                const badgeClassName = 
-                  variant === 'destructive' 
-                    ? 'bg-red-500 text-white' 
-                    : variant === 'secondary'
-                    ? 'bg-yellow-500 text-white'
-                    : 'bg-green-500 text-white';
-                
-                return (
-                  <Badge 
-                    variant={variant}
-                    className={badgeClassName}
-                  >
-                    {formattedStock}
-                  </Badge>
-                );
-              }}
-            />
+            <Badge 
+              variant={variant}
+              className={badgeClassName}
+            >
+              {formattedStock}
+            </Badge>
           );
         },
       },
@@ -720,12 +766,16 @@ export default function Materials() {
         header: 'Last Purchased',
         cell: ({ row }) => {
           const material = row.original;
+          const lastQty = Number(material.last_purchased_quantity) || 0;
+          const lastPrice = Number(material.last_purchased_price) || 0;
+          const lastTotal = lastQty * lastPrice;
+          
           return (
             <div className="text-sm">
               <div>{formatDate(material.last_purchased_date)}</div>
-              {material.last_purchased_price && (
-                <div className="text-muted-foreground">
-                  {formatCurrency(material.last_purchased_price, settings.currency)}
+              {lastTotal > 0 && (
+                <div className="text-xs text-muted-foreground">
+                  {formatCurrency(lastTotal, settings.currency)}
                 </div>
               )}
             </div>
@@ -749,7 +799,8 @@ export default function Materials() {
               onSave={async (value) => {
                 await updateMaterial(material.id, { category: value as string });
               }}
-              type="text"
+              type="select"
+              options={getCategories()}
               formatDisplay={(val) =>
                 val ? <Badge variant="outline">{val as string}</Badge> : '-'
               }
@@ -764,21 +815,60 @@ export default function Materials() {
         cell: ({ row }) => {
           const material = row.original;
           return (
-            <div className="flex items-center justify-end gap-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setEditingMaterial(material)}
-              >
-                <Edit className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => handleDelete(material.id)}
-              >
-                <Trash2 className="h-4 w-4 text-destructive" />
-              </Button>
+            <div className="flex items-center justify-end gap-1">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setEditingMaterial(material)}
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Edit material</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => {
+                        setAddStockMaterial(material);
+                        // Format price to remove trailing zeros
+                        const price = Number(material.price_per_unit) || 0;
+                        setAddStockPrice(price % 1 === 0 ? price.toString() : parseFloat(price.toFixed(2)).toString());
+                      }}
+                    >
+                      <PackagePlus className="h-4 w-4 text-green-600" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Add stock / Restock</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDelete(material.id)}
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Delete material</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
           );
         },
@@ -978,12 +1068,10 @@ export default function Materials() {
               .map((column) => {
                       const columnId = column.id || '';
                 const columnLabels: Record<string, string> = {
-                  name: 'Name',
+                  name: 'Material',
+                  unit: 'Unit',
                   price_per_unit: 'Price/Unit',
-                        quantity: 'Qty',
-                        unit: 'Unit',
-                        price: 'Total Price',
-                  details: 'Details',
+                  price: 'Investment',
                   supplier: 'Supplier',
                   supplier_link: 'Link',
                   stock_level: 'Stock Level',
@@ -1166,6 +1254,80 @@ export default function Materials() {
         }}
         existingCategories={getCategories()}
       />
+
+      {/* Add Stock Dialog */}
+      <Dialog open={addStockMaterial !== null} onOpenChange={(open) => {
+        if (!open) {
+          setAddStockMaterial(null);
+          setAddStockQuantity('');
+          setAddStockPrice('');
+        }
+      }}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="sr-only">Add Stock</DialogTitle>
+            <DialogDescription className="text-base text-foreground">
+              Add stock for <span className="font-semibold">{addStockMaterial?.name}</span>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="add-quantity">Quantity to Add *</Label>
+              <Input
+                id="add-quantity"
+                type="number"
+                min="1"
+                placeholder="Enter quantity..."
+                value={addStockQuantity}
+                onChange={(e) => setAddStockQuantity(e.target.value)}
+                autoFocus
+              />
+              <p className="text-xs text-muted-foreground">
+                {addStockQuantity && Number(addStockQuantity) > 0 ? (
+                  <>
+                    Stock: {Math.round(Number(addStockMaterial?.stock_level || 0))} → <span className="font-medium text-green-600">{Math.round(Number(addStockMaterial?.stock_level || 0) + Number(addStockQuantity))}</span>
+                  </>
+                ) : (
+                  <>Current stock: {Math.round(Number(addStockMaterial?.stock_level || 0))}</>
+                )}
+              </p>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="add-price">Price per Unit ({settings.currency})</Label>
+              <Input
+                id="add-price"
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="Leave empty to keep current price"
+                value={addStockPrice}
+                onChange={(e) => setAddStockPrice(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Current price: {formatCurrency(Number(addStockMaterial?.price_per_unit || 0), settings.currency)}
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setAddStockMaterial(null);
+                setAddStockQuantity('');
+                setAddStockPrice('');
+              }}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleAddStock}
+              disabled={isAddingStock || !addStockQuantity || Number(addStockQuantity) <= 0}
+            >
+              {isAddingStock ? 'Adding...' : 'Add Stock'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

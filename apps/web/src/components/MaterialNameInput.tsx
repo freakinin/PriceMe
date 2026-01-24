@@ -22,6 +22,7 @@ interface UserMaterial {
   price_per_unit: number;
   category?: string;
   stock_level?: number;
+  is_percentage_type?: boolean;
 }
 
 interface MaterialNameInputProps {
