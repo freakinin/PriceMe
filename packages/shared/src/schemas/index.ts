@@ -71,6 +71,15 @@ export const createOtherCostSchema = z.object({
 
 export const updateOtherCostSchema = createOtherCostSchema.partial();
 
+// Helper to preprocess number values (handles strings from form inputs)
+const numericPreprocess = (val: unknown) => {
+  if (typeof val === 'string' && val.trim() !== '') {
+    const parsed = parseFloat(val);
+    return isNaN(parsed) ? val : parsed;
+  }
+  return val;
+};
+
 // Product schemas (must be defined after material, labor, and other cost schemas)
 export const createProductSchema = z.object({
   name: z.string().min(1),
@@ -78,10 +87,13 @@ export const createProductSchema = z.object({
   status: z.enum(['draft', 'in_progress', 'on_sale', 'inactive']).optional(),
   description: z.string().optional(),
   category: z.string().optional(),
-  batch_size: z.number().int().positive().default(1),
-  target_price: z.number().positive().optional(), // Calculated/resulting price
+  batch_size: z.preprocess(
+    (val) => val === undefined ? 1 : numericPreprocess(val),
+    z.number().int().positive()
+  ),
+  target_price: z.preprocess(numericPreprocess, z.number().positive()).optional(), // Calculated/resulting price
   pricing_method: z.enum(['markup', 'price', 'profit', 'margin']).optional(), // Which method user selected
-  pricing_value: z.number().nonnegative().optional(), // The input value for the selected method
+  pricing_value: z.preprocess(numericPreprocess, z.number().nonnegative()).optional(), // The input value for the selected method
   materials: z.array(createMaterialSchema).optional(),
   labor_costs: z.array(createLaborSchema).optional(),
   other_costs: z.array(createOtherCostSchema).optional(),

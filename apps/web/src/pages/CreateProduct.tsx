@@ -70,11 +70,6 @@ export default function CreateProduct2() {
   const { settings } = useSettings();
   const { toast } = useToast();
   
-  // Collapse sidebar on mount
-  useEffect(() => {
-    setOpen(false);
-  }, [setOpen]);
-  
   const [materials, setMaterials] = useState<Material[]>([]);
   const [laborCosts, setLaborCosts] = useState<Labor[]>([]);
   const [otherCosts, setOtherCosts] = useState<OtherCost[]>([]);
@@ -96,6 +91,18 @@ export default function CreateProduct2() {
   const [laborMinutes, setLaborMinutes] = useState('');
   const [laborRate, setLaborRate] = useState(settings.labor_hourly_cost?.toString() || '50');
   const [laborPerBatch, setLaborPerBatch] = useState(false);
+
+  // Collapse sidebar on mount
+  useEffect(() => {
+    setOpen(false);
+  }, [setOpen]);
+
+  // Update labor rate when settings load
+  useEffect(() => {
+    if (settings.labor_hourly_cost) {
+      setLaborRate(settings.labor_hourly_cost.toString());
+    }
+  }, [settings.labor_hourly_cost]);
 
   // Other cost form state
   const [otherItem, setOtherItem] = useState('');
@@ -201,6 +208,8 @@ export default function CreateProduct2() {
     setLaborActivity('');
     setLaborMinutes('');
     setLaborPerBatch(false);
+    // Reset rate to settings default
+    setLaborRate(settings.labor_hourly_cost?.toString() || '50');
   };
 
   // Add other cost

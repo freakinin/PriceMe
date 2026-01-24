@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
-import { ArrowUpDown, ArrowUp, ArrowDown, Search, DollarSign, TrendingUp, Package, ShoppingCart } from 'lucide-react';
+import { ArrowUpDown, ArrowUp, ArrowDown, Search, DollarSign, TrendingUp, Package, ShoppingCart, ToggleLeft, ToggleRight } from 'lucide-react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent } from '@/components/ui/card';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import api from '@/lib/api';
 import { useSettings } from '@/hooks/useSettings';
 import { useToast } from '@/components/ui/use-toast';
@@ -177,6 +178,8 @@ export default function OnSale() {
   const [qtySold, setQtySold] = useState<Record<number, number>>({});
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState<string>('');
+  // true = use total investment (Made × Cost), false = use COGS (Sold × Cost)
+  const [useFullInvestment, setUseFullInvestment] = useState(true);
 
   useEffect(() => {
     fetchProducts();
@@ -230,8 +233,9 @@ export default function OnSale() {
 
     if (field === 'batch_size') {
       try {
-        await api.put(`/products/${productId}`, { batch_size: value });
-        setProducts(prev => prev.map(p => p.id === productId ? { ...p, batch_size: value as number } : p));
+        const batchValue = Math.round(Number(value));
+        await api.put(`/products/${productId}`, { batch_size: batchValue });
+        setProducts(prev => prev.map(p => p.id === productId ? { ...p, batch_size: batchValue } : p));
         toast({
           variant: 'success',
           title: 'Updated',
@@ -371,7 +375,7 @@ export default function OnSale() {
             className="h-8 -ml-1 px-4"
             onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
           >
-            Created
+            Made
             {column.getIsSorted() === 'asc' ? (
               <ArrowUp className="ml-2 h-3 w-3" />
             ) : column.getIsSorted() === 'desc' ? (
@@ -437,9 +441,9 @@ export default function OnSale() {
       },
     },
     {
-      id: 'cost',
-      size: 120,
-      minSize: 100,
+      id: 'investment',
+      size: 130,
+      minSize: 110,
       maxSize: 200,
       header: ({ column }) => {
         return (
@@ -449,7 +453,7 @@ export default function OnSale() {
             className="h-8 -ml-1 px-4"
             onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
           >
-            Cost
+            Investment
             {column.getIsSorted() === 'asc' ? (
               <ArrowUp className="ml-2 h-3 w-3" />
             ) : column.getIsSorted() === 'desc' ? (
@@ -461,16 +465,17 @@ export default function OnSale() {
         );
       },
       accessorFn: (row) => {
-        const qtySoldValue = qtySold[row.id] || 0;
+        // Investment = Made × Cost Per Product (total spent to produce)
+        const madeQty = row.batch_size || 0;
         const productCost = typeof row.product_cost === 'number' ? row.product_cost : 0;
-        return qtySoldValue * productCost;
+        return madeQty * productCost;
       },
       cell: ({ row }) => {
         const product = row.original;
-        const qtySoldValue = qtySold[product.id] || 0;
+        const madeQty = product.batch_size || 0;
         const productCost = typeof product.product_cost === 'number' ? product.product_cost : 0;
-        const cost = qtySoldValue * productCost;
-        return <div className="py-1">{formatCurrencyValue(cost)}</div>;
+        const investment = madeQty * productCost;
+        return <div className="py-1">{formatCurrencyValue(investment)}</div>;
       },
     },
     {
@@ -540,19 +545,23 @@ export default function OnSale() {
       },
       accessorFn: (row) => {
         const qtySoldValue = qtySold[row.id] || 0;
+        const madeQty = row.batch_size || 0;
         const price = row.target_price ?? 0;
         const productCost = typeof row.product_cost === 'number' ? row.product_cost : 0;
         const revenue = qtySoldValue * price;
-        const cost = qtySoldValue * productCost;
+        // Use total investment or COGS based on toggle
+        const cost = useFullInvestment ? (madeQty * productCost) : (qtySoldValue * productCost);
         return revenue - cost;
       },
       cell: ({ row }) => {
         const product = row.original;
         const qtySoldValue = qtySold[product.id] || 0;
+        const madeQty = product.batch_size || 0;
         const price = product.target_price ?? 0;
         const productCost = typeof product.product_cost === 'number' ? product.product_cost : 0;
         const revenue = qtySoldValue * price;
-        const cost = qtySoldValue * productCost;
+        // Use total investment or COGS based on toggle
+        const cost = useFullInvestment ? (madeQty * productCost) : (qtySoldValue * productCost);
         const profit = revenue - cost;
         return (
           <div className="py-1">
@@ -589,10 +598,11 @@ export default function OnSale() {
       },
       accessorFn: (row) => {
         const qtySoldValue = qtySold[row.id] || 0;
+        const madeQty = row.batch_size || 0;
         const price = row.target_price ?? 0;
         const productCost = typeof row.product_cost === 'number' ? row.product_cost : 0;
         const revenue = qtySoldValue * price;
-        const cost = qtySoldValue * productCost;
+        const cost = useFullInvestment ? (madeQty * productCost) : (qtySoldValue * productCost);
         const profit = revenue - cost;
         if (revenue > 0) {
           return (profit / revenue) * 100;
@@ -602,10 +612,11 @@ export default function OnSale() {
       cell: ({ row }) => {
         const product = row.original;
         const qtySoldValue = qtySold[product.id] || 0;
+        const madeQty = product.batch_size || 0;
         const price = product.target_price ?? 0;
         const productCost = typeof product.product_cost === 'number' ? product.product_cost : 0;
         const revenue = qtySoldValue * price;
-        const cost = qtySoldValue * productCost;
+        const cost = useFullInvestment ? (madeQty * productCost) : (qtySoldValue * productCost);
         const profit = revenue - cost;
         const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
         return (
@@ -621,7 +632,7 @@ export default function OnSale() {
         );
       },
     },
-  ], [qtySold, settings.currency]);
+  ], [qtySold, settings.currency, useFullInvestment]);
 
   const table = useReactTable({
     data: products,
@@ -655,27 +666,44 @@ export default function OnSale() {
       return sum + (qtySoldValue * price);
     }, 0);
 
-    const totalCost = products.reduce((sum, product) => {
+    // Total Investment = sum of (Made × Cost Per Product)
+    const totalInvestment = products.reduce((sum, product) => {
+      const madeQty = product.batch_size || 0;
+      const productCost = typeof product.product_cost === 'number' ? product.product_cost : 0;
+      return sum + (madeQty * productCost);
+    }, 0);
+
+    // COGS = sum of (Sold × Cost Per Product)
+    const totalCOGS = products.reduce((sum, product) => {
       const qtySoldValue = qtySold[product.id] || 0;
       const productCost = typeof product.product_cost === 'number' ? product.product_cost : 0;
       return sum + (qtySoldValue * productCost);
     }, 0);
 
+    // Use Investment or COGS based on toggle
+    const totalCost = useFullInvestment ? totalInvestment : totalCOGS;
     const totalProfit = totalRevenue - totalCost;
+    
     const totalSold = products.reduce((sum, product) => {
       return sum + (qtySold[product.id] || 0);
+    }, 0);
+
+    const totalMade = products.reduce((sum, product) => {
+      return sum + (product.batch_size || 0);
     }, 0);
 
     const averageMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
 
     return {
       totalRevenue,
+      totalInvestment,
       totalCost,
       totalProfit,
       totalSold,
+      totalMade,
       averageMargin,
     };
-  }, [products, qtySold]);
+  }, [products, qtySold, useFullInvestment]);
 
   if (loading) {
     return (
@@ -754,10 +782,10 @@ export default function OnSale() {
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">Total Cost</p>
-                    <p className="text-2xl font-bold mt-1">{formatCurrencyValue(analytics.totalCost)}</p>
+                    <p className="text-sm font-medium text-muted-foreground">Total Investment</p>
+                    <p className="text-2xl font-bold mt-1">{formatCurrencyValue(analytics.totalInvestment)}</p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {products.length} products
+                      {analytics.totalMade} items made
                     </p>
                   </div>
                   <div className="h-12 w-12 rounded-full bg-orange-100 dark:bg-orange-900/20 flex items-center justify-center">
@@ -768,8 +796,8 @@ export default function OnSale() {
             </Card>
           </div>
 
-          {/* Search */}
-          <div className="mb-4">
+          {/* Search and Toggle */}
+          <div className="mb-4 flex items-center justify-between">
             <div className="relative w-[250px]">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -779,6 +807,36 @@ export default function OnSale() {
                 className="pl-9 h-10"
               />
             </div>
+            
+            {/* Profit Calculation Mode Toggle */}
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setUseFullInvestment(!useFullInvestment)}
+                    className="flex items-center gap-2 h-10"
+                  >
+                    {useFullInvestment ? (
+                      <ToggleRight className="h-4 w-4 text-primary" />
+                    ) : (
+                      <ToggleLeft className="h-4 w-4 text-muted-foreground" />
+                    )}
+                    <span className="text-sm">
+                      {useFullInvestment ? 'Real Profit' : 'Sold Profit'}
+                    </span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-[250px]">
+                  <p className="text-sm">
+                    {useFullInvestment 
+                      ? 'Real Profit: Revenue minus total investment (all items made)'
+                      : 'Sold Profit: Revenue minus cost of sold items only'}
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
         </>
       )}
