@@ -17,6 +17,7 @@ import {
 import { ChevronRight, ChevronLeft, Plus, Trash2, Package, Users, DollarSign, Calculator, Info, Save } from 'lucide-react';
 import { useSidebar } from '@/components/ui/sidebar';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import api from '@/lib/api';
 import { useSettings } from '@/hooks/useSettings';
 import { formatCurrency, getCurrencySymbol } from '@/utils/currency';
@@ -36,8 +37,8 @@ const materialSchema = z.object({
   name: z.string().min(1, 'Material name is required'),
   quantity: z.preprocess(
     (val) => (val === '' || val === null || val === undefined ? 0 : Number(val)),
-    z.number().positive('Quantity must be greater than 0')
-  ),
+    z.number().nonnegative('Quantity must be 0 or greater')
+  ).optional(),
   unit: z.string().min(1, 'Unit is required'),
   price_per_unit: z.preprocess(
     (val) => (val === '' || val === null || val === undefined ? 0 : Number(val)),
@@ -47,6 +48,25 @@ const materialSchema = z.object({
     (val) => (val === '' || val === null || val === undefined ? 1 : Number(val)),
     z.number().positive('Units made must be greater than 0')
   ),
+  quantity_type: z.enum(['exact', 'percentage']).default('exact'),
+  quantity_percentage: z.preprocess(
+    (val) => (val === '' || val === null || val === undefined ? undefined : Number(val)),
+    z.number().min(0).max(100).optional()
+  ),
+  quantity_per_item_or_batch: z.enum(['item', 'batch']).default('item').optional(),
+}).refine((data) => {
+  // If quantity_type is 'exact', quantity is required
+  if (data.quantity_type === 'exact') {
+    return data.quantity !== undefined && data.quantity > 0;
+  }
+  // If quantity_type is 'percentage', quantity_percentage is required
+  if (data.quantity_type === 'percentage') {
+    return data.quantity_percentage !== undefined && data.quantity_percentage > 0;
+  }
+  return true;
+}, {
+  message: 'Either quantity (for exact) or percentage (for percentage mode) is required',
+  path: ['quantity'],
 });
 
 const laborSchema = z.object({
@@ -102,6 +122,9 @@ export default function CreateProduct() {
       units_made: 1,
       user_material_id: undefined,
       stock_level: undefined,
+      quantity_type: 'exact',
+      quantity_percentage: undefined,
+      quantity_per_item_or_batch: 'item',
     },
   });
 
@@ -124,6 +147,25 @@ export default function CreateProduct() {
       per_unit: true,
     },
   });
+
+  // Helper function to get effective quantity for a material (handles both exact and percentage modes)
+  const getEffectiveQuantity = (material: MaterialFormValues, batchSize: number = 1): number => {
+    if (material.quantity_type === 'percentage') {
+      const stockLevel = (material as any).stock_level || 0;
+      const percentage = material.quantity_percentage || 0;
+      const perItemOrBatch = material.quantity_per_item_or_batch || 'item';
+      
+      if (perItemOrBatch === 'item') {
+        // Percentage per item, so multiply by batch size
+        return (stockLevel * percentage / 100) * batchSize;
+      } else {
+        // Percentage per batch
+        return stockLevel * percentage / 100;
+      }
+    }
+    // Exact quantity mode
+    return material.quantity || 0;
+  };
 
   // Update hourly_rate default when settings are loaded (only if field is empty/zero)
   useEffect(() => {
@@ -150,12 +192,28 @@ export default function CreateProduct() {
   const onAddMaterial = (data: MaterialFormValues) => {
     console.log('onAddMaterial called, received data:', data);
     const unitsMade = data.units_made || 1;
-    const totalCost = (data.quantity * data.price_per_unit) / unitsMade;
+    
+    // Calculate total cost based on quantity type
+    let totalCost = 0;
+    if (data.quantity_type === 'percentage') {
+      // For percentage mode, we'll calculate cost based on stock level if available
+      // For now, we'll use a placeholder calculation - this will be refined when we handle stock
+      const stockLevel = materialForm.getValues('stock_level') || 0;
+      const percentage = data.quantity_percentage || 0;
+      const effectiveQuantity = (stockLevel * percentage) / 100;
+      totalCost = (effectiveQuantity * data.price_per_unit) / unitsMade;
+    } else {
+      // Exact quantity mode
+      const quantity = data.quantity || 0;
+      totalCost = (quantity * data.price_per_unit) / unitsMade;
+    }
+    
     // Get user_material_id and stock_level from form state (they're not in schema)
     const userMaterialId = materialForm.getValues('user_material_id');
     const stockLevel = materialForm.getValues('stock_level');
     const materialData = { 
       ...data, 
+      quantity: data.quantity || 0, // Ensure quantity is always a number
       total_cost: totalCost,
       user_material_id: userMaterialId,
       stock_level: stockLevel,
@@ -181,13 +239,23 @@ export default function CreateProduct() {
 
     try {
       // Calculate price (total cost for the quantity)
-      const price = material.quantity * material.price_per_unit;
+      // For percentage mode, we can't save to library (needs stock level)
+      if (material.quantity_type === 'percentage') {
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: 'Materials with percentage-based quantities cannot be saved to library. Please use exact quantity mode.',
+        });
+        return;
+      }
+      const quantity = material.quantity || 0;
+      const price = quantity * material.price_per_unit;
 
       // Call API to create material in library
       const response = await api.post('/materials', {
         name: material.name,
         price: price,
-        quantity: material.quantity,
+        quantity: material.quantity || 0,
         unit: material.unit,
         price_per_unit: material.price_per_unit,
         stock_level: 0, // Start with 0 stock, user can update later
@@ -251,11 +319,14 @@ export default function CreateProduct() {
       // Prepare materials data
       const materialsData = materials.map(m => ({
         name: m.name,
-        quantity: m.quantity,
+        quantity: m.quantity || 0,
         unit: m.unit,
         price_per_unit: m.price_per_unit,
         units_made: m.units_made || 1,
         user_material_id: m.user_material_id,
+        quantity_type: m.quantity_type || 'exact',
+        quantity_percentage: m.quantity_percentage,
+        quantity_per_item_or_batch: m.quantity_per_item_or_batch || 'item',
       }));
 
       // Prepare labor costs data
@@ -310,12 +381,13 @@ export default function CreateProduct() {
   };
 
   // Calculations
-  const batchSize = step1Form.watch('batch_size');
+  const batchSize = step1Form.watch('batch_size') || 1;
   
   // Total cost per single product (materials cost is divided by units_made)
   const totalMaterialsCost = materials.reduce((sum, m) => {
     const unitsMade = m.units_made || 1;
-    return sum + ((m.quantity * m.price_per_unit) / unitsMade);
+    const effectiveQuantity = getEffectiveQuantity(m, batchSize);
+    return sum + ((effectiveQuantity * m.price_per_unit) / unitsMade);
   }, 0);
   
   // Labor costs: per_unit costs are per product, others are per batch
@@ -540,84 +612,155 @@ export default function CreateProduct() {
                   })(e);
                 }} className="space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-                    <FormField
-                      control={materialForm.control}
-                      name="name"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Material Name *</FormLabel>
-                          <FormControl>
-                            <MaterialNameInput
-                              value={field.value || ''}
-                              onChange={(value) => {
-                                field.onChange(value);
-                              }}
-                              onMaterialSelect={(material) => {
-                                // Auto-fill unit, price_per_unit, user_material_id, and stock_level if material is selected from library
-                                materialForm.setValue('unit', material.unit);
-                                // Round to 2 decimal places to avoid trailing zeros
-                                const roundedPricePerUnit = Math.round(material.price_per_unit * 100) / 100;
-                                materialForm.setValue('price_per_unit', roundedPricePerUnit);
-                                materialForm.setValue('user_material_id', material.id);
-                                if (material.stock_level !== undefined) {
-                                  materialForm.setValue('stock_level', material.stock_level);
-                                }
-                              }}
-                              onAddToLibrary={async (name) => {
-                                // Optionally add to library - for now just use the name
-                                // User can add it properly later from Materials page
-                                toast({
-                                  variant: 'success',
-                                  title: 'Note',
-                                  description: `Using "${name}". You can add it to your library later from the Materials page.`,
-                                });
-                              }}
-                              placeholder="Search or type material name..."
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={materialForm.control}
-                      name="quantity"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Quantity *</FormLabel>
-                          <FormControl>
-                            <Input 
-                              type="number" 
-                              step="0.01"
-                              placeholder="0"
-                              {...field}
-                              value={field.value || ''}
-                              onChange={(e) => {
-                                const value = e.target.value;
-                                if (value === '' || value === null || value === undefined) {
-                                  field.onChange(0);
-                                } else {
-                                  const numValue = parseFloat(value);
-                                  field.onChange(isNaN(numValue) ? 0 : numValue);
-                                }
-                              }}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={materialForm.control}
-                      name="unit"
+                      <FormField
+                        control={materialForm.control}
+                        name="name"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Material Name *</FormLabel>
+                            <FormControl>
+                              <MaterialNameInput
+                                value={field.value || ''}
+                                onChange={(value) => {
+                                  field.onChange(value);
+                                }}
+                                onMaterialSelect={(material) => {
+                                  // Auto-fill unit, price_per_unit, user_material_id, and stock_level if material is selected from library
+                                  materialForm.setValue('unit', material.unit);
+                                  // Round to 2 decimal places to avoid trailing zeros
+                                  const roundedPricePerUnit = Math.round(material.price_per_unit * 100) / 100;
+                                  materialForm.setValue('price_per_unit', roundedPricePerUnit);
+                                  materialForm.setValue('user_material_id', material.id);
+                                  if (material.stock_level !== undefined) {
+                                    materialForm.setValue('stock_level', material.stock_level);
+                                  }
+                                }}
+                                onAddToLibrary={async (name) => {
+                                  // Optionally add to library - for now just use the name
+                                  // User can add it properly later from Materials page
+                                  toast({
+                                    variant: 'success',
+                                    title: 'Note',
+                                    description: `Using "${name}". You can add it to your library later from the Materials page.`,
+                                  });
+                                }}
+                                placeholder="Search or type material name..."
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Quantity *</label>
+                          <FormField
+                            control={materialForm.control}
+                            name="quantity_type"
+                            render={({ field }) => (
+                              <Tabs 
+                                value={field.value || 'exact'} 
+                                onValueChange={field.onChange}
+                                className="h-6"
+                              >
+                                <TabsList className="h-6 p-0.5">
+                                  <TabsTrigger value="exact" className="px-2 py-0.5 text-xs h-5">Qt</TabsTrigger>
+                                  <TabsTrigger value="percentage" className="px-2 py-0.5 text-xs h-5">%</TabsTrigger>
+                                </TabsList>
+                              </Tabs>
+                            )}
+                          />
+                        </div>
+                        {materialForm.watch('quantity_type') === 'exact' ? (
+                          <FormField
+                            control={materialForm.control}
+                            name="quantity"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormControl>
+                                  <Input 
+                                    type="number" 
+                                    step="0.01"
+                                    placeholder="0"
+                                    {...field}
+                                    value={field.value || ''}
+                                    onChange={(e) => {
+                                      const value = e.target.value;
+                                      if (value === '' || value === null || value === undefined) {
+                                        field.onChange(0);
+                                      } else {
+                                        const numValue = parseFloat(value);
+                                        field.onChange(isNaN(numValue) ? 0 : numValue);
+                                      }
+                                    }}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        ) : (
+                          <FormField
+                            control={materialForm.control}
+                            name="quantity_percentage"
+                            render={({ field }) => (
+                              <FormItem>
+                                <Select 
+                                  onValueChange={(value) => field.onChange(parseFloat(value))} 
+                                  value={field.value?.toString() || ''}
+                                >
+                                  <FormControl>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Select %" />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    {[10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map((val) => (
+                                      <SelectItem key={val} value={val.toString()}>{val}%</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        )}
+                      </div>
+                      <FormField
+                        control={materialForm.control}
+                        name="quantity_per_item_or_batch"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-center space-x-2 space-y-0 pt-7">
+                            <FormControl>
+                              <Checkbox
+                                checked={field.value === 'batch'}
+                                onCheckedChange={(checked) => {
+                                  field.onChange(checked ? 'batch' : 'item');
+                                }}
+                              />
+                            </FormControl>
+                            <FormLabel className="text-sm font-normal cursor-pointer mb-0">
+                              Per batch
+                            </FormLabel>
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                      <FormField
+                        control={materialForm.control}
+                        name="unit"
                       render={({ field }) => {
                         const availableUnits = settings.units && settings.units.length > 0 
                           ? [...settings.units].sort() 
                           : ['ml', 'L', 'g', 'kg', 'mm', 'cm', 'm', 'm²', 'pcs'];
+                        const userMaterialId = materialForm.watch('user_material_id');
+                        const isFromLibrary = !!userMaterialId;
+                        
                         return (
                           <FormItem>
                             <FormLabel className="flex items-center gap-1.5">
-                              Measurement Unit *
+                              Unit *
                               <TooltipProvider>
                                 <Tooltip>
                                   <TooltipTrigger asChild>
@@ -629,7 +772,7 @@ export default function CreateProduct() {
                                 </Tooltip>
                               </TooltipProvider>
                             </FormLabel>
-                            <Select onValueChange={field.onChange} value={field.value}>
+                            <Select onValueChange={field.onChange} value={field.value} disabled={isFromLibrary}>
                               <FormControl>
                                 <SelectTrigger>
                                   <SelectValue placeholder="Select unit" />
@@ -651,48 +794,55 @@ export default function CreateProduct() {
                     <FormField
                       control={materialForm.control}
                       name="price_per_unit"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="flex items-center gap-1.5">
-                            Price Per {materialForm.watch('unit') || 'Unit'} *
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>Price for one {materialForm.watch('unit') || 'unit'} of this material</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          </FormLabel>
-                          <FormControl>
-                            <Input 
-                              type="number" 
-                              step="0.01"
-                              placeholder="0.00"
-                              {...field}
-                              value={field.value ?? ''}
-                              onChange={(e) => {
-                                const value = e.target.value;
-                                if (value === '' || value === null || value === undefined) {
-                                  field.onChange(0);
-                                } else {
-                                  const numValue = parseFloat(value);
-                                  if (!isNaN(numValue)) {
-                                    // Round to 2 decimal places to avoid trailing zeros
-                                    const rounded = Math.round(numValue * 100) / 100;
-                                    field.onChange(rounded);
-                                  } else {
+                      render={({ field }) => {
+                        const userMaterialId = materialForm.watch('user_material_id');
+                        const isFromLibrary = !!userMaterialId;
+                        
+                        return (
+                          <FormItem>
+                            <FormLabel className="flex items-center gap-1.5">
+                              Cost *
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>Price per 1 unit of this material</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            </FormLabel>
+                            <FormControl>
+                              <Input 
+                                type="number" 
+                                step="0.01"
+                                placeholder="0.00"
+                                {...field}
+                                value={field.value ?? ''}
+                                disabled={isFromLibrary}
+                                onChange={(e) => {
+                                  if (isFromLibrary) return; // Don't allow editing if from library
+                                  const value = e.target.value;
+                                  if (value === '' || value === null || value === undefined) {
                                     field.onChange(0);
+                                  } else {
+                                    const numValue = parseFloat(value);
+                                    if (!isNaN(numValue)) {
+                                      // Round to 2 decimal places to avoid trailing zeros
+                                      const rounded = Math.round(numValue * 100) / 100;
+                                      field.onChange(rounded);
+                                    } else {
+                                      field.onChange(0);
+                                    }
                                   }
-                                }
-                              }}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
+                                }}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        );
+                      }}
                     />
                     <FormField
                       control={materialForm.control}
@@ -700,14 +850,14 @@ export default function CreateProduct() {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel className="flex items-center gap-1.5">
-                            Units Made *
+                            Items From This Quantity *
                             <TooltipProvider>
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
                                 </TooltipTrigger>
                                 <TooltipContent>
-                                  <p>Number of products you can make from this quantity of material</p>
+                                  <p>How many items you can make from this quantity of material</p>
                                 </TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
@@ -762,7 +912,7 @@ export default function CreateProduct() {
                           <th className="text-left p-3 text-sm font-medium">Quantity</th>
                           <th className="text-left p-3 text-sm font-medium">Unit</th>
                           <th className="text-left p-3 text-sm font-medium">Price per Unit</th>
-                          <th className="text-left p-3 text-sm font-medium">Units Made</th>
+                          <th className="text-left p-3 text-sm font-medium">Items From Quantity</th>
                           <th className="text-left p-3 text-sm font-medium">Stock</th>
                           <th className="text-left p-3 text-sm font-medium">Cost Per Product</th>
                           <th className="text-right p-3 text-sm font-medium">Actions</th>
@@ -771,17 +921,23 @@ export default function CreateProduct() {
                       <tbody>
                         {materials.map((material, index) => {
                           const unitsMade = material.units_made || 1;
-                          const costPerProduct = (material.quantity * material.price_per_unit) / unitsMade;
+                          const effectiveQuantity = getEffectiveQuantity(material, batchSize);
+                          const costPerProduct = (effectiveQuantity * material.price_per_unit) / unitsMade;
                           const userMaterialId = (material as any).user_material_id;
                           const stockLevel = (material as any).stock_level;
                           // Only calculate stock if material is from library (has user_material_id)
                           // Calculate required quantity for this batch
-                          // quantity is per product, so for the batch we need: quantity * batchSize
-                          const requiredQuantity = material.quantity * batchSize;
+                          const requiredQuantity = effectiveQuantity;
                           // Calculate remaining stock after this batch (only if material is from library)
                           const remainingStock = userMaterialId && stockLevel !== undefined && stockLevel !== null
                             ? stockLevel - requiredQuantity
                             : null;
+                          
+                          // Display quantity based on type
+                          const quantityDisplay = material.quantity_type === 'percentage' 
+                            ? `${material.quantity_percentage || 0}% ${material.quantity_per_item_or_batch === 'batch' ? 'per batch' : 'per item'}`
+                            : (material.quantity || 0);
+                          
                           return (
                             <tr key={index} className="border-t">
                               <td className="p-3">
@@ -794,7 +950,7 @@ export default function CreateProduct() {
                                   )}
                                 </div>
                               </td>
-                              <td className="p-3">{material.quantity}</td>
+                              <td className="p-3">{quantityDisplay}</td>
                               <td className="p-3">{material.unit}</td>
                               <td className="p-3">{formatCurrency(material.price_per_unit, settings.currency)}</td>
                               <td className="p-3">{material.units_made || 1}</td>
