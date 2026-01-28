@@ -227,6 +227,8 @@ export default function Products() {
   const [stockWarningOpen, setStockWarningOpen] = useState(false);
   const [pendingStatusChange, setPendingStatusChange] = useState<{ productId: number; newStatus: ProductStatus } | null>(null);
   const [stockIssues, setStockIssues] = useState<Array<{ material: string; currentStock: number; required: number; shortfall: number; unit: string }>>([]);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [productToDelete, setProductToDelete] = useState<{ id: number; name: string } | null>(null);
   const navigate = useNavigate();
   const { setOpen: setSidebarOpen } = useSidebar();
 
@@ -337,19 +339,24 @@ export default function Products() {
     }
   };
 
-  const handleDeleteProduct = async (productId: number, productName: string) => {
-    if (!window.confirm(`Are you sure you want to delete "${productName}"? This action cannot be undone.`)) {
-      return;
-    }
+  const handleDeleteClick = (productId: number, productName: string) => {
+    setProductToDelete({ id: productId, name: productName });
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteProduct = async () => {
+    if (!productToDelete) return;
 
     try {
-      await api.delete(`/products/${productId}`);
+      await api.delete(`/products/${productToDelete.id}`);
       toast({
         title: 'Success',
         description: 'Product deleted successfully',
       });
       // Refresh the products list
       fetchProducts();
+      setDeleteDialogOpen(false);
+      setProductToDelete(null);
     } catch (error: any) {
       console.error('Error deleting product:', error);
       toast({
@@ -1169,7 +1176,7 @@ export default function Products() {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => handleDeleteProduct(product.id, product.name)}
+              onClick={() => handleDeleteClick(product.id, product.name)}
             >
               <Trash2 className="h-4 w-4 text-destructive" />
             </Button>
@@ -1681,6 +1688,39 @@ export default function Products() {
               }}
             >
               Proceed Anyway
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              Delete Product
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete "{productToDelete?.name}"? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDeleteDialogOpen(false);
+                setProductToDelete(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteProduct}
+            >
+              Delete
             </Button>
           </DialogFooter>
         </DialogContent>

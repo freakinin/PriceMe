@@ -445,6 +445,30 @@ export async function initializeDatabase() {
       console.log('Note: Could not seed roadmap feature:', error.message);
     }
 
+    // Seed Material Yield Calculator feature
+    try {
+      const existingFeature = await sql`
+        SELECT id FROM roadmap_features WHERE name = 'Material Yield Calculator'
+      `;
+      const existingRows = Array.isArray(existingFeature) ? existingFeature : existingFeature.rows || [];
+      
+      if (existingRows.length === 0) {
+        console.log('Adding roadmap feature: Material Yield Calculator...');
+        await sql`
+          INSERT INTO roadmap_features (name, description, upvotes, downvotes)
+          VALUES (
+            'Material Yield Calculator',
+            'Calculate how many products you can make from your available materials. Specify product dimensions (length, width, height) and material sheet/roll sizes to automatically determine the maximum quantity you can produce. This helps optimize material usage, reduce waste, and plan production more accurately. Perfect for makers who work with fabric, wood, metal sheets, or any material that comes in standard sizes.',
+            0,
+            0
+          )
+        `;
+        console.log('✅ Added Material Yield Calculator roadmap feature');
+      }
+    } catch (error: any) {
+      console.log('Note: Could not seed Material Yield Calculator roadmap feature:', error.message);
+    }
+
     console.log('✅ Database tables initialized successfully');
   } catch (error) {
     console.error('❌ Error initializing database:', error);
