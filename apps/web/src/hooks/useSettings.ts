@@ -70,7 +70,7 @@ export function useSettings() {
   });
 
   return {
-    settings: query.data,
+    settings: query.data || defaultSettings,
     loading: query.isLoading,
     error: query.error ? (query.error as Error).message : null,
     refetch: query.refetch,
