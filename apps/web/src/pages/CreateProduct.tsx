@@ -1,6 +1,7 @@
+
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useForm } from 'react-hook-form';
+import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
@@ -16,7 +17,6 @@ import {
 } from '@/components/ui/select';
 import { Plus, X, Package, Clock, Receipt, Save } from 'lucide-react';
 import { useSidebar } from '@/components/ui/sidebar';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import api from '@/lib/api';
 import { useSettings } from '@/hooks/useSettings';
 import { formatCurrency, getCurrencySymbol } from '@/utils/currency';
@@ -24,93 +24,301 @@ import { MaterialNameInput } from '@/components/MaterialNameInput';
 import { useToast } from '@/components/ui/use-toast';
 import { Card, CardContent } from '@/components/ui/card';
 import { VariantBuilder, type Variant } from '@/components/products/VariantBuilder';
+import { useProducts } from '@/hooks/useProducts';
+import { useProductPricing } from '@/hooks/useProductPricing';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
-// Schemas
+// --- Types & Schemas ---
+
+const materialItemSchema = z.object({
+  name: z.string().min(1, 'Name is required'),
+  quantity: z.number().min(0, 'Quantity must be positive'),
+  unit: z.string().min(1, 'Unit is required'),
+  price_per_unit: z.number().min(0),
+  quantity_type: z.enum(['exact', 'percentage']).default('exact'),
+  quantity_percentage: z.number().min(0).max(100).optional(),
+  per_batch: z.boolean().default(false),
+  units_made: z.number().min(1).default(1),
+  user_material_id: z.number().optional(),
+  stock_level: z.number().optional(), // Used for display/validation
+});
+
+const laborItemSchema = z.object({
+  activity: z.string().min(1, 'Activity is required'),
+  time_minutes: z.number().min(0),
+  hourly_rate: z.number().min(0),
+  per_batch: z.boolean().default(false),
+});
+
+const otherCostItemSchema = z.object({
+  item: z.string().min(1, 'Item is required'),
+  quantity: z.number().min(0),
+  cost: z.number().min(0),
+  per_batch: z.boolean().default(false),
+});
+
 const productSchema = z.object({
   name: z.string().min(1, 'Product name is required'),
   sku: z.string().optional(),
   batch_size: z.number().int().positive().min(1).default(1),
-  target_price: z.number().positive().optional(),
+  target_price: z.number().nonnegative().optional(),
+  materials: z.array(materialItemSchema),
+  labor_costs: z.array(laborItemSchema),
+  other_costs: z.array(otherCostItemSchema),
 });
 
 type ProductFormValues = z.infer<typeof productSchema>;
 
-interface Material {
-  id: string;
-  name: string;
-  quantity: number;
-  unit: string;
-  price_per_unit: number;
-  quantity_type: 'exact' | 'percentage';
-  quantity_percentage?: number;
-  per_batch: boolean;
-  units_made: number;
-  user_material_id?: number;
-  stock_level?: number;
+// --- Helper Functions ---
+
+const formatNumberDisplay = (val: number | undefined | null): string => {
+  if (val === null || val === undefined) return '-';
+  // Remove trailing zeros
+  return val.toString().replace(/(\.[0-9]*?)0+$/, '$1').replace(/\.$/, '');
+};
+
+
+// --- Sub-components for Adding Items ---
+
+function AddMaterialForm({ onAdd, settings }: { onAdd: (data: z.infer<typeof materialItemSchema>) => void, settings: any }) {
+  // Local state for the add form inputs
+  const [name, setName] = useState('');
+  const [quantity, setQuantity] = useState('');
+  const [unit, setUnit] = useState('pcs');
+  const [price, setPrice] = useState('');
+  const [qtyType, setQtyType] = useState<'exact' | 'percentage'>('exact');
+  const [percentage, setPercentage] = useState('10');
+  const [perBatch, setPerBatch] = useState(false);
+  const [unitsMade, setUnitsMade] = useState('1');
+  const [selectedMaterial, setSelectedMaterial] = useState<any>(null);
+
+  const handleAdd = () => {
+    if (!name) return;
+
+    const finalQty = qtyType === 'exact' ? parseFloat(quantity) || 0 : 0;
+    const finalPercentage = qtyType === 'percentage' ? parseFloat(percentage) : undefined;
+    const finalUnitsMade = (qtyType === 'percentage' && perBatch) ? 1 : parseInt(unitsMade) || 1;
+
+    onAdd({
+      name,
+      quantity: finalQty,
+      unit,
+      price_per_unit: parseFloat(price) || 0,
+      quantity_type: qtyType,
+      quantity_percentage: finalPercentage,
+      per_batch: perBatch,
+      units_made: finalUnitsMade,
+      user_material_id: selectedMaterial?.id,
+      stock_level: selectedMaterial?.stock_level,
+    });
+
+    // Reset form
+    setName('');
+    setQuantity('');
+    setUnit('pcs');
+    setPrice('');
+    setQtyType('exact');
+    setPercentage('10');
+    setPerBatch(false);
+    setUnitsMade('1');
+    setSelectedMaterial(null);
+  };
+
+  const handleMaterialSelect = (material: any) => {
+    setSelectedMaterial(material);
+    setName(material.name);
+    setUnit(material.unit || 'pcs');
+    setPrice(material.price_per_unit?.toString() || '');
+    if (material.is_percentage_type) {
+      setQtyType('percentage');
+    }
+  };
+
+  return (
+    <div className="space-y-3 p-4 border rounded-lg bg-muted/20">
+      <div>
+        <label className="text-xs text-muted-foreground">Material Name</label>
+        <MaterialNameInput
+          value={name}
+          onChange={setName}
+          onMaterialSelect={handleMaterialSelect}
+          placeholder="Search or add new material"
+          className="h-9"
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="text-xs text-muted-foreground flex items-center gap-1">
+            Qty
+            <Tabs value={qtyType} onValueChange={(v) => setQtyType(v as 'exact' | 'percentage')}>
+              <TabsList className="h-5">
+                <TabsTrigger value="exact" className="text-[10px] px-1.5 h-4">Qt</TabsTrigger>
+                <TabsTrigger value="percentage" className="text-[10px] px-1.5 h-4">%</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </label>
+          {qtyType === 'exact' ? (
+            <Input type="number" step="0.01" placeholder="0" value={quantity} onChange={e => setQuantity(e.target.value)} className="h-9" />
+          ) : (
+            <Select value={percentage} onValueChange={setPercentage}>
+              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {[10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map(p => <SelectItem key={p} value={p.toString()}>{p}%</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+        <div>
+          <label className="text-xs text-muted-foreground">Unit</label>
+          <Select value={unit} onValueChange={setUnit}>
+            <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {['pcs', 'mm', 'cm', 'm', 'ml', 'L', 'g', 'kg'].map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="text-xs text-muted-foreground">Price/Unit ({getCurrencySymbol(settings.currency)})</label>
+          <Input type="number" step="0.01" placeholder="0.00" value={price} onChange={e => setPrice(e.target.value)} disabled={!!selectedMaterial} className="h-9" />
+        </div>
+        {!(qtyType === 'percentage' && perBatch) && (
+          <div>
+            <label className="text-xs text-muted-foreground">Items Made</label>
+            <Input type="number" min="1" value={unitsMade} onChange={e => setUnitsMade(e.target.value)} className="h-9" />
+          </div>
+        )}
+      </div>
+
+      <div className="flex items-center gap-1.5">
+        <Checkbox checked={perBatch} onCheckedChange={(c) => setPerBatch(!!c)} id="mat-batch" />
+        <label htmlFor="mat-batch" className="text-xs">Per batch</label>
+      </div>
+      <Button type="button" size="sm" className="w-full" onClick={handleAdd}><Plus className="h-3 w-3 mr-1" /> Add</Button>
+    </div>
+  );
 }
 
-interface Labor {
-  id: string;
-  activity: string;
-  time_minutes: number;
-  hourly_rate: number;
-  per_batch: boolean;
+function AddLaborForm({ onAdd, settings }: { onAdd: (data: z.infer<typeof laborItemSchema>) => void, settings: any }) {
+  const [activity, setActivity] = useState('');
+  const [minutes, setMinutes] = useState('');
+  const [rate, setRate] = useState(settings.labor_hourly_cost?.toString() || '50');
+  const [perBatch, setPerBatch] = useState(false);
+
+  // Update rate if default settings change and user hasn't typed
+  useEffect(() => {
+    if (settings.labor_hourly_cost && rate === '50') {
+      setRate(settings.labor_hourly_cost.toString());
+    }
+  }, [settings.labor_hourly_cost]);
+
+  const handleAdd = () => {
+    if (!activity || !minutes) return;
+
+    onAdd({
+      activity,
+      time_minutes: parseInt(minutes) || 0,
+      hourly_rate: parseFloat(rate) || 0,
+      per_batch: perBatch
+    });
+
+    setActivity('');
+    setMinutes('');
+    setPerBatch(false);
+    // Keep the rate as is or reset to default? Usually reset to default is better for new entries
+    setRate(settings.labor_hourly_cost?.toString() || '50');
+  };
+
+  return (
+    <div className="space-y-3 p-4 border rounded-lg bg-muted/20">
+      <div>
+        <label className="text-xs text-muted-foreground">Activity</label>
+        <Input placeholder="Assembly, Painting..." value={activity} onChange={e => setActivity(e.target.value)} className="h-9" />
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="text-xs text-muted-foreground">Minutes</label>
+          <Input type="number" placeholder="30" value={minutes} onChange={e => setMinutes(e.target.value)} className="h-9" />
+        </div>
+        <div>
+          <label className="text-xs text-muted-foreground">Rate/hr ({getCurrencySymbol(settings.currency)})</label>
+          <Input type="number" step="0.01" value={rate} onChange={e => setRate(e.target.value)} className="h-9" />
+        </div>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <Checkbox checked={perBatch} onCheckedChange={(c) => setPerBatch(!!c)} id="labor-batch" />
+        <label htmlFor="labor-batch" className="text-xs">Per batch</label>
+      </div>
+      <Button type="button" size="sm" className="w-full" onClick={handleAdd}><Plus className="h-3 w-3 mr-1" /> Add</Button>
+    </div>
+  );
 }
 
-interface OtherCost {
-  id: string;
-  item: string;
-  quantity: number;
-  cost: number;
-  per_batch: boolean;
+function AddOtherCostForm({ onAdd, settings }: { onAdd: (data: z.infer<typeof otherCostItemSchema>) => void, settings: any }) {
+  const [item, setItem] = useState('');
+  const [quantity, setQuantity] = useState('1');
+  const [cost, setCost] = useState('');
+  const [perBatch, setPerBatch] = useState(false);
+
+  const handleAdd = () => {
+    if (!item || !cost) return;
+    onAdd({
+      item,
+      quantity: parseFloat(quantity) || 1,
+      cost: parseFloat(cost) || 0,
+      per_batch: perBatch
+    });
+    setItem('');
+    setQuantity('1');
+    setCost('');
+    setPerBatch(false);
+  };
+
+  return (
+    <div className="space-y-3 p-4 border rounded-lg bg-muted/20">
+      <div>
+        <label className="text-xs text-muted-foreground">Item</label>
+        <Input placeholder="Packaging, Shipping..." value={item} onChange={e => setItem(e.target.value)} className="h-9" />
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="text-xs text-muted-foreground">Qty</label>
+          <Input type="number" value={quantity} onChange={e => setQuantity(e.target.value)} className="h-9" />
+        </div>
+        <div>
+          <label className="text-xs text-muted-foreground">Cost ({getCurrencySymbol(settings.currency)})</label>
+          <Input type="number" step="0.01" placeholder="0.00" value={cost} onChange={e => setCost(e.target.value)} className="h-9" />
+        </div>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <Checkbox checked={perBatch} onCheckedChange={(c) => setPerBatch(!!c)} id="other-batch" />
+        <label htmlFor="other-batch" className="text-xs">Per batch</label>
+      </div>
+      <Button type="button" size="sm" className="w-full" onClick={handleAdd}><Plus className="h-3 w-3 mr-1" /> Add</Button>
+    </div>
+  );
 }
 
-export default function CreateProduct2() {
+
+// --- Main Component ---
+
+export default function CreateProduct() {
   const navigate = useNavigate();
   const { setOpen } = useSidebar();
   const { settings } = useSettings();
   const { toast } = useToast();
+  const { createProduct } = useProducts();
+  // Helper used for display calculations, similar to Products page, but here we calculate on the fly
+  const { calculateProfitFromPrice } = useProductPricing();
 
-  const [materials, setMaterials] = useState<Material[]>([]);
-  const [laborCosts, setLaborCosts] = useState<Labor[]>([]);
-  const [otherCosts, setOtherCosts] = useState<OtherCost[]>([]);
   const [variants, setVariants] = useState<Variant[]>([]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Material form state
-  const [materialName, setMaterialName] = useState('');
-  const [materialQuantity, setMaterialQuantity] = useState('');
-  const [materialUnit, setMaterialUnit] = useState('pcs');
-  const [materialPrice, setMaterialPrice] = useState('');
-  const [materialQtyType, setMaterialQtyType] = useState<'exact' | 'percentage'>('exact');
-  const [materialPercentage, setMaterialPercentage] = useState('10');
-  const [materialPerBatch, setMaterialPerBatch] = useState(false);
-  const [materialUnitsMade, setMaterialUnitsMade] = useState('1');
-  const [selectedMaterial, setSelectedMaterial] = useState<any>(null);
-
-  // Labor form state
-  const [laborActivity, setLaborActivity] = useState('');
-  const [laborMinutes, setLaborMinutes] = useState('');
-  const [laborRate, setLaborRate] = useState(settings.labor_hourly_cost?.toString() || '50');
-  const [laborPerBatch, setLaborPerBatch] = useState(false);
-
-  // Collapse sidebar on mount
   useEffect(() => {
     setOpen(false);
   }, [setOpen]);
-
-  // Update labor rate when settings load
-  useEffect(() => {
-    if (settings.labor_hourly_cost) {
-      setLaborRate(settings.labor_hourly_cost.toString());
-    }
-  }, [settings.labor_hourly_cost]);
-
-  // Other cost form state
-  const [otherItem, setOtherItem] = useState('');
-  const [otherQuantity, setOtherQuantity] = useState('1');
-  const [otherCost, setOtherCost] = useState('');
-  const [otherPerBatch, setOtherPerBatch] = useState(false);
 
   const form = useForm<ProductFormValues>({
     resolver: zodResolver(productSchema),
@@ -119,13 +327,29 @@ export default function CreateProduct2() {
       sku: '',
       batch_size: 1,
       target_price: undefined,
-    },
+      materials: [],
+      labor_costs: [],
+      other_costs: []
+    }
   });
 
-  const batchSize = form.watch('batch_size') || 1;
+  const { control, handleSubmit, watch } = form;
 
-  // Calculate totals
-  const totalMaterialsCost = materials.reduce((sum, m) => {
+  // Arrays
+  const materialsArray = useFieldArray({ control, name: 'materials' });
+  const laborArray = useFieldArray({ control, name: 'labor_costs' });
+  const otherCostsArray = useFieldArray({ control, name: 'other_costs' });
+
+  // Watch values for live calculations
+  const batchSize = watch('batch_size') || 1;
+  const materials = watch('materials');
+  const laborCosts = watch('labor_costs');
+  const otherCosts = watch('other_costs');
+  const targetPrice = watch('target_price') || 0;
+
+  // --- Calculations ---
+
+  const calculateMaterialCost = (m: z.infer<typeof materialItemSchema>) => {
     const unitsMade = m.units_made || 1;
     let costPerProduct = 0;
     if (m.quantity_type === 'percentage' && m.quantity_percentage) {
@@ -138,109 +362,30 @@ export default function CreateProduct2() {
     } else {
       costPerProduct = (m.quantity * m.price_per_unit) / unitsMade;
     }
-    return sum + costPerProduct;
-  }, 0);
+    return costPerProduct;
+  };
 
-  const totalLaborCost = laborCosts.reduce((sum, l) => {
+  const calculateLaborCost = (l: z.infer<typeof laborItemSchema>) => {
     const cost = (l.time_minutes / 60) * l.hourly_rate;
-    return sum + (l.per_batch ? cost / batchSize : cost);
-  }, 0);
+    return l.per_batch ? cost / batchSize : cost;
+  };
 
-  const totalOtherCost = otherCosts.reduce((sum, o) => {
+  const calculateOtherCost = (o: z.infer<typeof otherCostItemSchema>) => {
     const cost = o.quantity * o.cost;
-    return sum + (o.per_batch ? cost / batchSize : cost);
-  }, 0);
+    return o.per_batch ? cost / batchSize : cost;
+  };
 
+  const totalMaterialsCost = materials?.reduce((sum, m) => sum + calculateMaterialCost(m), 0) || 0;
+  const totalLaborCost = laborCosts?.reduce((sum, l) => sum + calculateLaborCost(l), 0) || 0;
+  const totalOtherCost = otherCosts?.reduce((sum, o) => sum + calculateOtherCost(o), 0) || 0;
   const totalCostPerProduct = totalMaterialsCost + totalLaborCost + totalOtherCost;
 
-  // Add material
-  const addMaterial = () => {
-    if (!materialName) return;
+  const { profit, margin, markup } = calculateProfitFromPrice(targetPrice, totalCostPerProduct);
 
-    const quantity = materialQtyType === 'exact' ? parseFloat(materialQuantity) || 0 : 0;
-    const percentage = materialQtyType === 'percentage' ? parseFloat(materialPercentage) : undefined;
-    // For percentage per batch, units_made is always 1 (doesn't apply)
-    const unitsMade = (materialQtyType === 'percentage' && materialPerBatch)
-      ? 1
-      : parseInt(materialUnitsMade) || 1;
+  // --- Actions ---
 
-    const newMaterial: Material = {
-      id: crypto.randomUUID(),
-      name: materialName,
-      quantity,
-      unit: materialUnit,
-      price_per_unit: parseFloat(materialPrice) || 0,
-      quantity_type: materialQtyType,
-      quantity_percentage: percentage,
-      per_batch: materialPerBatch,
-      units_made: unitsMade,
-      user_material_id: selectedMaterial?.id,
-      stock_level: selectedMaterial?.stock_level,
-    };
-
-    setMaterials([...materials, newMaterial]);
-    resetMaterialForm();
-  };
-
-  const resetMaterialForm = () => {
-    setMaterialName('');
-    setMaterialQuantity('');
-    setMaterialUnit('pcs');
-    setMaterialPrice('');
-    setMaterialQtyType('exact');
-    setMaterialPercentage('10');
-    setMaterialPerBatch(false);
-    setMaterialUnitsMade('1');
-    setSelectedMaterial(null);
-  };
-
-  // Add labor
-  const addLabor = () => {
-    if (!laborActivity || !laborMinutes) return;
-
-    const newLabor: Labor = {
-      id: crypto.randomUUID(),
-      activity: laborActivity,
-      time_minutes: parseInt(laborMinutes) || 0,
-      hourly_rate: parseFloat(laborRate) || 0,
-      per_batch: laborPerBatch,
-    };
-
-    setLaborCosts([...laborCosts, newLabor]);
-    setLaborActivity('');
-    setLaborMinutes('');
-    setLaborPerBatch(false);
-    // Reset rate to settings default
-    setLaborRate(settings.labor_hourly_cost?.toString() || '50');
-  };
-
-  // Add other cost
-  const addOtherCost = () => {
-    if (!otherItem || !otherCost) return;
-
-    const newCost: OtherCost = {
-      id: crypto.randomUUID(),
-      item: otherItem,
-      quantity: parseFloat(otherQuantity) || 1,
-      cost: parseFloat(otherCost) || 0,
-      per_batch: otherPerBatch,
-    };
-
-    setOtherCosts([...otherCosts, newCost]);
-    setOtherItem('');
-    setOtherQuantity('1');
-    setOtherCost('');
-    setOtherPerBatch(false);
-  };
-
-  // Remove functions
-  const removeMaterial = (id: string) => setMaterials(materials.filter(m => m.id !== id));
-  const removeLabor = (id: string) => setLaborCosts(laborCosts.filter(l => l.id !== id));
-  const removeOther = (id: string) => setOtherCosts(otherCosts.filter(o => o.id !== id));
-
-  // Save material to library
-  const saveMaterialToLibrary = async (material: Material) => {
-    if (material.user_material_id) return; // Already in library
+  const saveMaterialToLibrary = async (material: z.infer<typeof materialItemSchema>, index: number) => {
+    if (material.user_material_id) return;
 
     try {
       let quantity = 0;
@@ -267,16 +412,11 @@ export default function CreateProduct2() {
 
       if (response.data.status === 'success') {
         const savedMaterial = response.data.data;
-
-        // Update the material in local state to link it to library
-        setMaterials(materials.map(m =>
-          m.id === material.id
-            ? { ...m, user_material_id: savedMaterial.id, stock_level: savedMaterial.stock_level || 0 }
-            : m
-        ));
+        // Update specific item in array
+        const updated = { ...material, user_material_id: savedMaterial.id, stock_level: savedMaterial.stock_level || 0 };
+        materialsArray.update(index, updated);
 
         toast({
-          variant: 'success',
           title: 'Material saved',
           description: `${material.name} has been added to your library.`,
         });
@@ -290,41 +430,8 @@ export default function CreateProduct2() {
     }
   };
 
-  // Handle material selection from library
-  const handleMaterialSelect = (material: any) => {
-    setSelectedMaterial(material);
-    setMaterialName(material.name);
-    setMaterialUnit(material.unit || 'pcs');
-    setMaterialPrice(material.price_per_unit?.toString() || '');
-    if (material.is_percentage_type) {
-      setMaterialQtyType('percentage');
-    }
-  };
 
-  // Calculate cost for display
-  const getMaterialCost = (m: Material) => {
-    const unitsMade = m.units_made || 1;
-    if (m.quantity_type === 'percentage' && m.quantity_percentage) {
-      const cost = m.price_per_unit * (m.quantity_percentage / 100);
-      return m.per_batch ? cost / batchSize : cost;
-    }
-    const cost = m.quantity * m.price_per_unit;
-    return cost / unitsMade;
-  };
-
-  const getLaborCost = (l: Labor) => {
-    const cost = (l.time_minutes / 60) * l.hourly_rate;
-    return l.per_batch ? cost / batchSize : cost;
-  };
-
-  const getOtherCost = (o: OtherCost) => {
-    const cost = o.quantity * o.cost;
-    return o.per_batch ? cost / batchSize : cost;
-  };
-
-  // Submit
   const onSubmit = async (data: ProductFormValues) => {
-    setIsSubmitting(true);
     try {
       // Determine pricing method and value from target_price if provided
       let pricing_method: 'price' | undefined = undefined;
@@ -342,28 +449,21 @@ export default function CreateProduct2() {
         target_price: data.target_price,
         pricing_method,
         pricing_value,
-        materials: materials.map(m => ({
-          name: m.name,
-          quantity: m.quantity || 0,
-          unit: m.unit,
-          price_per_unit: m.price_per_unit,
-          quantity_type: m.quantity_type,
-          quantity_percentage: m.quantity_percentage,
+        materials: data.materials.map(m => ({
+          ...m,
           quantity_per_item_or_batch: m.per_batch ? 'batch' : 'item',
-          user_material_id: m.user_material_id,
-          units_made: m.units_made || 1,
         })),
-        labor_costs: laborCosts.map(l => ({
+        labor_costs: data.labor_costs.map(l => ({
           activity: l.activity,
           time_spent_minutes: l.time_minutes,
           hourly_rate: l.hourly_rate,
-          per_unit: !l.per_batch,
+          per_unit: !l.per_batch
         })),
-        other_costs: otherCosts.map(o => ({
+        other_costs: data.other_costs.map(o => ({
           item: o.item,
           quantity: o.quantity,
           cost: o.cost,
-          per_unit: !o.per_batch,
+          per_unit: !o.per_batch
         })),
         variants: variants.map(v => ({
           name: v.name,
@@ -372,93 +472,55 @@ export default function CreateProduct2() {
           cost_override: v.cost_override,
           stock_level: v.stock_level,
           is_active: v.is_active,
-          attributes: v.attributes,
+          attributes: v.attributes
         })),
       };
 
-      await api.post('/products', productData);
-      toast({ variant: 'success', title: 'Product created successfully' });
+      await createProduct(productData);
+      toast({ title: 'Success', description: 'Product created successfully' });
       navigate('/products');
+
     } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Error', description: error.response?.data?.message || error.message });
-    } finally {
-      setIsSubmitting(false);
+      toast({ variant: 'destructive', title: 'Error', description: error.message || 'Failed to create product' });
     }
   };
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] overflow-hidden">
-      {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto p-6">
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
 
-            {/* Product Info Row */}
+            {/* Top Section */}
             <div className="grid grid-cols-4 gap-4 items-end">
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Product Name *</FormLabel>
-                    <FormControl>
-                      <Input placeholder="My Product" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="sku"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>SKU</FormLabel>
-                    <FormControl>
-                      <Input placeholder="SKU-001" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="batch_size"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Batch Size</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        min={1}
-                        {...field}
-                        onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="target_price"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Target Price ({getCurrencySymbol(settings.currency)})</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        placeholder="0.00"
-                        {...field}
-                        value={field.value || ''}
-                        onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : undefined)}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <FormField control={control} name="name" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Product Name *</FormLabel>
+                  <FormControl><Input placeholder="My Product" {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={control} name="sku" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>SKU</FormLabel>
+                  <FormControl><Input placeholder="SKU-001" {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={control} name="batch_size" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Batch Size</FormLabel>
+                  <FormControl><Input type="number" min={1} {...field} onChange={e => field.onChange(parseInt(e.target.value) || 1)} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={control} name="target_price" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Target Price ({getCurrencySymbol(settings.currency)})</FormLabel>
+                  <FormControl><Input type="number" step="0.01" placeholder="0.00" {...field} value={field.value || ''} onChange={e => field.onChange(parseFloat(e.target.value) || undefined)} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
             </div>
 
             {/* Variants Section */}
@@ -470,433 +532,132 @@ export default function CreateProduct2() {
               />
             </div>
 
-            {/* 3-Column Grid: Materials, Labor, Other */}
+            {/* 3 Columns */}
             <div className="grid grid-cols-3 gap-6">
 
-              {/* Materials Column */}
+              {/* Materials */}
               <div className="space-y-4">
-                <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                  <Package className="h-4 w-4" />
-                  Materials
-                </div>
+                <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground"><Package className="h-4 w-4" /> Materials</div>
+                <AddMaterialForm settings={settings} onAdd={(data) => materialsArray.append(data)} />
 
-                {/* Add Material Form */}
-                <div className="space-y-3 p-4 border rounded-lg bg-muted/20">
-                  <div>
-                    <label className="text-xs text-muted-foreground">Material Name</label>
-                    <MaterialNameInput
-                      value={materialName}
-                      onChange={setMaterialName}
-                      onMaterialSelect={handleMaterialSelect}
-                      placeholder="Search or add new material"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-xs text-muted-foreground flex items-center gap-1">
-                        Qty
-                        <Tabs value={materialQtyType} onValueChange={(v) => setMaterialQtyType(v as 'exact' | 'percentage')}>
-                          <TabsList className="h-5">
-                            <TabsTrigger value="exact" className="text-[10px] px-1.5 h-4">Qt</TabsTrigger>
-                            <TabsTrigger value="percentage" className="text-[10px] px-1.5 h-4">%</TabsTrigger>
-                          </TabsList>
-                        </Tabs>
-                      </label>
-                      {materialQtyType === 'exact' ? (
-                        <Input
-                          type="number"
-                          step="0.01"
-                          placeholder="0"
-                          value={materialQuantity}
-                          onChange={(e) => setMaterialQuantity(e.target.value)}
-                          className="h-9"
-                        />
-                      ) : (
-                        <Select value={materialPercentage} onValueChange={setMaterialPercentage}>
-                          <SelectTrigger className="h-9">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {[10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map(p => (
-                              <SelectItem key={p} value={p.toString()}>{p}%</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
-                    </div>
-                    <div>
-                      <label className="text-xs text-muted-foreground">Unit</label>
-                      <Select value={materialUnit} onValueChange={setMaterialUnit}>
-                        <SelectTrigger className="h-9">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {['pcs', 'mm', 'cm', 'm', 'ml', 'L', 'g', 'kg'].map(u => (
-                            <SelectItem key={u} value={u}>{u}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-xs text-muted-foreground">Price/Unit ({getCurrencySymbol(settings.currency)})</label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        placeholder="0.00"
-                        value={materialPrice}
-                        onChange={(e) => setMaterialPrice(e.target.value)}
-                        disabled={!!selectedMaterial}
-                        className="h-9"
-                      />
-                    </div>
-                    {/* Hide units_made when percentage + per batch */}
-                    {!(materialQtyType === 'percentage' && materialPerBatch) && (
-                      <div>
-                        <label className="text-xs text-muted-foreground">Items Made</label>
-                        <Input
-                          type="number"
-                          min={1}
-                          value={materialUnitsMade}
-                          onChange={(e) => setMaterialUnitsMade(e.target.value)}
-                          className="h-9"
-                        />
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-1.5">
-                    <Checkbox
-                      checked={materialPerBatch}
-                      onCheckedChange={(c) => setMaterialPerBatch(!!c)}
-                      id="mat-batch"
-                    />
-                    <label htmlFor="mat-batch" className="text-xs">Per batch</label>
-                  </div>
-
-                  <Button type="button" size="sm" className="w-full" onClick={addMaterial}>
-                    <Plus className="h-3 w-3 mr-1" /> Add
-                  </Button>
-                </div>
-
-                {/* Material Cards */}
                 <div className="space-y-2">
-                  {materials.map((m) => (
-                    <Card key={m.id} className="relative">
-                      <div className="absolute top-2 right-2 flex gap-1">
-                        {!m.user_material_id && (
-                          <button
-                            type="button"
-                            onClick={() => saveMaterialToLibrary(m)}
-                            className="text-muted-foreground hover:text-primary"
-                            title="Save to library"
-                          >
-                            <Save className="h-3 w-3" />
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => removeMaterial(m.id)}
-                          className="text-muted-foreground hover:text-destructive"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </div>
-                      <CardContent className="p-3">
-                        <div className="font-medium text-sm truncate pr-8">{m.name}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {m.quantity_type === 'percentage'
-                            ? `${m.quantity_percentage}%`
-                            : `${m.quantity} ${m.unit}`}
-                          {m.units_made > 1 && ` → ${m.units_made} items`}
-                          {m.per_batch && ' / batch'}
-                          {m.user_material_id && ' ✓'}
+                  {materialsArray.fields.map((field, index) => {
+                    // We need to get the actual value from the form data, not just the field (which is a snapshot)
+                    // Actually useFieldArray field has an id, but other props might be stale if we don't watch
+                    // But for simple display usually ok. Let's use the watched array for calculations
+                    const m = materials[index];
+                    if (!m) return null;
+
+                    return (
+                      <Card key={field.id} className="relative">
+                        <div className="absolute top-2 right-2 flex gap-1">
+                          {!m.user_material_id && (
+                            <button type="button" onClick={() => saveMaterialToLibrary(m, index)} className="text-muted-foreground hover:text-primary" title="Save to library"><Save className="h-3 w-3" /></button>
+                          )}
+                          <button type="button" onClick={() => materialsArray.remove(index)} className="text-muted-foreground hover:text-destructive"><X className="h-3 w-3" /></button>
                         </div>
-                        <div className="text-sm font-semibold text-primary mt-1">
-                          {formatCurrency(getMaterialCost(m), settings.currency)}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                        <CardContent className="p-3">
+                          <div className="font-medium text-sm truncate pr-8">{m.name}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {m.quantity_type === 'percentage' ? `${m.quantity_percentage}%` : `${m.quantity} ${m.unit}`}
+                            {m.units_made > 1 && ` → ${m.units_made} items`}
+                            {m.per_batch && ' / batch'}
+                            {m.user_material_id && ' ✓'}
+                          </div>
+                          <div className="text-sm font-semibold text-primary mt-1">
+                            {formatCurrency(calculateMaterialCost(m), settings.currency)}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
                 </div>
               </div>
 
-              {/* Labor Column */}
+              {/* Labor */}
               <div className="space-y-4">
-                <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                  <Clock className="h-4 w-4" />
-                  Labor
-                </div>
+                <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground"><Clock className="h-4 w-4" /> Labor</div>
+                <AddLaborForm settings={settings} onAdd={(data) => laborArray.append(data)} />
 
-                {/* Add Labor Form */}
-                <div className="space-y-3 p-4 border rounded-lg bg-muted/20">
-                  <div>
-                    <label className="text-xs text-muted-foreground">Activity</label>
-                    <Input
-                      placeholder="Assembly, Painting..."
-                      value={laborActivity}
-                      onChange={(e) => setLaborActivity(e.target.value)}
-                      className="h-9"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-xs text-muted-foreground">Minutes</label>
-                      <Input
-                        type="number"
-                        placeholder="30"
-                        value={laborMinutes}
-                        onChange={(e) => setLaborMinutes(e.target.value)}
-                        className="h-9"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs text-muted-foreground">Rate/hr ({getCurrencySymbol(settings.currency)})</label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={laborRate}
-                        onChange={(e) => setLaborRate(e.target.value)}
-                        className="h-9"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-1.5">
-                    <Checkbox
-                      checked={laborPerBatch}
-                      onCheckedChange={(c) => setLaborPerBatch(!!c)}
-                      id="labor-batch"
-                    />
-                    <label htmlFor="labor-batch" className="text-xs">Per batch</label>
-                  </div>
-
-                  <Button type="button" size="sm" className="w-full" onClick={addLabor}>
-                    <Plus className="h-3 w-3 mr-1" /> Add
-                  </Button>
-                </div>
-
-                {/* Labor Cards */}
                 <div className="space-y-2">
-                  {laborCosts.map((l) => (
-                    <Card key={l.id} className="relative">
-                      <button
-                        type="button"
-                        onClick={() => removeLabor(l.id)}
-                        className="absolute top-2 right-2 text-muted-foreground hover:text-destructive"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                      <CardContent className="p-3">
-                        <div className="font-medium text-sm truncate pr-4">{l.activity}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {l.time_minutes} min @ {formatCurrency(l.hourly_rate, settings.currency)}/hr
-                          {l.per_batch && ' / batch'}
-                        </div>
-                        <div className="text-sm font-semibold text-primary mt-1">
-                          {formatCurrency(getLaborCost(l), settings.currency)}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                  {laborArray.fields.map((field, index) => {
+                    const l = laborCosts[index];
+                    if (!l) return null;
+                    return (
+                      <Card key={field.id} className="relative">
+                        <button type="button" onClick={() => laborArray.remove(index)} className="absolute top-2 right-2 text-muted-foreground hover:text-destructive"><X className="h-3 w-3" /></button>
+                        <CardContent className="p-3">
+                          <div className="font-medium text-sm truncate pr-4">{l.activity}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {l.time_minutes} min @ {formatCurrency(l.hourly_rate, settings.currency)}/hr
+                            {l.per_batch && ' / batch'}
+                          </div>
+                          <div className="text-sm font-semibold text-primary mt-1">
+                            {formatCurrency(calculateLaborCost(l), settings.currency)}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
                 </div>
               </div>
 
-              {/* Other Costs Column */}
+              {/* Other Costs */}
               <div className="space-y-4">
-                <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                  <Receipt className="h-4 w-4" />
-                  Other Costs
-                </div>
+                <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground"><Receipt className="h-4 w-4" /> Other Costs</div>
+                <AddOtherCostForm settings={settings} onAdd={(data) => otherCostsArray.append(data)} />
 
-                {/* Add Other Cost Form */}
-                <div className="space-y-3 p-4 border rounded-lg bg-muted/20">
-                  <div>
-                    <label className="text-xs text-muted-foreground">Item</label>
-                    <Input
-                      placeholder="Packaging, Shipping..."
-                      value={otherItem}
-                      onChange={(e) => setOtherItem(e.target.value)}
-                      className="h-9"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-xs text-muted-foreground">Qty</label>
-                      <Input
-                        type="number"
-                        value={otherQuantity}
-                        onChange={(e) => setOtherQuantity(e.target.value)}
-                        className="h-9"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs text-muted-foreground">Cost ({getCurrencySymbol(settings.currency)})</label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        placeholder="0.00"
-                        value={otherCost}
-                        onChange={(e) => setOtherCost(e.target.value)}
-                        className="h-9"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-1.5">
-                    <Checkbox
-                      checked={otherPerBatch}
-                      onCheckedChange={(c) => setOtherPerBatch(!!c)}
-                      id="other-batch"
-                    />
-                    <label htmlFor="other-batch" className="text-xs">Per batch</label>
-                  </div>
-
-                  <Button type="button" size="sm" className="w-full" onClick={addOtherCost}>
-                    <Plus className="h-3 w-3 mr-1" /> Add
-                  </Button>
-                </div>
-
-                {/* Other Cost Cards */}
                 <div className="space-y-2">
-                  {otherCosts.map((o) => (
-                    <Card key={o.id} className="relative">
-                      <button
-                        type="button"
-                        onClick={() => removeOther(o.id)}
-                        className="absolute top-2 right-2 text-muted-foreground hover:text-destructive"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                      <CardContent className="p-3">
-                        <div className="font-medium text-sm truncate pr-4">{o.item}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {o.quantity} × {formatCurrency(o.cost, settings.currency)}
-                          {o.per_batch && ' / batch'}
-                        </div>
-                        <div className="text-sm font-semibold text-primary mt-1">
-                          {formatCurrency(getOtherCost(o), settings.currency)}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                  {otherCostsArray.fields.map((field, index) => {
+                    const o = otherCosts[index];
+                    if (!o) return null;
+                    return (
+                      <Card key={field.id} className="relative">
+                        <button type="button" onClick={() => otherCostsArray.remove(index)} className="absolute top-2 right-2 text-muted-foreground hover:text-destructive"><X className="h-3 w-3" /></button>
+                        <CardContent className="p-3">
+                          <div className="font-medium text-sm truncate pr-4">{o.item}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {o.quantity} × {formatCurrency(o.cost, settings.currency)}
+                            {o.per_batch && ' / batch'}
+                          </div>
+                          <div className="text-sm font-semibold text-primary mt-1">
+                            {formatCurrency(calculateOtherCost(o), settings.currency)}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
                 </div>
               </div>
+
             </div>
           </form>
         </Form>
       </div>
 
-      {/* Fixed Total Section at Bottom */}
+      {/* Bottom Bar */}
       <div className="shrink-0 bg-background border-t px-6 py-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
-        <div className="flex items-center">
-          {/* Cost Breakdown */}
+        <div className="flex items-center justify-between">
           <div className="flex gap-8">
             <div>
-              <div className="text-xs text-muted-foreground">Materials</div>
-              <div className="font-semibold">{formatCurrency(totalMaterialsCost, settings.currency)}</div>
-            </div>
-            <div>
-              <div className="text-xs text-muted-foreground">Labor</div>
-              <div className="font-semibold">{formatCurrency(totalLaborCost, settings.currency)}</div>
-            </div>
-            <div>
-              <div className="text-xs text-muted-foreground">Other</div>
-              <div className="font-semibold">{formatCurrency(totalOtherCost, settings.currency)}</div>
-            </div>
-            <div className="border-l pl-8">
               <div className="text-xs text-muted-foreground">Total Cost</div>
-              <div className="text-lg font-bold">{formatCurrency(totalCostPerProduct, settings.currency)}</div>
+              <div className="text-2xl font-bold text-primary">{formatCurrency(totalCostPerProduct, settings.currency)}</div>
+            </div>
+            <div className="h-10 w-px bg-border my-auto" />
+            <div className="grid grid-cols-3 gap-x-8 gap-y-1 text-sm">
+              <div className="text-muted-foreground">Profit:</div>
+              <div className={`col-span-2 font-medium ${profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatCurrency(profit, settings.currency)}</div>
+
+              <div className="text-muted-foreground">Margin:</div>
+              <div className={`col-span-2 font-medium ${profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatNumberDisplay(margin)}%</div>
+
+              <div className="text-muted-foreground">Markup:</div>
+              <div className="col-span-2 font-medium">{formatNumberDisplay(markup)}%</div>
             </div>
           </div>
-
-          {/* Circular Metrics - Centered */}
-          {(() => {
-            const targetPrice = form.watch('target_price') || 0;
-            const profit = targetPrice - totalCostPerProduct;
-            const profitMargin = targetPrice > 0 ? (profit / targetPrice) * 100 : 0;
-            const markup = totalCostPerProduct > 0 ? (profit / totalCostPerProduct) * 100 : 0;
-            const hasData = totalCostPerProduct > 0 || targetPrice > 0;
-
-            return hasData ? (
-              <div className="flex-1 flex justify-center px-8">
-                <div className="flex gap-5 items-center">
-                  {/* Profit Circle - Teal/Mint tones */}
-                  <div className="flex flex-col items-center">
-                    <div
-                      className={`w-11 h-11 rounded-full flex items-center justify-center text-[11px] font-semibold border-[3px] ${profit > 0
-                        ? 'border-teal-300 bg-teal-50 text-teal-600'
-                        : profit < 0
-                          ? 'border-rose-300 bg-rose-50 text-rose-600'
-                          : 'border-gray-200 bg-gray-50 text-gray-400'
-                        }`}
-                    >
-                      {targetPrice > 0 ? formatCurrency(profit, settings.currency).replace(/[₪$€£]/g, '') : '-'}
-                    </div>
-                    <span className="text-[9px] text-muted-foreground mt-1">Profit</span>
-                  </div>
-
-                  {/* Margin Circle - Purple/Violet tones */}
-                  <div className="flex flex-col items-center">
-                    <div
-                      className={`w-11 h-11 rounded-full flex items-center justify-center text-[11px] font-semibold border-[3px] ${profitMargin >= 30
-                        ? 'border-violet-300 bg-violet-50 text-violet-600'
-                        : profitMargin >= 15
-                          ? 'border-purple-300 bg-purple-50 text-purple-600'
-                          : profitMargin > 0
-                            ? 'border-fuchsia-300 bg-fuchsia-50 text-fuchsia-600'
-                            : 'border-gray-200 bg-gray-50 text-gray-400'
-                        }`}
-                    >
-                      {targetPrice > 0 ? `${profitMargin.toFixed(0)}%` : '-'}
-                    </div>
-                    <span className="text-[9px] text-muted-foreground mt-1">Margin</span>
-                  </div>
-
-                  {/* Markup Circle - Rose/Pink tones */}
-                  <div className="flex flex-col items-center">
-                    <div
-                      className={`w-11 h-11 rounded-full flex items-center justify-center text-[11px] font-semibold border-[3px] ${markup >= 50
-                        ? 'border-pink-300 bg-pink-50 text-pink-600'
-                        : markup >= 25
-                          ? 'border-rose-300 bg-rose-50 text-rose-500'
-                          : markup > 0
-                            ? 'border-red-200 bg-red-50 text-red-400'
-                            : 'border-gray-200 bg-gray-50 text-gray-400'
-                        }`}
-                    >
-                      {targetPrice > 0 && totalCostPerProduct > 0 ? `${markup.toFixed(0)}%` : '-'}
-                    </div>
-                    <span className="text-[9px] text-muted-foreground mt-1">Markup</span>
-                  </div>
-
-                  {/* Target Price Display */}
-                  {targetPrice > 0 && (
-                    <div className="border-l pl-6 ml-3">
-                      <div className="text-[10px] text-muted-foreground">Sell Price</div>
-                      <div className="text-base font-bold text-primary">{formatCurrency(targetPrice, settings.currency)}</div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ) : <div className="flex-1" />;
-          })()}
-
-          <div className="flex gap-4">
-            <Button type="button" variant="outline" onClick={() => navigate('/products')}>
-              Cancel
-            </Button>
-            <Button
-              onClick={form.handleSubmit(onSubmit)}
-              disabled={isSubmitting || !form.watch('name')}
-            >
-              {isSubmitting ? 'Saving...' : 'Save Product'}
-            </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => navigate('/products')}>Cancel</Button>
+            <Button onClick={handleSubmit(onSubmit)}>Create Product</Button>
           </div>
         </div>
       </div>
