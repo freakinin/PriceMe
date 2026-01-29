@@ -16,7 +16,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/use-toast';
-import api from '@/lib/api';
+
 import { Save, Plus, X } from 'lucide-react';
 import { useSettings } from '@/hooks/useSettings';
 
@@ -67,12 +67,11 @@ const DEFAULT_METRIC_UNITS = ['ml', 'g', 'kg', 'pcs', 'm', 'cm', 'in'];
 const DEFAULT_IMPERIAL_UNITS = ['fl oz', 'oz', 'lb', 'pcs', 'in', 'ft', 'yd'];
 
 export default function Settings() {
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [customUnit, setCustomUnit] = useState('');
   const { toast } = useToast();
-  const { refetch: refetchSettings } = useSettings();
+  const { settings, loading: settingsLoading, error: settingsError, updateSettings } = useSettings();
 
   const form = useForm<SettingsFormValues>({
     resolver: zodResolver(settingsSchema),
@@ -89,94 +88,47 @@ export default function Settings() {
   const unitSystem = form.watch('unit_system') || 'metric';
   const selectedUnits = form.watch('units') || [];
 
+  // Update form when settings load
   useEffect(() => {
-    fetchSettings();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (settings) {
+      const units = settings.units && Array.isArray(settings.units) && settings.units.length > 0
+        ? settings.units
+        : (settings.unit_system === 'imperial' ? DEFAULT_IMPERIAL_UNITS : DEFAULT_METRIC_UNITS);
 
-  const fetchSettings = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const response = await api.get('/settings');
-      
-      console.log('Settings API response:', response.data);
-      
-      if (response.data && response.data.status === 'success') {
-        const settings = response.data.data;
-        const units = settings.units && Array.isArray(settings.units) && settings.units.length > 0
-          ? settings.units
-          : (settings.unit_system === 'imperial' ? DEFAULT_IMPERIAL_UNITS : DEFAULT_METRIC_UNITS);
-        
-        const unitSystem = settings.unit_system === 'imperial' || settings.unit_system === 'metric' 
-          ? settings.unit_system 
-          : 'metric';
-        
-        form.reset({
-          currency: settings.currency || 'USD',
-          tax_percentage: settings.tax_percentage || 0,
-          revenue_goal: settings.revenue_goal !== undefined ? settings.revenue_goal : null,
-          labor_hourly_cost: settings.labor_hourly_cost !== undefined ? settings.labor_hourly_cost : null,
-          unit_system: unitSystem,
-          units: Array.isArray(units) ? units : DEFAULT_METRIC_UNITS,
-        });
-        setError(null);
-      } else if (response.data && response.data.status === 'error') {
-        setError(response.data.message || 'Failed to load settings');
-      }
-    } catch (err: any) {
-      console.error('Error fetching settings:', err);
-      if (err.response && err.response.status >= 400) {
-        setError(err.response?.data?.message || 'Failed to load settings');
-      } else if (!err.response) {
-        setError('Network error. Please check your connection.');
-      }
-      // Reset form to defaults on error
+      const unitSystem = settings.unit_system === 'imperial' || settings.unit_system === 'metric'
+        ? settings.unit_system
+        : 'metric';
+
       form.reset({
-        currency: 'USD',
-        tax_percentage: 0,
-        revenue_goal: null,
-        labor_hourly_cost: null,
-        unit_system: 'metric',
-        units: DEFAULT_METRIC_UNITS,
+        currency: settings.currency || 'USD',
+        tax_percentage: settings.tax_percentage || 0,
+        revenue_goal: settings.revenue_goal !== undefined ? settings.revenue_goal : null,
+        labor_hourly_cost: settings.labor_hourly_cost !== undefined ? settings.labor_hourly_cost : null,
+        unit_system: unitSystem,
+        units: Array.isArray(units) ? units : DEFAULT_METRIC_UNITS,
       });
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [settings, form]);
 
   const onSubmit = async (data: SettingsFormValues) => {
     try {
       setSaving(true);
       setError(null);
-      
-      const payload: any = {
+
+      await updateSettings({
         currency: data.currency,
         tax_percentage: data.tax_percentage,
         unit_system: data.unit_system,
         units: data.units,
-      };
+        revenue_goal: data.revenue_goal,
+        labor_hourly_cost: data.labor_hourly_cost,
+      });
 
-      if (data.revenue_goal !== null && data.revenue_goal !== undefined) {
-        payload.revenue_goal = data.revenue_goal;
-      }
-      if (data.labor_hourly_cost !== null && data.labor_hourly_cost !== undefined) {
-        payload.labor_hourly_cost = data.labor_hourly_cost;
-      }
-
-      console.log('Sending settings payload:', payload);
-      
-      const response = await api.put('/settings', payload);
-
-      if (response.data.status === 'success') {
-        toast({
-          variant: 'success',
-          title: 'Settings saved',
-          description: 'Your settings have been saved successfully.',
-        });
-        refetchSettings();
-        fetchSettings();
-      }
+      toast({
+        variant: 'success',
+        title: 'Settings saved',
+        description: 'Your settings have been saved successfully.',
+      });
     } catch (err: any) {
       console.error('Error saving settings:', err);
       const errorMessage = err.response?.data?.message || 'Failed to save settings';
@@ -239,7 +191,7 @@ export default function Settings() {
     return selectedUnits.filter(u => u && !curated.includes(u));
   };
 
-  if (loading) {
+  if (settingsLoading) {
     return (
       <div className="p-6">
         <Skeleton className="h-5 w-64 mb-6" />
@@ -254,18 +206,23 @@ export default function Settings() {
 
   return (
     <div className="p-6">
-        <p className="text-sm text-muted-foreground mb-6">Manage your application settings and defaults</p>
-        
-        {error && (
-          <div className="mb-4 rounded-lg border border-destructive bg-destructive/10 p-4">
-            <p className="text-destructive">{error}</p>
-          </div>
-        )}
+      <p className="text-sm text-muted-foreground mb-6">Manage your application settings and defaults</p>
+
+      {error && (
+        <div className="mb-4 rounded-lg border border-destructive bg-destructive/10 p-4">
+          <p className="text-destructive">{error}</p>
+        </div>
+      )}
+      {settingsError && (
+        <div className="mb-4 rounded-lg border border-destructive bg-destructive/10 p-4">
+          <p className="text-destructive">Failed to load settings: {settingsError}</p>
+        </div>
+      )}
 
       <div className="max-w-4xl">
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              <div className="grid grid-cols-2 gap-6">
+            <div className="grid grid-cols-2 gap-6">
               {/* Currency */}
               <FormField
                 control={form.control}
@@ -479,7 +436,7 @@ export default function Settings() {
             </div>
           </form>
         </Form>
-        </div>
+      </div>
     </div>
   );
 }

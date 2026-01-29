@@ -1,353 +1,200 @@
 import { useState, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ChevronRight, ChevronLeft, Plus, Trash2, Info, Edit, Check, X } from 'lucide-react';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { ChevronRight, ChevronLeft, Plus, Trash2 } from 'lucide-react';
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
-import api from '@/lib/api';
 import { useSettings } from '@/hooks/useSettings';
 import { formatCurrency, getCurrencySymbol } from '@/utils/currency';
 import { MaterialNameInput } from '@/components/MaterialNameInput';
 import { useToast } from '@/components/ui/use-toast';
+import { useProducts } from '@/hooks/useProducts';
+import { useQuery } from '@tanstack/react-query';
+import api from '@/lib/api';
 
-const step1Schema = z.object({
+// --- Validation Schemas ---
+
+const materialItemSchema = z.object({
+  name: z.string().min(1, 'Name is required'),
+  quantity: z.number().min(0, 'Quantity must be positive'),
+  unit: z.string().min(1, 'Unit is required'),
+  price_per_unit: z.number().min(0),
+  units_made: z.number().min(1).default(1),
+  user_material_id: z.number().optional(),
+});
+
+const laborItemSchema = z.object({
+  activity: z.string().min(1, 'Activity is required'),
+  time_spent_minutes: z.number().min(0),
+  hourly_rate: z.number().min(0),
+  per_unit: z.boolean().default(true),
+});
+
+const otherCostItemSchema = z.object({
+  item: z.string().min(1, 'Item is required'),
+  quantity: z.number().min(0),
+  cost: z.number().min(0),
+  per_unit: z.boolean().default(true),
+});
+
+const productSchema = z.object({
   name: z.string().min(1, 'Product name is required'),
   sku: z.string().optional(),
   description: z.string().optional(),
   category: z.string().optional(),
-  batch_size: z.preprocess(
-    (val) => (val === '' || val === null || val === undefined ? 1 : Number(val)),
-    z.number().int().positive().min(1, 'Batch size must be at least 1')
-  ),
-  target_price: z.preprocess(
-    (val) => (val === '' || val === null || val === undefined ? undefined : Number(val)),
-    z.number().positive('Target price must be greater than 0').optional()
-  ),
+  batch_size: z.number().int().min(1, 'Batch size must be at least 1'),
+  target_price: z.number().optional(),
   pricing_method: z.enum(['markup', 'price', 'profit', 'margin']).optional(),
-  pricing_value: z.number().nonnegative().optional(),
+  pricing_value: z.number().optional(),
+  materials: z.array(materialItemSchema),
+  labor_costs: z.array(laborItemSchema),
+  other_costs: z.array(otherCostItemSchema),
 });
 
-const materialSchema = z.object({
-  name: z.string().min(1, 'Material name is required'),
-  quantity: z.preprocess(
-    (val) => (val === '' || val === null || val === undefined ? 0 : Number(val)),
-    z.number().positive('Quantity must be greater than 0')
-  ),
-  unit: z.string().min(1, 'Unit is required'),
-  price_per_unit: z.preprocess(
-    (val) => (val === '' || val === null || val === undefined ? 0 : Number(val)),
-    z.number().nonnegative('Price must be 0 or greater')
-  ),
-  units_made: z.preprocess(
-    (val) => (val === '' || val === null || val === undefined ? 1 : Number(val)),
-    z.number().positive('Units made must be greater than 0')
-  ),
-});
+type ProductFormValues = z.infer<typeof productSchema>;
 
-const laborSchema = z.object({
-  activity: z.string().min(1, 'Activity name is required'),
-  time_spent_minutes: z.number().int().positive('Time must be greater than 0'),
-  hourly_rate: z.number().nonnegative('Hourly rate must be 0 or greater'),
-  per_unit: z.boolean().default(true),
-});
+// --- Helper Functions ---
 
-const otherCostSchema = z.object({
-  item: z.string().min(1, 'Item name is required'),
-  quantity: z.number().positive('Quantity must be greater than 0'),
-  cost: z.number().nonnegative('Cost must be 0 or greater'),
-  per_unit: z.boolean().default(true),
-});
-
-type Step1FormValues = z.infer<typeof step1Schema>;
-type MaterialFormValues = z.infer<typeof materialSchema> & { total_cost?: number; id?: number; user_material_id?: number; width?: number; length?: number; units_made?: number };
-type LaborFormValues = z.infer<typeof laborSchema> & { total_cost?: number; id?: number };
-type OtherCostFormValues = z.infer<typeof otherCostSchema> & { total_cost?: number; id?: number };
-
-// Helper function to format numbers and remove trailing zeros
-const formatNumberDisplay = (val: string | number | null | undefined): string => {
+const formatNumberDisplay = (val: number | undefined | null): string => {
   if (val === null || val === undefined) return '-';
-  let num: number;
-  if (typeof val === 'number') {
-    num = val;
-  } else {
-    num = parseFloat(val);
-    if (isNaN(num)) return val.toString();
-  }
-  // Remove trailing zeros: 4.0000 -> 4, 4.5000 -> 4.5, 4.1230 -> 4.123
-  return num % 1 === 0 
-    ? num.toString() 
-    : num.toString().replace(/\.?0+$/, '');
+  // Remove trailing zeros
+  return val.toString().replace(/(\.[0-9]*?)0+$/, '$1').replace(/\.$/, '');
 };
 
-// Inline editable row components
-function EditableMaterialRow({ 
-  material, 
-  onSave, 
-  onCancel 
-}: { 
-  material: MaterialFormValues; 
-  onSave: (data: MaterialFormValues) => void; 
-  onCancel: () => void;
-}) {
-  const { settings } = useSettings();
-  const [name, setName] = useState(material.name);
-  const [quantity, setQuantity] = useState(material.quantity);
-  const [unit, setUnit] = useState(material.unit);
-  const [pricePerUnit, setPricePerUnit] = useState(material.price_per_unit);
-  const [unitsMade, setUnitsMade] = useState(material.units_made || 1);
+// --- Sub-components for Adding Items ---
 
-  const handleSave = () => {
-    if (name && quantity > 0 && unit && pricePerUnit >= 0 && unitsMade > 0) {
-      onSave({ name, quantity, unit, price_per_unit: pricePerUnit, units_made: unitsMade });
-    }
+function AddMaterialForm({ onAdd }: { onAdd: (data: z.infer<typeof materialItemSchema>) => void }) {
+  const form = useForm<z.infer<typeof materialItemSchema>>({
+    resolver: zodResolver(materialItemSchema),
+    defaultValues: { name: '', quantity: 0, unit: '', price_per_unit: 0, units_made: 1 }
+  });
+
+  const handleSubmit = (data: z.infer<typeof materialItemSchema>) => {
+    onAdd(data);
+    form.reset({ name: '', quantity: 0, unit: '', price_per_unit: 0, units_made: 1, user_material_id: undefined });
   };
 
   return (
-    <tr className="border-t bg-muted/50">
-      <td className="p-2">
-        <Input
-          className="h-8 text-sm"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Material name"
-        />
-      </td>
-      <td className="p-2">
-        <Input
-          className="h-8 text-sm"
-          type="number"
-          step="0.01"
-          value={quantity}
-          onChange={(e) => setQuantity(parseFloat(e.target.value) || 0)}
-        />
-      </td>
-      <td className="p-2">
-        <Input
-          className="h-8 text-sm"
-          value={unit}
-          onChange={(e) => setUnit(e.target.value)}
-          placeholder="Unit"
-        />
-      </td>
-      <td className="p-2">
-        <Input
-          className="h-8 text-sm"
-          type="number"
-          step="0.01"
-          value={pricePerUnit}
-          onChange={(e) => setPricePerUnit(parseFloat(e.target.value) || 0)}
-        />
-      </td>
-      <td className="p-2">
-        <Input
-          className="h-8 text-sm"
-          type="number"
-          step="1"
-          min="1"
-          value={unitsMade}
-          onChange={(e) => setUnitsMade(parseFloat(e.target.value) || 1)}
-        />
-      </td>
-      <td className="p-2">
-        {formatCurrency((quantity * pricePerUnit) / unitsMade, settings.currency)}
-      </td>
-      <td className="p-2 text-right">
-        <div className="flex items-center justify-end gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 w-7 p-0"
-            onClick={handleSave}
-          >
-            <Check className="h-3 w-3 text-green-600" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 w-7 p-0"
-            onClick={onCancel}
-          >
-            <X className="h-3 w-3 text-destructive" />
-          </Button>
+    <Form {...form}>
+      <div className="space-y-3 border rounded-md p-3 bg-muted/20">
+        <div className="text-sm font-medium">Add Material</div>
+        <div className="grid grid-cols-2 gap-2">
+          <FormField control={form.control} name="name" render={({ field }) => (
+            <FormItem><FormControl>
+              <MaterialNameInput
+                {...field}
+                value={field.value}
+                className="h-8"
+                placeholder="Name"
+                onMaterialSelect={(m) => {
+                  form.setValue('name', m.name);
+                  form.setValue('unit', m.unit);
+                  form.setValue('price_per_unit', m.price_per_unit);
+                  form.setValue('user_material_id', m.id);
+                }}
+              />
+            </FormControl><FormMessage /></FormItem>
+          )} />
+          <FormField control={form.control} name="quantity" render={({ field }) => (
+            <FormItem><FormControl><Input {...field} type="number" step="any" className="h-8" placeholder="Qty" onChange={e => field.onChange(parseFloat(e.target.value) || 0)} /></FormControl><FormMessage /></FormItem>
+          )} />
+          <FormField control={form.control} name="unit" render={({ field }) => (
+            <FormItem><FormControl><Input {...field} className="h-8" placeholder="Unit" /></FormControl><FormMessage /></FormItem>
+          )} />
+          <FormField control={form.control} name="price_per_unit" render={({ field }) => (
+            <FormItem><FormControl><Input {...field} type="number" step="0.01" className="h-8" placeholder="Price/Unit" onChange={e => field.onChange(parseFloat(e.target.value) || 0)} /></FormControl><FormMessage /></FormItem>
+          )} />
+          <FormField control={form.control} name="units_made" render={({ field }) => (
+            <FormItem><FormControl><Input {...field} type="number" step="1" className="h-8" placeholder="Units Made" onChange={e => field.onChange(parseFloat(e.target.value) || 1)} /></FormControl><FormMessage /></FormItem>
+          )} />
         </div>
-      </td>
-    </tr>
+        <Button type="button" size="sm" variant="outline" onClick={form.handleSubmit(handleSubmit)}><Plus className="mr-2 h-3 w-3" /> Add</Button>
+      </div>
+    </Form>
   );
 }
 
-function EditableLaborRow({ 
-  labor, 
-  onSave, 
-  onCancel 
-}: { 
-  labor: LaborFormValues; 
-  onSave: (data: LaborFormValues) => void; 
-  onCancel: () => void;
-}) {
-  const { settings } = useSettings();
-  const [activity, setActivity] = useState(labor.activity);
-  const [timeSpent, setTimeSpent] = useState(labor.time_spent_minutes);
-  const [hourlyRate, setHourlyRate] = useState(labor.hourly_rate);
-  const [perUnit, setPerUnit] = useState(labor.per_unit);
+function AddLaborForm({ onAdd, currency }: { onAdd: (data: z.infer<typeof laborItemSchema>) => void, currency: string }) {
+  const form = useForm<z.infer<typeof laborItemSchema>>({
+    resolver: zodResolver(laborItemSchema),
+    defaultValues: { activity: '', time_spent_minutes: 0, hourly_rate: 0, per_unit: true }
+  });
 
-  const handleSave = () => {
-    if (activity && timeSpent > 0 && hourlyRate >= 0) {
-      onSave({ activity, time_spent_minutes: timeSpent, hourly_rate: hourlyRate, per_unit: perUnit });
-    }
+  const handleSubmit = (data: z.infer<typeof laborItemSchema>) => {
+    onAdd(data);
+    form.reset({ activity: '', time_spent_minutes: 0, hourly_rate: 0, per_unit: true });
   };
 
   return (
-    <tr className="border-t bg-muted/50">
-      <td className="p-2">
-        <Input
-          className="h-8 text-sm"
-          value={activity}
-          onChange={(e) => setActivity(e.target.value)}
-          placeholder="Activity"
-        />
-      </td>
-      <td className="p-2">
-        <Input
-          className="h-8 text-sm"
-          type="number"
-          min="1"
-          value={timeSpent}
-          onChange={(e) => setTimeSpent(parseInt(e.target.value) || 0)}
-        />
-      </td>
-      <td className="p-2">
-        <Input
-          className="h-8 text-sm"
-          type="number"
-          step="0.01"
-          value={hourlyRate}
-          onChange={(e) => setHourlyRate(parseFloat(e.target.value) || 0)}
-        />
-      </td>
-      <td className="p-2">
-        {formatCurrency((timeSpent / 60) * hourlyRate, settings.currency)}
-      </td>
-      <td className="p-2">
-        <Checkbox
-          checked={perUnit}
-          onCheckedChange={(checked) => setPerUnit(checked === true)}
-        />
-      </td>
-      <td className="p-2 text-right">
-        <div className="flex items-center justify-end gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 w-7 p-0"
-            onClick={handleSave}
-          >
-            <Check className="h-3 w-3 text-green-600" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 w-7 p-0"
-            onClick={onCancel}
-          >
-            <X className="h-3 w-3 text-destructive" />
-          </Button>
+    <Form {...form}>
+      <div className="space-y-3 border rounded-md p-3 bg-muted/20">
+        <div className="text-sm font-medium">Add Labor</div>
+        <div className="grid grid-cols-2 gap-2">
+          <FormField control={form.control} name="activity" render={({ field }) => (
+            <FormItem><FormControl><Input {...field} className="h-8" placeholder="Activity" /></FormControl><FormMessage /></FormItem>
+          )} />
+          <FormField control={form.control} name="time_spent_minutes" render={({ field }) => (
+            <FormItem><FormControl><Input {...field} type="number" className="h-8" placeholder="Minutes" onChange={e => field.onChange(parseFloat(e.target.value) || 0)} /></FormControl><FormMessage /></FormItem>
+          )} />
+          <FormField control={form.control} name="hourly_rate" render={({ field }) => (
+            <FormItem><FormControl><Input {...field} type="number" step="0.01" className="h-8" placeholder={`Rate (${getCurrencySymbol(currency)})`} onChange={e => field.onChange(parseFloat(e.target.value) || 0)} /></FormControl><FormMessage /></FormItem>
+          )} />
+          <FormField control={form.control} name="per_unit" render={({ field }) => (
+            <FormItem className="flex items-center space-x-2 space-y-0 border rounded p-1 bg-background"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl><FormLabel className="text-xs font-normal">Per Unit</FormLabel></FormItem>
+          )} />
         </div>
-      </td>
-    </tr>
+        <Button type="button" size="sm" variant="outline" onClick={form.handleSubmit(handleSubmit)}><Plus className="mr-2 h-3 w-3" /> Add</Button>
+      </div>
+    </Form>
   );
 }
 
-function EditableOtherCostRow({ 
-  cost, 
-  onSave, 
-  onCancel 
-}: { 
-  cost: OtherCostFormValues; 
-  onSave: (data: OtherCostFormValues) => void; 
-  onCancel: () => void;
-}) {
-  const { settings } = useSettings();
-  const [item, setItem] = useState(cost.item);
-  const [quantity, setQuantity] = useState(cost.quantity);
-  const [costValue, setCostValue] = useState(cost.cost);
-  const [perUnit, setPerUnit] = useState(cost.per_unit);
+function AddOtherCostForm({ onAdd, currency }: { onAdd: (data: z.infer<typeof otherCostItemSchema>) => void, currency: string }) {
+  const form = useForm<z.infer<typeof otherCostItemSchema>>({
+    resolver: zodResolver(otherCostItemSchema),
+    defaultValues: { item: '', quantity: 1, cost: 0, per_unit: true }
+  });
 
-  const handleSave = () => {
-    if (item && quantity > 0 && costValue >= 0) {
-      onSave({ item, quantity, cost: costValue, per_unit: perUnit });
-    }
+  const handleSubmit = (data: z.infer<typeof otherCostItemSchema>) => {
+    onAdd(data);
+    form.reset({ item: '', quantity: 1, cost: 0, per_unit: true });
   };
 
   return (
-    <tr className="border-t bg-muted/50">
-      <td className="p-2">
-        <Input
-          className="h-8 text-sm"
-          value={item}
-          onChange={(e) => setItem(e.target.value)}
-          placeholder="Item"
-        />
-      </td>
-      <td className="p-2">
-        <Input
-          className="h-8 text-sm"
-          type="number"
-          step="0.01"
-          value={quantity}
-          onChange={(e) => setQuantity(parseFloat(e.target.value) || 1)}
-        />
-      </td>
-      <td className="p-2">
-        <Input
-          className="h-8 text-sm"
-          type="number"
-          step="0.01"
-          value={costValue}
-          onChange={(e) => setCostValue(parseFloat(e.target.value) || 0)}
-        />
-      </td>
-      <td className="p-2">
-        {formatCurrency(quantity * costValue, settings.currency)}
-      </td>
-      <td className="p-2">
-        <Checkbox
-          checked={perUnit}
-          onCheckedChange={(checked) => setPerUnit(checked === true)}
-        />
-      </td>
-      <td className="p-2 text-right">
-        <div className="flex items-center justify-end gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 w-7 p-0"
-            onClick={handleSave}
-          >
-            <Check className="h-3 w-3 text-green-600" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 w-7 p-0"
-            onClick={onCancel}
-          >
-            <X className="h-3 w-3 text-destructive" />
-          </Button>
+    <Form {...form}>
+      <div className="space-y-3 border rounded-md p-3 bg-muted/20">
+        <div className="text-sm font-medium">Add Other Cost</div>
+        <div className="grid grid-cols-2 gap-2">
+          <FormField control={form.control} name="item" render={({ field }) => (
+            <FormItem><FormControl><Input {...field} className="h-8" placeholder="Item" /></FormControl><FormMessage /></FormItem>
+          )} />
+          <FormField control={form.control} name="quantity" render={({ field }) => (
+            <FormItem><FormControl><Input {...field} type="number" className="h-8" placeholder="Qty" onChange={e => field.onChange(parseFloat(e.target.value) || 0)} /></FormControl><FormMessage /></FormItem>
+          )} />
+          <FormField control={form.control} name="cost" render={({ field }) => (
+            <FormItem><FormControl><Input {...field} type="number" step="0.01" className="h-8" placeholder={`Cost (${getCurrencySymbol(currency)})`} onChange={e => field.onChange(parseFloat(e.target.value) || 0)} /></FormControl><FormMessage /></FormItem>
+          )} />
+          <FormField control={form.control} name="per_unit" render={({ field }) => (
+            <FormItem className="flex items-center space-x-2 space-y-0 border rounded p-1 bg-background"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl><FormLabel className="text-xs font-normal">Per Unit</FormLabel></FormItem>
+          )} />
         </div>
-      </td>
-    </tr>
+        <Button type="button" size="sm" variant="outline" onClick={form.handleSubmit(handleSubmit)}><Plus className="mr-2 h-3 w-3" /> Add</Button>
+      </div>
+    </Form>
   );
 }
+
+
+// --- Main Component ---
 
 interface EditProductPaneProps {
   productId: number | null;
@@ -359,350 +206,88 @@ interface EditProductPaneProps {
 export default function EditProductPane({ productId, open, onOpenChange, onSuccess }: EditProductPaneProps) {
   const { settings } = useSettings();
   const { toast } = useToast();
+  const { updateProduct } = useProducts();
   const [currentStep, setCurrentStep] = useState(1);
-  const [materials, setMaterials] = useState<MaterialFormValues[]>([]);
-  const [laborCosts, setLaborCosts] = useState<LaborFormValues[]>([]);
-  const [otherCosts, setOtherCosts] = useState<OtherCostFormValues[]>([]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [editingMaterialIndex, setEditingMaterialIndex] = useState<number | null>(null);
-  const [editingLaborIndex, setEditingLaborIndex] = useState<number | null>(null);
-  const [editingOtherCostIndex, setEditingOtherCostIndex] = useState<number | null>(null);
 
-  const step1Form = useForm<Step1FormValues>({
-    resolver: zodResolver(step1Schema),
+  // Fetch full product details
+  const { data: product, isLoading: isLoadingProduct } = useQuery({
+    queryKey: ['product', productId],
+    queryFn: async () => {
+      if (!productId) return null;
+      const res = await api.get(`/products/${productId}`);
+      return res.data.data;
+    },
+    enabled: !!productId && open,
+  });
+
+  const form = useForm<ProductFormValues>({
+    resolver: zodResolver(productSchema),
     defaultValues: {
       name: '',
       sku: '',
       batch_size: 1,
-      target_price: undefined,
-      pricing_method: undefined,
-      pricing_value: undefined,
-    },
-  });
-
-  const materialForm = useForm<MaterialFormValues>({
-    resolver: zodResolver(materialSchema),
-    defaultValues: {
-      name: '',
-      quantity: 0,
-      unit: '',
-      price_per_unit: 0,
-      units_made: 1,
-      user_material_id: undefined,
-    },
-  });
-
-  const laborForm = useForm<LaborFormValues>({
-    resolver: zodResolver(laborSchema),
-    defaultValues: {
-      activity: '',
-      time_spent_minutes: 0,
-      hourly_rate: 0,
-      per_unit: true,
-    },
-  });
-
-  const otherCostForm = useForm<OtherCostFormValues>({
-    resolver: zodResolver(otherCostSchema),
-    defaultValues: {
-      item: '',
-      quantity: 1,
-      cost: 0,
-      per_unit: true,
-    },
-  });
-
-  // Fetch product data when pane opens
-  useEffect(() => {
-    if (open && productId) {
-      fetchProductData();
-    } else if (!open) {
-      // Reset form when pane closes
-      setCurrentStep(1);
-      step1Form.reset();
-      setMaterials([]);
-      setLaborCosts([]);
-      setOtherCosts([]);
-      setEditingMaterialIndex(null);
-      setEditingLaborIndex(null);
-      setEditingOtherCostIndex(null);
-      materialForm.reset();
-      laborForm.reset();
-      otherCostForm.reset();
+      target_price: 0,
+      materials: [],
+      labor_costs: [],
+      other_costs: []
     }
-  }, [open, productId]);
+  });
 
-  const fetchProductData = async () => {
-    if (!productId) return;
-    
-    try {
-      setLoading(true);
-      const response = await api.get(`/products/${productId}`);
-      
-      if (response.data.status === 'success') {
-        const product = response.data.data;
-        
-        // Populate step 1 form - ensure numbers are converted properly
-        step1Form.reset({
-          name: product.name || '',
-          sku: product.sku || '',
-          description: product.description || '',
-          category: product.category || '',
-          batch_size: product.batch_size ? Number(product.batch_size) : 1,
-          target_price: product.target_price != null ? Number(product.target_price) : undefined,
-          pricing_method: product.pricing_method || undefined,
-          pricing_value: product.pricing_value != null ? Number(product.pricing_value) : undefined,
-        });
+  const { reset, control, handleSubmit } = form;
 
-        // Populate materials - ensure numbers are converted
-        const materialsData = (product.materials || []).map((m: any) => ({
-          ...m,
+  const materialsArray = useFieldArray({ control, name: 'materials' });
+  const laborArray = useFieldArray({ control, name: 'labor_costs' });
+  const otherCostsArray = useFieldArray({ control, name: 'other_costs' });
+
+  // Reset form when product loads or changes
+  useEffect(() => {
+    if (open && product) {
+      reset({
+        name: product.name,
+        sku: product.sku || '',
+        description: product.description || '',
+        category: product.category || '',
+        batch_size: product.batch_size || 1,
+        target_price: product.target_price || 0,
+        pricing_method: product.pricing_method || 'price',
+        pricing_value: product.pricing_value || 0,
+        materials: product.materials?.map((m: any) => ({
+          name: m.name,
           quantity: Number(m.quantity),
+          unit: m.unit,
           price_per_unit: Number(m.price_per_unit),
-          units_made: m.units_made ? Number(m.units_made) : 1,
-          total_cost: m.total_cost ? Number(m.total_cost) : undefined,
-          user_material_id: m.user_material_id || undefined,
-        }));
-        setMaterials(materialsData);
-        
-        // Populate labor costs - ensure numbers are converted
-        const laborData = (product.labor_costs || []).map((l: any) => ({
-          ...l,
+          units_made: Number(m.units_made || 1),
+          user_material_id: m.user_material_id
+        })) || [],
+        labor_costs: product.labor_costs?.map((l: any) => ({
+          activity: l.activity,
           time_spent_minutes: Number(l.time_spent_minutes),
           hourly_rate: Number(l.hourly_rate),
-          total_cost: l.total_cost ? Number(l.total_cost) : undefined,
-          per_unit: Boolean(l.per_unit),
-        }));
-        setLaborCosts(laborData);
-        
-        // Populate other costs - ensure numbers are converted
-        const otherCostsData = (product.other_costs || []).map((o: any) => ({
-          ...o,
+          per_unit: Boolean(l.per_unit ?? true)
+        })) || [],
+        other_costs: product.other_costs?.map((o: any) => ({
+          item: o.item,
           quantity: Number(o.quantity),
           cost: Number(o.cost),
-          total_cost: o.total_cost ? Number(o.total_cost) : undefined,
-          per_unit: Boolean(o.per_unit),
-        }));
-        setOtherCosts(otherCostsData);
-      }
-    } catch (error: any) {
-      console.error('Error fetching product:', error);
-      alert(error.response?.data?.message || 'Failed to load product data');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const onStep1Submit = (_data: Step1FormValues) => {
-    setCurrentStep(2);
-  };
-
-  const onStep2Submit = () => {
-    setCurrentStep(3);
-  };
-
-  const onStep3Submit = () => {
-    setCurrentStep(4);
-  };
-
-  const onAddMaterial = (data: MaterialFormValues) => {
-    const unitsMade = data.units_made || 1;
-    const totalCost = (data.quantity * data.price_per_unit) / unitsMade;
-    setMaterials([...materials, { ...data, total_cost: totalCost }]);
-    materialForm.reset();
-  };
-
-  const onSaveMaterialEdit = (index: number, updatedMaterial: MaterialFormValues) => {
-    const totalCost = updatedMaterial.quantity * updatedMaterial.price_per_unit;
-    const updatedMaterials = [...materials];
-    updatedMaterials[index] = { ...updatedMaterial, total_cost: totalCost };
-    setMaterials(updatedMaterials);
-    setEditingMaterialIndex(null);
-  };
-
-  const onEditMaterial = (index: number) => {
-    setEditingMaterialIndex(index);
-  };
-
-  const onCancelEditMaterial = () => {
-    setEditingMaterialIndex(null);
-  };
-
-  const onRemoveMaterial = (index: number) => {
-    setMaterials(materials.filter((_, i) => i !== index));
-    if (editingMaterialIndex === index) {
-      setEditingMaterialIndex(null);
-      materialForm.reset();
-    } else if (editingMaterialIndex !== null && editingMaterialIndex > index) {
-      setEditingMaterialIndex(editingMaterialIndex - 1);
-    }
-  };
-
-  const onAddLabor = (data: LaborFormValues) => {
-    const totalCost = (data.time_spent_minutes / 60) * data.hourly_rate;
-    setLaborCosts([...laborCosts, { ...data, total_cost: totalCost }]);
-    laborForm.reset();
-  };
-
-  const onSaveLaborEdit = (index: number, updatedLabor: LaborFormValues) => {
-    const totalCost = (updatedLabor.time_spent_minutes / 60) * updatedLabor.hourly_rate;
-    const updatedLaborList = [...laborCosts];
-    updatedLaborList[index] = { ...updatedLabor, total_cost: totalCost };
-    setLaborCosts(updatedLaborList);
-    setEditingLaborIndex(null);
-  };
-
-  const onEditLabor = (index: number) => {
-    setEditingLaborIndex(index);
-  };
-
-  const onCancelEditLabor = () => {
-    setEditingLaborIndex(null);
-  };
-
-  const onRemoveLabor = (index: number) => {
-    setLaborCosts(laborCosts.filter((_, i) => i !== index));
-    if (editingLaborIndex === index) {
-      setEditingLaborIndex(null);
-      laborForm.reset();
-    } else if (editingLaborIndex !== null && editingLaborIndex > index) {
-      setEditingLaborIndex(editingLaborIndex - 1);
-    }
-  };
-
-  const onAddOtherCost = (data: OtherCostFormValues) => {
-    const totalCost = data.quantity * data.cost;
-    setOtherCosts([...otherCosts, { ...data, total_cost: totalCost }]);
-    otherCostForm.reset();
-  };
-
-  const onSaveOtherCostEdit = (index: number, updatedCost: OtherCostFormValues) => {
-    const totalCost = updatedCost.quantity * updatedCost.cost;
-    const updatedCosts = [...otherCosts];
-    updatedCosts[index] = { ...updatedCost, total_cost: totalCost };
-    setOtherCosts(updatedCosts);
-    setEditingOtherCostIndex(null);
-  };
-
-  const onEditOtherCost = (index: number) => {
-    setEditingOtherCostIndex(index);
-  };
-
-  const onCancelEditOtherCost = () => {
-    setEditingOtherCostIndex(null);
-  };
-
-  const onRemoveOtherCost = (index: number) => {
-    setOtherCosts(otherCosts.filter((_, i) => i !== index));
-    if (editingOtherCostIndex === index) {
-      setEditingOtherCostIndex(null);
-      otherCostForm.reset();
-    } else if (editingOtherCostIndex !== null && editingOtherCostIndex > index) {
-      setEditingOtherCostIndex(editingOtherCostIndex - 1);
-    }
-  };
-
-  const onFinalSubmit = async () => {
-    console.log('onFinalSubmit called', { productId, isSubmitting });
-    
-    if (!productId) {
-      console.error('Product ID is missing');
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Product ID is missing. Please refresh the page.',
+          per_unit: Boolean(o.per_unit ?? true)
+        })) || []
       });
-      return;
+      setCurrentStep(1);
     }
-    
-    if (isSubmitting) {
-      console.log('Already submitting, ignoring click');
-      return;
-    }
-    
-    console.log('Starting submit...');
-    setIsSubmitting(true);
-    const step1Data = step1Form.getValues();
-    
+  }, [open, product, reset]);
+
+  const onFinalSubmit = async (data: ProductFormValues) => {
+    if (!productId) return;
     try {
-      const materialsData = materials.map(m => ({
-        name: m.name,
-        quantity: m.quantity,
-        unit: m.unit,
-        price_per_unit: m.price_per_unit,
-        units_made: m.units_made || 1,
-        user_material_id: m.user_material_id,
-      }));
-
-      const laborCostsData = laborCosts.map(l => ({
-        activity: l.activity,
-        time_spent_minutes: l.time_spent_minutes,
-        hourly_rate: l.hourly_rate,
-        per_unit: l.per_unit,
-      }));
-
-      const otherCostsData = otherCosts.map(o => ({
-        item: o.item,
-        quantity: o.quantity,
-        cost: o.cost,
-        per_unit: o.per_unit,
-      }));
-
-      // Call API to update product
-      await api.put(`/products/${productId}`, {
-        name: step1Data.name,
-        sku: step1Data.sku,
-        description: step1Data.description,
-        category: step1Data.category,
-        batch_size: step1Data.batch_size,
-        target_price: step1Data.target_price,
-        pricing_method: step1Data.pricing_method,
-        pricing_value: step1Data.pricing_value,
-        materials: materialsData,
-        labor_costs: laborCostsData,
-        other_costs: otherCostsData,
-      });
-
-      toast({
-        variant: 'success',
-        title: 'Success',
-        description: 'Product updated successfully',
-      });
+      await updateProduct({ id: productId, data });
+      toast({ title: 'Success', description: 'Product updated successfully' });
       onSuccess();
     } catch (error: any) {
-      console.error('Error updating product:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: error.response?.data?.message || 'Failed to update product. Please try again.',
-      });
-    } finally {
-      setIsSubmitting(false);
+      toast({ variant: 'destructive', title: 'Error', description: error.message || 'Failed to update field' });
     }
   };
 
-  // Calculations
-  const batchSize = step1Form.watch('batch_size');
-  const totalMaterialsCost = materials.reduce((sum, m) => {
-    const unitsMade = m.units_made || 1;
-    return sum + ((m.quantity * m.price_per_unit) / unitsMade);
-  }, 0);
-  const laborPerProduct = laborCosts
-    .filter(l => l.per_unit)
-    .reduce((sum, l) => sum + (l.total_cost || 0), 0);
-  const laborPerBatch = laborCosts
-    .filter(l => !l.per_unit)
-    .reduce((sum, l) => sum + (l.total_cost || 0), 0);
-  const totalLaborCostPerProduct = laborPerProduct + (batchSize > 0 ? laborPerBatch / batchSize : 0);
-  const otherCostsPerProduct = otherCosts
-    .filter(o => o.per_unit)
-    .reduce((sum, o) => sum + (o.total_cost || 0), 0);
-  const otherCostsPerBatch = otherCosts
-    .filter(o => !o.per_unit)
-    .reduce((sum, o) => sum + (o.total_cost || 0), 0);
-  const totalOtherCostsPerProduct = otherCostsPerProduct + (batchSize > 0 ? otherCostsPerBatch / batchSize : 0);
-  // const totalCostPerProduct = totalMaterialsCost + totalLaborCostPerProduct + totalOtherCostsPerProduct; // Unused for now
+  if (!productId) return null;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -711,812 +296,181 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
           <SheetTitle>Edit Product</SheetTitle>
         </SheetHeader>
 
-        {loading ? (
-          <div className="py-8 text-center text-muted-foreground">Loading...</div>
+        {isLoadingProduct || !product ? (
+          <div className="py-8 text-center text-muted-foreground">Loading product data...</div>
         ) : (
           <div className="mt-6 space-y-6">
-            {/* Compact Step Indicator - Clickable */}
-            <div className="flex items-center gap-1.5 text-xs">
-              <button
-                type="button"
-                onClick={() => setCurrentStep(1)}
-                className="flex items-center gap-1.5 hover:opacity-80 transition-opacity cursor-pointer"
-              >
-                <div className={`flex items-center justify-center w-4 h-4 rounded-full text-[10px] font-medium ${currentStep >= 1 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
-                  1
+            {/* Stepper */}
+            <div className="flex items-center gap-1.5 text-xs mb-6">
+              {[1, 2, 3, 4].map(step => (
+                <div key={step} className="flex items-center gap-1.5">
+                  {step > 1 && <div className="w-4 h-px bg-muted" />}
+                  <button type="button" onClick={() => setCurrentStep(step)} className="flex items-center gap-1.5 hover:opacity-80 transition-opacity">
+                    <div className={`flex items-center justify-center w-4 h-4 rounded-full text-[10px] font-medium ${currentStep >= step ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>{step}</div>
+                    <span className={currentStep >= step ? 'text-foreground' : 'text-muted-foreground'}>
+                      {step === 1 ? 'Basic' : step === 2 ? 'Materials' : step === 3 ? 'Labor' : 'Other'}
+                    </span>
+                  </button>
                 </div>
-                <span className={currentStep >= 1 ? 'text-foreground' : 'text-muted-foreground'}>Basic</span>
-              </button>
-              <div className="flex-1 h-px bg-muted max-w-4" />
-              <button
-                type="button"
-                onClick={() => setCurrentStep(2)}
-                className="flex items-center gap-1.5 hover:opacity-80 transition-opacity cursor-pointer"
-              >
-                <div className={`flex items-center justify-center w-4 h-4 rounded-full text-[10px] font-medium ${currentStep >= 2 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
-                  2
-                </div>
-                <span className={currentStep >= 2 ? 'text-foreground' : 'text-muted-foreground'}>Materials</span>
-              </button>
-              <div className="flex-1 h-px bg-muted max-w-4" />
-              <button
-                type="button"
-                onClick={() => setCurrentStep(3)}
-                className="flex items-center gap-1.5 hover:opacity-80 transition-opacity cursor-pointer"
-              >
-                <div className={`flex items-center justify-center w-4 h-4 rounded-full text-[10px] font-medium ${currentStep >= 3 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
-                  3
-                </div>
-                <span className={currentStep >= 3 ? 'text-foreground' : 'text-muted-foreground'}>Labor</span>
-              </button>
-              <div className="flex-1 h-px bg-muted max-w-4" />
-              <button
-                type="button"
-                onClick={() => setCurrentStep(4)}
-                className="flex items-center gap-1.5 hover:opacity-80 transition-opacity cursor-pointer"
-              >
-                <div className={`flex items-center justify-center w-4 h-4 rounded-full text-[10px] font-medium ${currentStep >= 4 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
-                  4
-                </div>
-                <span className={currentStep >= 4 ? 'text-foreground' : 'text-muted-foreground'}>Other</span>
-              </button>
+              ))}
             </div>
 
-            {/* Step 1: Basic Info */}
-            {currentStep === 1 && (
-              <div>
-                <h2 className="text-base font-semibold mb-3">Product Information</h2>
-                <Form {...step1Form}>
-                  <form onSubmit={step1Form.handleSubmit(onStep1Submit)} className="space-y-3">
-                    <div className="grid grid-cols-2 gap-3">
-                      <FormField
-                        control={step1Form.control}
-                        name="name"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-sm">Product Name *</FormLabel>
-                            <FormControl>
-                              <Input className="h-9" placeholder="e.g., Lavender Candle" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={step1Form.control}
-                        name="sku"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-sm flex items-center gap-1">
-                              SKU
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Info className="h-3 w-3 text-muted-foreground cursor-help" />
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p className="text-xs">Stock Keeping Unit</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                            </FormLabel>
-                            <FormControl>
-                              <Input className="h-9" placeholder="Optional" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={step1Form.control}
-                        name="batch_size"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-sm flex items-center gap-1">
-                              Batch Size *
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Info className="h-3 w-3 text-muted-foreground cursor-help" />
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p className="text-xs">Products per batch</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                            </FormLabel>
-                            <FormControl>
-                              <Input 
-                                className="h-9"
-                                type="number" 
-                                min="1"
-                                value={field.value === undefined || field.value === null ? '' : String(field.value)}
-                                onChange={(e) => {
-                                  const value = e.target.value;
-                                  field.onChange(value === '' ? 1 : parseInt(value) || 1);
-                                }}
-                                onBlur={field.onBlur}
-                                name={field.name}
-                                ref={field.ref}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={step1Form.control}
-                        name="target_price"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-sm">Target Price ({getCurrencySymbol(settings.currency)})</FormLabel>
-                            <FormControl>
-                              <Input 
-                                className="h-9"
-                                type="number" 
-                                step="0.01"
-                                placeholder="0.00"
-                                value={field.value === undefined || field.value === null ? '' : String(field.value)}
-                                onChange={(e) => {
-                                  const value = e.target.value;
-                                  field.onChange(value === '' ? undefined : parseFloat(value));
-                                }}
-                                onBlur={field.onBlur}
-                                name={field.name}
-                                ref={field.ref}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                    <div className="flex justify-between pt-2">
-                      <Button 
-                        type="button" 
-                        size="sm" 
-                        variant="default"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          onFinalSubmit();
-                        }}
-                        disabled={isSubmitting || !productId}
-                      >
-                        {isSubmitting ? 'Saving...' : 'Save'}
-                      </Button>
-                      <Button 
-                        type="submit" 
-                        size="sm"
-                      >
-                        Next: Materials
-                        <ChevronRight className="ml-2 h-3 w-3" />
-                      </Button>
-                    </div>
-                  </form>
-                </Form>
-              </div>
-            )}
+            <Form {...form}>
+              <form onSubmit={handleSubmit(onFinalSubmit)} className="space-y-6">
 
-            {/* Step 2: Materials */}
-            {currentStep === 2 && (
-              <div className="space-y-4">
-                <h2 className="text-base font-semibold">Materials</h2>
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t" />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-background px-2 text-muted-foreground">Or add manually</span>
-                  </div>
-                </div>
-                <Form {...materialForm}>
-                  <form onSubmit={materialForm.handleSubmit(onAddMaterial)} className="space-y-3">
-                    <div className="grid grid-cols-2 gap-2">
-                      <FormField
-                        control={materialForm.control}
-                        name="name"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-sm">Name *</FormLabel>
-                            <FormControl>
-                              <MaterialNameInput
-                                value={field.value || ''}
-                                onChange={(value) => {
-                                  field.onChange(value);
-                                }}
-                                onMaterialSelect={(material) => {
-                                  // Auto-fill unit, price_per_unit, and user_material_id if material is selected from library
-                                  materialForm.setValue('unit', material.unit);
-                                  materialForm.setValue('price_per_unit', material.price_per_unit);
-                                  materialForm.setValue('user_material_id', material.id);
-                                }}
-                                onAddToLibrary={async (name) => {
-                                  // Optionally add to library
-                                  toast({
-                                    variant: 'success',
-                                    title: 'Note',
-                                    description: `Using "${name}". You can add it to your library later from the Materials page.`,
-                                  });
-                                }}
-                                placeholder="Search or type material name..."
-                                className="h-9"
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={materialForm.control}
-                        name="quantity"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-sm">Quantity *</FormLabel>
-                            <FormControl>
-                              <Input 
-                                className="h-9"
-                                type="number" 
-                                step="0.01"
-                                {...field}
-                                onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={materialForm.control}
-                        name="unit"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-sm">Unit *</FormLabel>
-                            <FormControl>
-                              <Input className="h-9" placeholder="g, ml, etc." {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={materialForm.control}
-                        name="price_per_unit"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-sm">Price/Unit *</FormLabel>
-                            <FormControl>
-                              <Input 
-                                className="h-9"
-                                type="number" 
-                                step="0.01"
-                                {...field}
-                                onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={materialForm.control}
-                        name="units_made"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-sm flex items-center gap-1">
-                              Units Made *
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Info className="h-3 w-3 text-muted-foreground cursor-help" />
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p>Number of products from this quantity</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                            </FormLabel>
-                            <FormControl>
-                              <Input 
-                                className="h-9"
-                                type="number" 
-                                step="1"
-                                min="1"
-                                {...field}
-                                value={field.value ?? ''}
-                                onChange={(e) => {
-                                  const value = e.target.value;
-                                  field.onChange(value === '' ? 1 : parseFloat(value) || 1);
-                                }}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                {/* Step 1: Basic Info */}
+                {currentStep === 1 && (
+                  <div className="space-y-4">
+                    <FormField control={control} name="name" render={({ field }) => (
+                      <FormItem><FormLabel>Product Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                    )} />
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField control={control} name="sku" render={({ field }) => (
+                        <FormItem><FormLabel>SKU</FormLabel><FormControl><Input {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>
+                      )} />
+                      <FormField control={control} name="batch_size" render={({ field }) => (
+                        <FormItem><FormLabel>Batch Size</FormLabel><FormControl><Input {...field} type="number" min="1" onChange={e => field.onChange(parseInt(e.target.value) || 1)} /></FormControl><FormMessage /></FormItem>
+                      )} />
                     </div>
-                    <Button type="submit" variant="outline" size="sm">
-                      <Plus className="mr-2 h-3 w-3" />
-                      Add Material
-                    </Button>
-                  </form>
-                </Form>
-
-                {materials.length > 0 && (
-                  <div className="mt-4 border rounded-lg">
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead className="bg-slate-100 dark:bg-slate-800">
-                          <tr>
-                            <th className="text-left p-2 text-xs font-medium">Material</th>
-                            <th className="text-left p-2 text-xs font-medium">Qty</th>
-                            <th className="text-left p-2 text-xs font-medium">Unit</th>
-                            <th className="text-left p-2 text-xs font-medium">Price</th>
-                            <th className="text-left p-2 text-xs font-medium">Units Made</th>
-                            <th className="text-left p-2 text-xs font-medium">Cost</th>
-                            <th className="text-right p-2 text-xs font-medium">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {materials.map((material, index) => (
-                            editingMaterialIndex === index ? (
-                              <EditableMaterialRow
-                                key={index}
-                                material={material}
-                                onSave={(updated) => onSaveMaterialEdit(index, updated)}
-                                onCancel={onCancelEditMaterial}
-                              />
-                            ) : (
-                              <tr key={index} className="border-t">
-                                <td className="p-2">
-                                  <div>
-                                    <div className="font-medium">{material.name}</div>
-                                    {(material as any).width && (material as any).length && (
-                                      <div className="text-xs text-muted-foreground">
-                                        {formatNumberDisplay((material as any).width)} × {formatNumberDisplay((material as any).length)} {material.unit === 'm²' || material.unit === 'ft²' ? material.unit.replace('²', '') : material.unit}
-                                      </div>
-                                    )}
-                                  </div>
-                                </td>
-                                <td className="p-2">{formatNumberDisplay(material.quantity)}</td>
-                                <td className="p-2">{material.unit}</td>
-                                <td className="p-2">{formatCurrency(material.price_per_unit, settings.currency)}</td>
-                                <td className="p-2">{formatNumberDisplay(material.units_made || 1)}</td>
-                                <td className="p-2 font-medium">{formatCurrency(material.total_cost || 0, settings.currency)}</td>
-                                <td className="p-2 text-right">
-                                  <div className="flex items-center justify-end gap-1">
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-7 w-7 p-0"
-                                      onClick={() => onEditMaterial(index)}
-                                    >
-                                      <Edit className="h-3 w-3" />
-                                    </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-7 w-7 p-0"
-                                      onClick={() => onRemoveMaterial(index)}
-                                    >
-                                      <Trash2 className="h-3 w-3 text-destructive" />
-                                    </Button>
-                                  </div>
-                                </td>
-                              </tr>
-                            )
-                          ))}
-                        </tbody>
-                        <tfoot className="bg-slate-100 dark:bg-slate-800">
-                          <tr>
-                            <td colSpan={3} className="p-2 text-right text-xs font-medium">Total:</td>
-                            <td className="p-2 font-medium">{formatCurrency(totalMaterialsCost, settings.currency)}</td>
-                            <td></td>
-                          </tr>
-                        </tfoot>
-                      </table>
-                    </div>
+                    <FormField control={control} name="target_price" render={({ field }) => (
+                      <FormItem><FormLabel>Target Price ({getCurrencySymbol(settings?.currency || 'USD')})</FormLabel><FormControl><Input {...field} value={field.value || ''} type="number" step="0.01" onChange={e => field.onChange(parseFloat(e.target.value) || 0)} /></FormControl><FormMessage /></FormItem>
+                    )} />
                   </div>
                 )}
 
-                <div className="flex justify-between pt-2">
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => setCurrentStep(1)}>
-                      <ChevronLeft className="mr-2 h-3 w-3" />
-                      Back
-                    </Button>
-                    <Button 
-                      type="button" 
-                      size="sm" 
-                      variant="default"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        onFinalSubmit();
-                      }}
-                      disabled={isSubmitting || !productId}
-                    >
-                      {isSubmitting ? 'Saving...' : 'Save'}
-                    </Button>
-                  </div>
-                  <Button size="sm" onClick={onStep2Submit}>
-                    Next: Labor
-                    <ChevronRight className="ml-2 h-3 w-3" />
-                  </Button>
-                </div>
-              </div>
-            )}
+                {/* Step 2: Materials */}
+                {currentStep === 2 && (
+                  <div className="space-y-4">
+                    <AddMaterialForm onAdd={(data) => materialsArray.append(data)} />
 
-            {/* Step 3: Labor Costs */}
-            {currentStep === 3 && (
-              <div className="space-y-4">
-                <h2 className="text-base font-semibold">Labor Costs</h2>
-                <Form {...laborForm}>
-                  <form onSubmit={laborForm.handleSubmit(onAddLabor)} className="space-y-3">
-                    <div className="grid grid-cols-2 gap-2">
-                      <FormField
-                        control={laborForm.control}
-                        name="activity"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-sm">Activity *</FormLabel>
-                            <FormControl>
-                              <Input className="h-9" placeholder="Activity name" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={laborForm.control}
-                        name="time_spent_minutes"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-sm">Time (min) *</FormLabel>
-                            <FormControl>
-                              <Input 
-                                className="h-9"
-                                type="number" 
-                                min="1"
-                                {...field}
-                                onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={laborForm.control}
-                        name="hourly_rate"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-sm">Hourly Rate ({getCurrencySymbol(settings.currency)}) *</FormLabel>
-                            <FormControl>
-                              <Input 
-                                className="h-9"
-                                type="number" 
-                                step="0.01"
-                                {...field}
-                                onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={laborForm.control}
-                        name="per_unit"
-                        render={({ field }) => (
-                          <FormItem className="flex flex-row items-center space-x-2 space-y-0 rounded-md border p-2">
-                            <FormControl>
-                              <Checkbox
-                                checked={field.value}
-                                onCheckedChange={field.onChange}
-                              />
-                            </FormControl>
-                            <FormLabel className="text-sm">Per Unit</FormLabel>
-                          </FormItem>
-                        )}
-                      />
-                  </div>
-                  <div className="flex gap-2">
-                    <Button type="submit" variant="outline" size="sm">
-                      {editingLaborIndex !== null ? (
-                        <>
-                          <Edit className="mr-2 h-3 w-3" />
-                          Update Labor
-                        </>
-                      ) : (
-                        <>
-                          <Plus className="mr-2 h-3 w-3" />
-                          Add Labor
-                        </>
-                      )}
-                    </Button>
-                    {editingLaborIndex !== null && (
-                      <Button 
-                        type="button" 
-                        variant="ghost" 
-                        size="sm"
-                        onClick={onCancelEditLabor}
-                      >
-                        Cancel
-                      </Button>
+                    {materialsArray.fields.length > 0 && (
+                      <div className="border rounded-md">
+                        <table className="w-full text-sm">
+                          <thead className="bg-muted/50">
+                            <tr>
+                              <th className="text-left p-2 font-medium">Material</th>
+                              <th className="p-2 font-medium text-right">Qty</th>
+                              <th className="p-2 font-medium text-right">Cost</th>
+                              <th className="p-2 w-10"></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {materialsArray.fields.map((field, index) => {
+                              const cost = (field.quantity * field.price_per_unit) / field.units_made;
+                              return (
+                                <tr key={field.id} className="border-t">
+                                  <td className="p-2">
+                                    <div className="font-medium">{field.name}</div>
+                                    <div className="text-xs text-muted-foreground">{formatNumberDisplay(field.quantity)} {field.unit} @ {formatCurrency(field.price_per_unit, settings?.currency || 'USD')}</div>
+                                  </td>
+                                  <td className="p-2 text-right">{formatNumberDisplay(field.quantity)}</td>
+                                  <td className="p-2 text-right">{formatCurrency(cost, settings?.currency || 'USD')}</td>
+                                  <td className="p-2 text-right"><Button type="button" variant="ghost" size="sm" onClick={() => materialsArray.remove(index)}><Trash2 className="h-3 w-3 text-destructive" /></Button></td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
                     )}
                   </div>
-                </form>
-              </Form>
+                )}
 
-                {laborCosts.length > 0 && (
-                  <div className="mt-4 border rounded-lg">
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead className="bg-slate-100 dark:bg-slate-800">
-                          <tr>
-                            <th className="text-left p-2 text-xs font-medium">Activity</th>
-                            <th className="text-left p-2 text-xs font-medium">Time</th>
-                            <th className="text-left p-2 text-xs font-medium">Rate</th>
-                            <th className="text-left p-2 text-xs font-medium">Cost</th>
-                            <th className="text-left p-2 text-xs font-medium">Per Unit</th>
-                            <th className="text-right p-2 text-xs font-medium">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {laborCosts.map((labor, index) => (
-                            editingLaborIndex === index ? (
-                              <EditableLaborRow
-                                key={index}
-                                labor={labor}
-                                onSave={(updated) => onSaveLaborEdit(index, updated)}
-                                onCancel={onCancelEditLabor}
-                              />
-                            ) : (
-                              <tr key={index} className="border-t">
-                                <td className="p-2">{labor.activity}</td>
-                                <td className="p-2">{labor.time_spent_minutes} min</td>
-                                <td className="p-2">{formatCurrency(labor.hourly_rate, settings.currency)}</td>
-                                <td className="p-2">{formatCurrency(labor.total_cost || 0, settings.currency)}</td>
-                                <td className="p-2">{labor.per_unit ? 'Yes' : 'Batch'}</td>
-                                <td className="p-2 text-right">
-                                  <div className="flex items-center justify-end gap-1">
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-7 w-7 p-0"
-                                      onClick={() => onEditLabor(index)}
-                                    >
-                                      <Edit className="h-3 w-3" />
-                                    </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-7 w-7 p-0"
-                                      onClick={() => onRemoveLabor(index)}
-                                    >
-                                      <Trash2 className="h-3 w-3 text-destructive" />
-                                    </Button>
-                                  </div>
-                                </td>
-                              </tr>
-                            )
-                          ))}
-                        </tbody>
-                        <tfoot className="bg-slate-100 dark:bg-slate-800">
-                          <tr>
-                            <td colSpan={4} className="p-2 text-right text-xs font-medium">Total:</td>
-                            <td className="p-2 font-medium">{formatCurrency(totalLaborCostPerProduct, settings.currency)}</td>
-                            <td></td>
-                          </tr>
-                        </tfoot>
-                      </table>
-                    </div>
+                {/* Step 3: Labor */}
+                {currentStep === 3 && (
+                  <div className="space-y-4">
+                    <AddLaborForm currency={settings?.currency || 'USD'} onAdd={(data) => laborArray.append(data)} />
+
+                    {laborArray.fields.length > 0 && (
+                      <div className="border rounded-md">
+                        <table className="w-full text-sm">
+                          <thead className="bg-muted/50">
+                            <tr>
+                              <th className="text-left p-2 font-medium">Activity</th>
+                              <th className="p-2 font-medium text-right">Time</th>
+                              <th className="p-2 font-medium text-right">Cost</th>
+                              <th className="p-2 w-10"></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {laborArray.fields.map((field, index) => {
+                              const cost = (field.time_spent_minutes / 60) * field.hourly_rate;
+                              return (
+                                <tr key={field.id} className="border-t">
+                                  <td className="p-2">
+                                    <div className="font-medium">{field.activity}</div>
+                                    <div className="text-xs text-muted-foreground">{field.per_unit ? 'Per Unit' : 'Batch'} @ {formatCurrency(field.hourly_rate, settings?.currency || 'USD')}/hr</div>
+                                  </td>
+                                  <td className="p-2 text-right">{field.time_spent_minutes}m</td>
+                                  <td className="p-2 text-right">{formatCurrency(cost, settings?.currency || 'USD')}</td>
+                                  <td className="p-2 text-right"><Button type="button" variant="ghost" size="sm" onClick={() => laborArray.remove(index)}><Trash2 className="h-3 w-3 text-destructive" /></Button></td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </div>
                 )}
 
-                <div className="flex justify-between pt-2">
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => setCurrentStep(2)}>
-                      <ChevronLeft className="mr-2 h-3 w-3" />
-                      Back
-                    </Button>
-                    <Button 
-                      type="button" 
-                      size="sm" 
-                      variant="default"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        onFinalSubmit();
-                      }}
-                      disabled={isSubmitting}
-                    >
-                      {isSubmitting ? 'Saving...' : 'Save'}
-                    </Button>
-                  </div>
-                  <Button size="sm" onClick={onStep3Submit}>
-                    Next: Other Costs
-                    <ChevronRight className="ml-2 h-3 w-3" />
-                  </Button>
-                </div>
-              </div>
-            )}
+                {/* Step 4: Other Costs */}
+                {currentStep === 4 && (
+                  <div className="space-y-4">
+                    <AddOtherCostForm currency={settings?.currency || 'USD'} onAdd={(data) => otherCostsArray.append(data)} />
 
-            {/* Step 4: Other Costs */}
-            {currentStep === 4 && (
-              <div className="space-y-4">
-                <h2 className="text-base font-semibold">Other Costs</h2>
-                <Form {...otherCostForm}>
-                  <form onSubmit={otherCostForm.handleSubmit(onAddOtherCost)} className="space-y-3">
-                    <div className="grid grid-cols-2 gap-2">
-                      <FormField
-                        control={otherCostForm.control}
-                        name="item"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-sm">Item *</FormLabel>
-                            <FormControl>
-                              <Input className="h-9" placeholder="Item name" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={otherCostForm.control}
-                        name="quantity"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-sm">Quantity *</FormLabel>
-                            <FormControl>
-                              <Input 
-                                className="h-9"
-                                type="number" 
-                                step="0.01"
-                                {...field}
-                                onChange={(e) => field.onChange(parseFloat(e.target.value) || 1)}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={otherCostForm.control}
-                        name="cost"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-sm">Cost ({getCurrencySymbol(settings.currency)}) *</FormLabel>
-                            <FormControl>
-                              <Input 
-                                className="h-9"
-                                type="number" 
-                                step="0.01"
-                                {...field}
-                                onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={otherCostForm.control}
-                        name="per_unit"
-                        render={({ field }) => (
-                          <FormItem className="flex flex-row items-center space-x-2 space-y-0 rounded-md border p-2">
-                            <FormControl>
-                              <Checkbox
-                                checked={field.value}
-                                onCheckedChange={field.onChange}
-                              />
-                            </FormControl>
-                            <FormLabel className="text-sm">Per Unit</FormLabel>
-                          </FormItem>
-                        )}
-                      />
-                  </div>
-                  <Button type="submit" variant="outline" size="sm">
-                    <Plus className="mr-2 h-3 w-3" />
-                    Add Cost
-                  </Button>
-                </form>
-              </Form>
-
-                {otherCosts.length > 0 && (
-                  <div className="mt-4 border rounded-lg">
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead className="bg-slate-100 dark:bg-slate-800">
-                          <tr>
-                            <th className="text-left p-2 text-xs font-medium">Item</th>
-                            <th className="text-left p-2 text-xs font-medium">Qty</th>
-                            <th className="text-left p-2 text-xs font-medium">Cost</th>
-                            <th className="text-left p-2 text-xs font-medium">Total</th>
-                            <th className="text-left p-2 text-xs font-medium">Per Unit</th>
-                            <th className="text-right p-2 text-xs font-medium">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {otherCosts.map((cost, index) => (
-                            editingOtherCostIndex === index ? (
-                              <EditableOtherCostRow
-                                key={index}
-                                cost={cost}
-                                onSave={(updated) => onSaveOtherCostEdit(index, updated)}
-                                onCancel={onCancelEditOtherCost}
-                              />
-                            ) : (
-                              <tr key={index} className="border-t">
-                                <td className="p-2">{cost.item}</td>
-                                <td className="p-2">{cost.quantity}</td>
-                                <td className="p-2">{formatCurrency(cost.cost, settings.currency)}</td>
-                                <td className="p-2">{formatCurrency(cost.total_cost || 0, settings.currency)}</td>
-                                <td className="p-2">{cost.per_unit ? 'Yes' : 'Batch'}</td>
-                                <td className="p-2 text-right">
-                                  <div className="flex items-center justify-end gap-1">
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-7 w-7 p-0"
-                                      onClick={() => onEditOtherCost(index)}
-                                    >
-                                      <Edit className="h-3 w-3" />
-                                    </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-7 w-7 p-0"
-                                      onClick={() => onRemoveOtherCost(index)}
-                                    >
-                                      <Trash2 className="h-3 w-3 text-destructive" />
-                                    </Button>
-                                  </div>
-                                </td>
-                              </tr>
-                            )
-                          ))}
-                        </tbody>
-                        <tfoot className="bg-slate-100 dark:bg-slate-800">
-                          <tr>
-                            <td colSpan={3} className="p-2 text-right text-xs font-medium">Total:</td>
-                            <td className="p-2 font-medium">{formatCurrency(totalOtherCostsPerProduct, settings.currency)}</td>
-                            <td></td>
-                          </tr>
-                        </tfoot>
-                      </table>
-                    </div>
+                    {otherCostsArray.fields.length > 0 && (
+                      <div className="border rounded-md">
+                        <table className="w-full text-sm">
+                          <thead className="bg-muted/50">
+                            <tr>
+                              <th className="text-left p-2 font-medium">Item</th>
+                              <th className="p-2 font-medium text-right">Qty</th>
+                              <th className="p-2 font-medium text-right">Cost</th>
+                              <th className="p-2 w-10"></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {otherCostsArray.fields.map((field, index) => {
+                              const cost = field.quantity * field.cost;
+                              return (
+                                <tr key={field.id} className="border-t">
+                                  <td className="p-2">
+                                    <div className="font-medium">{field.item}</div>
+                                    <div className="text-xs text-muted-foreground">{field.per_unit ? 'Per Unit' : 'Batch'}</div>
+                                  </td>
+                                  <td className="p-2 text-right">{formatNumberDisplay(field.quantity)}</td>
+                                  <td className="p-2 text-right">{formatCurrency(cost, settings?.currency || 'USD')}</td>
+                                  <td className="p-2 text-right"><Button type="button" variant="ghost" size="sm" onClick={() => otherCostsArray.remove(index)}><Trash2 className="h-3 w-3 text-destructive" /></Button></td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </div>
                 )}
 
-                <div className="flex justify-between pt-2">
+                <div className="flex justify-between pt-4 border-t mt-4">
+                  <div>
+                    {currentStep > 1 && <Button type="button" variant="outline" onClick={() => setCurrentStep(s => s - 1)}><ChevronLeft className="mr-2 h-3 w-3" /> Back</Button>}
+                  </div>
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => setCurrentStep(3)}>
-                      <ChevronLeft className="mr-2 h-3 w-3" />
-                      Back
-                    </Button>
-                    <Button 
-                      type="button" 
-                      size="sm" 
-                      variant="default"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        onFinalSubmit();
-                      }}
-                      disabled={isSubmitting}
-                    >
-                      {isSubmitting ? 'Saving...' : 'Save'}
-                    </Button>
+                    {currentStep < 4 ? (
+                      <Button type="button" onClick={() => setCurrentStep(s => s + 1)}>Next <ChevronRight className="ml-2 h-3 w-3" /></Button>
+                    ) : (
+                      <Button type="submit">Save Changes</Button>
+                    )}
+                    {/* Always allow saving */}
+                    {currentStep < 4 && <Button type="submit" variant="secondary">Save</Button>}
                   </div>
                 </div>
-              </div>
-            )}
+              </form>
+            </Form>
           </div>
         )}
       </SheetContent>
     </Sheet>
   );
 }
-

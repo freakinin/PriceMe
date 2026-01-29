@@ -26,6 +26,7 @@ export interface Product {
   description?: string;
   category?: string;
   batch_size: number;
+  variants?: ProductVariant[];
   created_at: Date;
   updated_at: Date;
 }
@@ -51,6 +52,28 @@ export interface PricingData {
   currency: string;
   calculation_method?: string;
   calculation_data?: Record<string, unknown>;
+  updated_at: Date;
+}
+
+// Variant types
+export interface VariantAttribute {
+  id: number;
+  variant_id: number;
+  attribute_name: string;
+  attribute_value: string;
+  display_order: number;
+}
+
+export interface ProductVariant {
+  id: number;
+  product_id: number;
+  name: string;
+  sku?: string;
+  price_override?: number;
+  cost_override?: number;
+  stock_level: number;
+  is_active: boolean;
+  attributes?: VariantAttribute[];
   created_at: Date;
   updated_at: Date;
 }

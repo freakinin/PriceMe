@@ -8,7 +8,7 @@ const updateSettingsSchema = z.object({
   tax_percentage: z.preprocess(
     (val) => {
       if (val === null || val === undefined || val === '') return undefined;
-      const num = typeof val === 'string' ? parseFloat(val) : val;
+      const num = typeof val === 'string' ? parseFloat(val) : (typeof val === 'number' ? val : NaN);
       return isNaN(num) ? undefined : num;
     },
     z.number().min(0).max(100).optional()
@@ -16,7 +16,7 @@ const updateSettingsSchema = z.object({
   revenue_goal: z.preprocess(
     (val) => {
       if (val === null || val === undefined || val === '') return undefined;
-      const num = typeof val === 'string' ? parseFloat(val) : val;
+      const num = typeof val === 'string' ? parseFloat(val) : (typeof val === 'number' ? val : NaN);
       return isNaN(num) ? undefined : num;
     },
     z.number().min(0).optional().nullable()
@@ -24,7 +24,7 @@ const updateSettingsSchema = z.object({
   labor_hourly_cost: z.preprocess(
     (val) => {
       if (val === null || val === undefined || val === '') return undefined;
-      const num = typeof val === 'string' ? parseFloat(val) : val;
+      const num = typeof val === 'string' ? parseFloat(val) : (typeof val === 'number' ? val : NaN);
       return isNaN(num) ? undefined : num;
     },
     z.number().min(0).optional().nullable()
@@ -80,8 +80,8 @@ export const getSettings = async (req: AuthRequest, res: Response) => {
           revenue_goal: settings.revenue_goal ? Number(settings.revenue_goal) : null,
           labor_hourly_cost: settings.labor_hourly_cost ? Number(settings.labor_hourly_cost) : null,
           unit_system: settings.unit_system || 'metric',
-          units: settings.units && Array.isArray(settings.units) && settings.units.length > 0 
-            ? settings.units 
+          units: settings.units && Array.isArray(settings.units) && settings.units.length > 0
+            ? settings.units
             : (settings.unit_system === 'imperial' ? defaultImperialUnits : defaultMetricUnits),
         },
       });
@@ -138,8 +138,8 @@ export const updateSettings = async (req: AuthRequest, res: Response) => {
     const existingSettings = await db`
       SELECT id FROM user_settings WHERE user_id = ${req.userId}
     `;
-    const settingsExists = Array.isArray(existingSettings) 
-      ? existingSettings.length > 0 
+    const settingsExists = Array.isArray(existingSettings)
+      ? existingSettings.length > 0
       : (existingSettings.rows || []).length > 0;
 
     console.log('Settings exists:', settingsExists);
@@ -169,13 +169,13 @@ export const updateSettings = async (req: AuthRequest, res: Response) => {
           revenue_goal = ${finalRevenueGoal},
           labor_hourly_cost = ${finalLaborHourlyCost},
           unit_system = ${finalUnitSystem},
-          units = ${finalUnits},
+          units = ${(finalUnits as any)},
           updated_at = CURRENT_TIMESTAMP
         WHERE user_id = ${req.userId}
       `;
     } else {
       // Default units based on system
-      const defaultUnits = unit_system === 'imperial' 
+      const defaultUnits = unit_system === 'imperial'
         ? ['fl oz', 'pt', 'qt', 'gal', 'oz', 'lb', 'in', 'ft', 'yd', 'ft²', 'pcs']
         : ['ml', 'L', 'g', 'kg', 'mm', 'cm', 'm', 'm²', 'pcs'];
 
@@ -189,7 +189,7 @@ export const updateSettings = async (req: AuthRequest, res: Response) => {
           ${revenue_goal !== undefined ? revenue_goal : null},
           ${labor_hourly_cost !== undefined ? labor_hourly_cost : null},
           ${unit_system || 'metric'},
-          ${units || defaultUnits}
+          ${(units || defaultUnits) as any}
         )
       `;
     }
@@ -234,9 +234,9 @@ export const updateSettings = async (req: AuthRequest, res: Response) => {
     return res.status(500).json({
       status: 'error',
       message: 'Failed to update settings',
-      ...(process.env.NODE_ENV === 'development' && { 
+      ...(process.env.NODE_ENV === 'development' && {
         error: error.message,
-        details: error.stack 
+        details: error.stack
       }),
     });
   }

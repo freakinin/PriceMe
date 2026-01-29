@@ -2,68 +2,57 @@
 
 ## Overview
 
-Multi-step wizard for creating products with materials, labor, and other costs.
+Single-screen product creation form with all fields visible at once. Materials, labor, and other costs displayed as cards below input sections.
 
 ## Features
 
-### Step 1: Basic Info
-
+### Product Information Section (Top Row)
 - Product name (required)
 - SKU (optional)
-- Batch size (default: 1)
+- Batch size (default: 1, renamed to "Made")
 - Target price (optional)
 - Pricing method selection (Markup %, Markup $, Final Price)
 - Pricing value input (based on method)
 
-### Step 2: Materials
-
-- Add materials from user library or create new
+### Materials Section (Left Column)
+- Material search/selection from library or create new
 - Material fields:
   - Name
-  - Quantity
+  - Quantity type: Exact (Qt) or Percentage (%)
+  - Quantity value (number or percentage dropdown: 10, 20, 30, etc.)
+  - Per item or per batch checkbox
   - Unit
-  - Price per unit
-  - Units made (for batch calculations)
-- Calculate total cost per unit
-- Add/remove materials
-- Edit materials inline
+  - Cost (price per unit, read-only if from library)
+  - Items from quantity (hidden when percentage + per batch)
+- Materials displayed as cards below input section
+- Each card shows: Name, Quantity, Unit, Cost per Product
+- "Save to Library" button on cards for non-library materials
 
-### Step 3: Labor Costs
+### Labor Costs Section (Middle Column)
+- Activity name
+- Time spent (minutes)
+- Hourly rate (defaults from user settings, resets after each addition)
+- Per batch checkbox
+- Labor costs displayed as cards below input section
+- Each card shows: Activity, Time, Rate, Cost per Product
 
-- Add labor activities
-- Fields:
-  - Activity name
-  - Time spent (minutes)
-  - Hourly rate (defaults from user settings)
-  - Per unit or per batch
-- Calculate total cost
-- Add/remove labor costs
+### Other Costs Section (Right Column)
+- Item name
+- Quantity
+- Cost
+- Per batch checkbox
+- Other costs displayed as cards below input section
+- Each card shows: Item, Quantity, Cost per Product
 
-### Step 4: Other Costs
-
-- Add other cost items
-- Fields:
-  - Item name
-  - Quantity
-  - Cost
-  - Per unit or per batch
-- Calculate total cost
-- Add/remove other costs
-
-### Step 5: Review & Pricing
-
-- Summary of all costs
-- Total cost per product calculation
-- Profit and margin calculations
-- Final pricing display
-- Submit to create product
-
-### Navigation
-
-- Step indicator showing current step
-- Previous/Next buttons
-- Can navigate between steps
-- Form validation before proceeding
+### Sticky Footer Section
+- Total cost per product
+- Sell price display
+- Real-time profit/margin/markup indicators (circular graphics)
+  - Profit (teal/mint color)
+  - Margin (violet/purple color)
+  - Markup (rose/pink color)
+- Save and Cancel buttons (aligned right)
+- Sidebar auto-collapses on page load
 
 ## Data Requirements
 
@@ -73,9 +62,12 @@ Multi-step wizard for creating products with materials, labor, and other costs.
 
 ## UI Components
 
-- Multi-step wizard UI
+- Single-screen layout with 3-column grid for cost sections
+- Card-based display for materials, labor, and other costs
+- Sticky footer with totals and metrics
 - ShadCN Form components
 - React Hook Form for form management
 - Zod validation
-- Step indicator component
+- Real-time calculation updates
 - Responsive design
+- Sidebar auto-collapse on mount

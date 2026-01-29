@@ -80,6 +80,26 @@ const numericPreprocess = (val: unknown) => {
   return val;
 };
 
+// Variant schemas
+export const createVariantAttributeSchema = z.object({
+  attribute_name: z.string().min(1),
+  attribute_value: z.string().min(1),
+  display_order: z.number().int().optional(),
+});
+
+export const createVariantSchema = z.object({
+  id: z.number().int().optional(), // For updates/identification
+  name: z.string().min(1),
+  sku: z.string().optional(),
+  price_override: z.preprocess(numericPreprocess, z.number().nonnegative()).optional(),
+  cost_override: z.preprocess(numericPreprocess, z.number().nonnegative()).optional(),
+  stock_level: z.preprocess(numericPreprocess, z.number().int().min(0)).default(0),
+  is_active: z.boolean().default(true),
+  attributes: z.array(createVariantAttributeSchema).optional(),
+});
+
+export const updateVariantSchema = createVariantSchema.partial();
+
 // Product schemas (must be defined after material, labor, and other cost schemas)
 export const createProductSchema = z.object({
   name: z.string().min(1),
@@ -97,6 +117,7 @@ export const createProductSchema = z.object({
   materials: z.array(createMaterialSchema).optional(),
   labor_costs: z.array(createLaborSchema).optional(),
   other_costs: z.array(createOtherCostSchema).optional(),
+  variants: z.array(createVariantSchema).optional(),
 });
 
 export const updateProductSchema = createProductSchema.partial();

@@ -40,13 +40,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useSidebar } from '@/components/ui/sidebar';
-import api from '@/lib/api';
 import { useSettings } from '@/hooks/useSettings';
 import { formatCurrency } from '@/utils/currency';
 import EditProductPane from '@/components/EditProductPane';
-import {
-  calculateProfitFromPrice,
-} from '@/utils/profitCalculations';
 import { useToast } from '@/components/ui/use-toast';
 import {
   Dialog,
@@ -56,6 +52,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { useProducts, type Product, type PricingMethod, type ProductStatus } from '@/hooks/useProducts';
+import { useProductPricing } from '@/hooks/useProductPricing';
 
 // Helper function to format numbers - remove trailing zeros
 const formatNumberDisplay = (val: string | number | null | undefined): string => {
@@ -68,8 +66,8 @@ const formatNumberDisplay = (val: string | number | null | undefined): string =>
     if (isNaN(num)) return val.toString();
   }
   // Remove trailing zeros: 4.0000 -> 4, 4.5000 -> 4.5, 4.1230 -> 4.123
-  return num % 1 === 0 
-    ? num.toString() 
+  return num % 1 === 0
+    ? num.toString()
     : num.toString().replace(/\.?0+$/, '');
 };
 
@@ -106,7 +104,7 @@ function EditableCell({
 
   const handleSave = async () => {
     if (isSaving) return;
-    
+
     setIsSaving(true);
     try {
       let valueToSave: string | number;
@@ -162,8 +160,8 @@ function EditableCell({
     );
   }
 
-  const displayValue = formatDisplay 
-    ? formatDisplay(value) 
+  const displayValue = formatDisplay
+    ? formatDisplay(value)
     : (type === 'number' ? formatNumberDisplay(value) : (value?.toString() || '-'));
 
   const handleClick = () => {
@@ -183,40 +181,20 @@ function EditableCell({
   );
 }
 
-type PricingMethod = 'markup' | 'price' | 'profit' | 'margin';
-type ProductStatus = 'draft' | 'in_progress' | 'on_sale' | 'inactive';
-
-interface Product {
-  id: number;
-  name: string;
-  sku: string | null;
-  status: ProductStatus | null;
-  batch_size: number;
-  target_price: number | null;
-  pricing_method: PricingMethod | null;
-  pricing_value: number | null;
-  product_cost: number;
-  profit: number | null;
-  profit_margin: number | null;
-  costs_percentage: number | null;
-  created_at: string;
-  updated_at: string;
-}
-
-
 export default function Products() {
   const { settings } = useSettings();
   const { toast } = useToast();
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { products, isLoading: loading, error, updateProduct, deleteProduct, checkStockLevels, refetch: productsQueryRefetch } = useProducts();
+  const { calculatePriceFromMethod, calculateProfitFromPrice, calculateValueFromMethod, getCalculationTypeDescription } = useProductPricing();
+
   const [editingProductId, setEditingProductId] = useState<number | null>(null);
   const [qtySold, setQtySold] = useState<Record<number, number>>({});
-  const [localProductData, setLocalProductData] = useState<Record<number, { name?: string; qty_sold?: number }>>({});
+
+  // Local state for pricing calculations while editing/viewing
   const [productPricingMethods, setProductPricingMethods] = useState<Record<number, PricingMethod>>({});
   const [productPricingValues, setProductPricingValues] = useState<Record<number, number>>({});
   const [globalPricingMethod, setGlobalPricingMethod] = useState<PricingMethod>('price');
-  const [, setSavingFields] = useState<Set<number>>(new Set());
+
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
@@ -235,9 +213,7 @@ export default function Products() {
   useEffect(() => {
     // Close sidebar when Products page loads
     setSidebarOpen(false);
-    fetchProducts();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [setSidebarOpen]);
 
   // Initialize pricing methods and values from fetched products
   useEffect(() => {
@@ -247,97 +223,34 @@ export default function Products() {
       if (firstProductMethod && products.every(p => p.pricing_method === firstProductMethod)) {
         setGlobalPricingMethod(firstProductMethod);
       } else if (!firstProductMethod) {
-        // If no products have a method set, use default
         setGlobalPricingMethod('price');
       }
-      
+
       setProductPricingMethods(prev => {
         const updated = { ...prev };
         products.forEach(product => {
-          if (product.pricing_method && !updated[product.id]) {
-            updated[product.id] = product.pricing_method;
-          } else if (!updated[product.id]) {
-            // Default to 'price' if no method is set (will use global method in display)
+          if (!updated[product.id]) {
             updated[product.id] = product.pricing_method || 'price';
           }
         });
         return updated;
       });
-      
+
       setProductPricingValues(prev => {
         const updated = { ...prev };
         products.forEach(product => {
-          // If pricing_value exists, use it
           if (product.pricing_value !== null && product.pricing_value !== undefined && !(product.id in updated)) {
             updated[product.id] = product.pricing_value;
           } else if (!(product.id in updated) && product.target_price && product.product_cost > 0) {
-            // If no pricing_value but we have target_price, calculate it based on method
             const method = product.pricing_method || 'price';
-            let calculatedValue: number;
-            switch (method) {
-              case 'markup':
-                calculatedValue = product.target_price > product.product_cost 
-                  ? ((product.target_price - product.product_cost) / product.product_cost) * 100 
-                  : 0;
-                break;
-              case 'price':
-                calculatedValue = product.target_price;
-                break;
-              case 'profit':
-                calculatedValue = product.target_price - product.product_cost;
-                break;
-              case 'margin':
-                calculatedValue = product.target_price > 0 
-                  ? ((product.target_price - product.product_cost) / product.target_price) * 100 
-                  : 0;
-                break;
-              default:
-                calculatedValue = product.target_price;
-            }
-            updated[product.id] = calculatedValue;
+            updated[product.id] = calculateValueFromMethod(method, product.target_price, product.product_cost);
           }
         });
         return updated;
       });
     }
-  }, [products]);
+  }, [products, calculateValueFromMethod]);
 
-  // Helper function to calculate target_price from pricing method and value
-  const calculatePriceFromMethod = (method: PricingMethod, value: number, cost: number): number => {
-    switch (method) {
-      case 'markup':
-        return cost * (1 + value / 100);
-      case 'price':
-        return value;
-      case 'profit':
-        return cost + value;
-      case 'margin':
-        if (value >= 100) return 0; // Prevent division by zero
-        return cost / (1 - value / 100);
-      default:
-        return cost;
-    }
-  };
-
-  const fetchProducts = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const response = await api.get('/products');
-      console.log('Products API response:', response.data);
-      if (response.data.status === 'success') {
-        setProducts(response.data.data || []);
-      } else {
-        setError(response.data.message || 'Failed to load products');
-      }
-    } catch (err: any) {
-      console.error('Error fetching products:', err);
-      console.error('Error response:', err.response?.data);
-      setError(err.response?.data?.message || err.message || 'Failed to load products');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleDeleteClick = (productId: number, productName: string) => {
     setProductToDelete({ id: productId, name: productName });
@@ -348,13 +261,12 @@ export default function Products() {
     if (!productToDelete) return;
 
     try {
-      await api.delete(`/products/${productToDelete.id}`);
+      await deleteProduct(productToDelete.id);
       toast({
         title: 'Success',
         description: 'Product deleted successfully',
       });
-      // Refresh the products list
-      fetchProducts();
+      productsQueryRefetch();
       setDeleteDialogOpen(false);
       setProductToDelete(null);
     } catch (error: any) {
@@ -362,13 +274,13 @@ export default function Products() {
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: error.response?.data?.message || 'Failed to delete product',
+        description: error.message || 'Failed to delete product',
       });
     }
   };
 
   const formatCurrencyValue = (value: string | number | null | undefined) => {
-    return formatCurrency(value, settings.currency);
+    return formatCurrency(value, settings?.currency || 'USD');
   };
 
   const formatPercentage = (value: string | number | null | undefined) => {
@@ -378,62 +290,29 @@ export default function Products() {
     return `${numValue.toFixed(2)}%`;
   };
 
-  const getCalculationTypeDescription = (method: PricingMethod): string => {
-    switch (method) {
-      case 'markup':
-        return 'Enter markup percentage applied to cost. Price = Cost × (1 + Markup%).';
-      case 'price':
-        return 'Enter your desired selling price. Profit and margin will be calculated automatically.';
-      case 'profit':
-        return 'Enter desired profit amount per unit. Price = Cost + Profit.';
-      case 'margin':
-        return 'Enter desired profit margin percentage. Price = Cost ÷ (1 - Margin%).';
-      default:
-        return 'Select a calculation method for all products.';
-    }
-  };
-
   const handleGlobalMethodChange = (method: PricingMethod) => {
     setGlobalPricingMethod(method);
-    
+
     // Apply to all products - update local state immediately
+    // Note: This only updates local display state, not the DB
     products.forEach(product => {
-      // Update local state
       setProductPricingMethods(prev => ({
         ...prev,
         [product.id]: method,
       }));
-      
+
       // Calculate new pricing value from current target_price if available
       if (product.target_price && product.product_cost > 0) {
-        let newValue: number;
-        switch (method) {
-          case 'markup':
-            newValue = product.target_price > product.product_cost 
-              ? ((product.target_price - product.product_cost) / product.product_cost) * 100 
-              : 0;
-            break;
-          case 'price':
-            newValue = product.target_price;
-            break;
-          case 'profit':
-            newValue = product.target_price - product.product_cost;
-            break;
-          case 'margin':
-            newValue = product.target_price > 0 
-              ? ((product.target_price - product.product_cost) / product.target_price) * 100 
-              : 0;
-            break;
-          default:
-            newValue = 0;
-        }
-        
+        const newValue = calculateValueFromMethod(method, product.target_price, product.product_cost);
         setProductPricingValues(prev => ({
           ...prev,
           [product.id]: newValue,
         }));
       }
     });
+
+    // TODO: Consider if we should also update the DB in batches? 
+    // For now, retaining existing behavior which seemed to be local-only until saved.
   };
 
   const handleSavePricingValue = async (productId: number, method: PricingMethod, value: number) => {
@@ -441,109 +320,31 @@ export default function Products() {
       const product = products.find(p => p.id === productId);
       if (!product) return;
 
-      // Mark as saving
-      setSavingFields(prev => new Set(prev).add(productId));
-
       // Update local state immediately
       setProductPricingValues(prev => ({
         ...prev,
         [productId]: value,
       }));
 
-      // Calculate target_price from method and value
       const calculatedPrice = calculatePriceFromMethod(method, value, product.product_cost);
-      const metrics = calculateProfitFromPrice(calculatedPrice, product.product_cost);
 
-      // Update product state optimistically
-      const updatedProduct = {
-        ...product,
-        pricing_method: method,
-        pricing_value: value,
-        target_price: calculatedPrice,
-        profit: metrics.profit,
-        profit_margin: metrics.margin,
-        costs_percentage: calculatedPrice > 0 ? (product.product_cost / calculatedPrice) * 100 : null,
-      };
-
-      setProducts(prev => prev.map(p => p.id === productId ? updatedProduct : p));
-
-      // Save to database
-      await saveProductToDatabase(productId, {
-        pricing_method: method,
-        pricing_value: value,
-        target_price: calculatedPrice,
+      // Update via hook
+      await updateProduct({
+        id: productId,
+        data: {
+          pricing_method: method,
+          pricing_value: value,
+          target_price: calculatedPrice,
+        }
       });
 
-      setSavingFields(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(productId);
-        return newSet;
-      });
     } catch (error: any) {
       console.error('Error saving pricing value:', error);
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: error.response?.data?.message || 'Failed to save pricing',
+        description: error.message || 'Failed to save pricing',
       });
-      setSavingFields(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(productId);
-        return newSet;
-      });
-    }
-  };
-
-  // Check stock levels before changing status to 'on_sale'
-  const checkStockLevels = async (productId: number, batchSize: number): Promise<Array<{ material: string; currentStock: number; required: number; shortfall: number; unit: string }>> => {
-    try {
-      const response = await api.get(`/products/${productId}`);
-      const product = response.data.data;
-      const materials = product.materials || [];
-      const issues: Array<{ material: string; currentStock: number; required: number; shortfall: number; unit: string }> = [];
-
-      for (const material of materials) {
-        // Only check materials from library (have user_material_id)
-        if (material.user_material_id) {
-          try {
-            // Get current stock level from library
-            const materialResponse = await api.get(`/materials/${material.user_material_id}`);
-            if (materialResponse.data.status === 'success' && materialResponse.data.data) {
-              const libraryMaterial = materialResponse.data.data;
-              const currentStock = libraryMaterial.stock_level || 0;
-              
-              // Calculate required quantity: quantity is per product, so for the batch we need: quantity * batchSize
-              const requiredQuantity = material.quantity * batchSize;
-              
-              if (currentStock < requiredQuantity) {
-                issues.push({
-                  material: material.name,
-                  currentStock: currentStock,
-                  required: requiredQuantity,
-                  shortfall: requiredQuantity - currentStock,
-                  unit: material.unit,
-                });
-              }
-            }
-          } catch (materialError) {
-            // If material fetch fails, skip it but continue checking others
-            console.error(`Error fetching material ${material.user_material_id}:`, materialError);
-            // Still add it as an issue since we can't verify stock
-            issues.push({
-              material: material.name,
-              currentStock: 0,
-              required: material.quantity * batchSize,
-              shortfall: material.quantity * batchSize,
-              unit: material.unit,
-            });
-          }
-        }
-      }
-
-      return issues;
-    } catch (error) {
-      console.error('Error checking stock levels:', error);
-      return [];
     }
   };
 
@@ -552,222 +353,67 @@ export default function Products() {
       const product = products.find(p => p.id === productId);
       if (!product) return;
 
-      // If changing status to 'on_sale', check stock first (unless skipping check)
+      // If changing status to 'on_sale', check stock first
       if (!skipStockCheck && field === 'status' && value === 'on_sale' && product.status !== 'on_sale') {
-        const stockIssues = await checkStockLevels(productId, product.batch_size);
-        
-        if (stockIssues.length > 0) {
-          // Show warning dialog
-          setStockIssues(stockIssues);
+        const issues = await checkStockLevels(productId, product.batch_size);
+
+        if (issues.length > 0) {
+          setStockIssues(issues);
           setPendingStatusChange({ productId, newStatus: value as ProductStatus });
           setStockWarningOpen(true);
-          setSavingFields(prev => {
-            const newSet = new Set(prev);
-            newSet.delete(productId);
-            return newSet;
-          });
-          return; // Don't proceed with status change yet
+          return;
         }
       }
 
-      // Mark as saving
-      setSavingFields(prev => new Set(prev).add(productId));
-
-      // Update local state immediately for better UX
-      setLocalProductData(prev => ({
-        ...prev,
-        [productId]: {
-          ...prev[productId],
-          [field]: value,
-        },
-      }));
-
-      let updatedProduct = { ...product };
-      let updateData: any = {};
-      
-      if (field === 'name') {
-        updatedProduct.name = value as string;
-        updateData.name = value as string;
-      } else if (field === 'sku') {
-        updatedProduct.sku = value as string;
-        updateData.sku = value as string;
-      } else if (field === 'status') {
-        updatedProduct.status = value as ProductStatus;
-        updateData.status = value as ProductStatus;
-        console.log('Status update:', { productId, field, value, updateData });
-      } else if (field === 'qty_sold') {
+      if (field === 'qty_sold') {
         setQtySold(prev => ({ ...prev, [productId]: value as number }));
-        setSavingFields(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(productId);
-          return newSet;
-        });
-        return; // qty_sold is not saved to DB, it's just local state
+        return;
       }
 
-      // Update products state optimistically
-      setProducts(prev => prev.map(p => p.id === productId ? updatedProduct : p));
-
-      // Save to database
-      await saveProductToDatabase(productId, updateData);
-
-      setSavingFields(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(productId);
-        return newSet;
+      await updateProduct({
+        id: productId,
+        data: { [field]: value }
       });
+
     } catch (error: any) {
       console.error('Error saving field:', error);
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: error.response?.data?.message || 'Failed to save changes',
-      });
-      setSavingFields(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(productId);
-        return newSet;
+        description: error.message || 'Failed to save changes',
       });
     }
   };
-
-  // Helper function to save product to database
-  const saveProductToDatabase = async (productId: number, updateData: any) => {
-    try {
-      const currentProductResponse = await api.get(`/products/${productId}`);
-      const currentProduct = currentProductResponse.data.data;
-      
-      // Map materials to expected format
-      const materialsData = (currentProduct.materials || []).map((m: any) => ({
-        name: m.name,
-        quantity: Number(m.quantity),
-        unit: m.unit,
-        price_per_unit: Number(m.price_per_unit),
-        units_made: m.units_made ? Number(m.units_made) : 1,
-        user_material_id: m.user_material_id ? Number(m.user_material_id) : undefined,
-      }));
-      
-      // Map labor_costs to expected format
-      const laborCostsData = (currentProduct.labor_costs || []).map((l: any) => ({
-        activity: l.activity,
-        time_spent_minutes: Number(l.time_spent_minutes),
-        hourly_rate: Number(l.hourly_rate),
-        per_unit: l.per_unit !== undefined ? Boolean(l.per_unit) : true,
-      }));
-      
-      // Map other_costs to expected format
-      const otherCostsData = (currentProduct.other_costs || []).map((o: any) => ({
-        item: o.item,
-        quantity: Number(o.quantity),
-        cost: Number(o.cost),
-        per_unit: o.per_unit !== undefined ? Boolean(o.per_unit) : true,
-      }));
-      
-      // Build update payload
-      const updatePayload: any = {
-        name: updateData.name ?? currentProduct.name,
-        batch_size: currentProduct.batch_size || 1,
-      };
-      
-      // Only include optional fields if they have values
-      if (currentProduct.sku) updatePayload.sku = currentProduct.sku;
-      // Always include status - prioritize updateData, fallback to currentProduct, then default
-      if (updateData.status !== undefined) {
-        updatePayload.status = updateData.status;
-        console.log('Including status in payload from updateData:', updateData.status);
-      } else if (currentProduct.status) {
-        // Include existing status if not being updated
-        updatePayload.status = currentProduct.status;
-      } else {
-        // Default to draft if no status exists
-        updatePayload.status = 'draft';
-      }
-      if (currentProduct.description) updatePayload.description = currentProduct.description;
-      if (currentProduct.category) updatePayload.category = currentProduct.category;
-      
-      // Handle pricing fields
-      if (updateData.pricing_method !== undefined) {
-        updatePayload.pricing_method = updateData.pricing_method;
-      } else if (currentProduct.pricing_method) {
-        updatePayload.pricing_method = currentProduct.pricing_method;
-      }
-      
-      if (updateData.pricing_value !== undefined) {
-        updatePayload.pricing_value = updateData.pricing_value;
-      } else if (currentProduct.pricing_value !== null && currentProduct.pricing_value !== undefined) {
-        updatePayload.pricing_value = Number(currentProduct.pricing_value);
-      }
-      
-      if (updateData.target_price !== undefined && updateData.target_price > 0) {
-        updatePayload.target_price = updateData.target_price;
-      } else if (currentProduct.target_price && updateData.target_price === undefined) {
-        updatePayload.target_price = Number(currentProduct.target_price);
-      }
-      
-      // Include arrays only if they have items
-      if (materialsData.length > 0) updatePayload.materials = materialsData;
-      if (laborCostsData.length > 0) updatePayload.labor_costs = laborCostsData;
-      if (otherCostsData.length > 0) updatePayload.other_costs = otherCostsData;
-      
-      console.log('Sending update payload:', JSON.stringify(updatePayload, null, 2));
-      await api.put(`/products/${productId}`, updatePayload);
-    } catch (apiError: any) {
-      console.error('Error saving to database:', apiError);
-      console.error('Full error response:', JSON.stringify(apiError.response?.data, null, 2));
-      
-      let errorMessage = 'Failed to save changes';
-      if (apiError.response?.data?.message) {
-        errorMessage = apiError.response.data.message;
-      } else if (apiError.response?.data?.error) {
-        errorMessage = apiError.response.data.error;
-      } else if (apiError.response?.data?.issues) {
-        const issues = apiError.response.data.issues;
-        errorMessage = issues.map((issue: any) => 
-          `${issue.path.join('.')}: ${issue.message}`
-        ).join(', ');
-      }
-      
-      throw new Error(errorMessage);
-    }
-  };
-
 
 
   const getDisplayValue = (product: Product, field: string): string | number | null => {
-    // Check local product data
-    if (localProductData[product.id] && localProductData[product.id][field as keyof typeof localProductData[number]] !== undefined) {
-      return localProductData[product.id][field as keyof typeof localProductData[number]] as string | number;
-    }
-    
     if (field === 'qty_sold') {
       return qtySold[product.id] || 0;
     }
-    
-    // Get pricing value based on method
+
     if (field === 'pricing_value') {
       if (productPricingValues[product.id] !== undefined) {
         return productPricingValues[product.id];
       }
       return product.pricing_value;
     }
-    
+
     return product[field as keyof Product] as string | number | null;
   };
 
-  // Get calculated values for display
   const getCalculatedMetrics = (product: Product) => {
     const method = productPricingMethods[product.id] || globalPricingMethod || product.pricing_method || 'price';
     const pricingValue = productPricingValues[product.id] ?? product.pricing_value ?? (product.target_price || 0);
-    
+
     let calculatedPrice = product.target_price || 0;
     if (method && pricingValue !== null && pricingValue !== undefined) {
       calculatedPrice = calculatePriceFromMethod(method, pricingValue, product.product_cost);
     }
-    
-    const metrics = calculatedPrice > 0 
-      ? calculateProfitFromPrice(calculatedPrice, product.product_cost)
-      : { price: 0, profit: 0, margin: 0, markup: 0 };
-    
+
+    // calculateProfitFromPrice only returns { profit, margin, markup }
+    // We need to return price as well for the table usage
+    const metrics = calculateProfitFromPrice(calculatedPrice, product.product_cost);
+
     return {
       price: calculatedPrice,
       profit: metrics.profit,
@@ -777,11 +423,15 @@ export default function Products() {
   };
 
   // Helper to calculate profit from quantity
-  const calculateProfitFromQty = (product: Product & { profit: number }, qty: number): number => {
-    return product.profit * qty;
+  // Note: calculateProfitFromPrice already returns profit, but this seems to be total profit for X quantity?
+  // Looking at table column 'Total Profit': cell: ({ row }) => ... 
+  // Let's assume we use the metrics for single unit, this helper might be redundant or for bulk.
+  // Helper to calculate total profit from quantity
+  const calculateTotalProfitFromQty = (product: Product, qty: number): number => {
+    const metrics = getCalculatedMetrics(product);
+    return metrics.profit * qty;
   };
 
-  // Custom filter functions
   const customFilterFunctions = {
     contains: (row: any, columnId: string, filterValue: string) => {
       const value = row.getValue(columnId);
@@ -827,12 +477,12 @@ export default function Products() {
         const product = row.original;
         const displayName = getDisplayValue(product, 'name') as string;
         return (
-            <EditableCell
-              value={displayName}
-              onSave={async (value) => handleSaveField(product.id, 'name', value)}
-              type="text"
-              className="font-medium"
-            />
+          <EditableCell
+            value={displayName}
+            onSave={async (value) => handleSaveField(product.id, 'name', value)}
+            type="text"
+            className="font-medium"
+          />
         );
       },
     },
@@ -851,7 +501,7 @@ export default function Products() {
       cell: ({ row }) => {
         const product = row.original;
         const currentStatus = (getDisplayValue(product, 'status') as ProductStatus) || 'draft';
-        
+
         const getStatusBadge = (status: ProductStatus) => {
           const statusConfig = {
             draft: { label: 'Draft', className: 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200' },
@@ -920,6 +570,20 @@ export default function Products() {
       },
     },
     {
+      accessorKey: 'variants',
+      header: 'Variants',
+      size: 100,
+      cell: ({ row }) => {
+        const variants = row.original.variants;
+        if (!variants || variants.length === 0) return <span className="text-muted-foreground">-</span>;
+        return (
+          <Badge variant="outline" className="font-normal text-xs">
+            {variants.length} variant{variants.length !== 1 ? 's' : ''}
+          </Badge>
+        );
+      },
+    },
+    {
       id: 'product_cost',
       size: 120,
       minSize: 100,
@@ -961,7 +625,7 @@ export default function Products() {
         const metrics = getCalculatedMetrics(product);
         const pricingValue = productPricingValues[product.id] ?? product.pricing_value ?? (method === 'price' ? (product.target_price || 0) : 0);
         const markupValue = method === 'markup' ? pricingValue : metrics.markup;
-        
+
         return (
           <div className={method !== 'markup' ? 'opacity-50' : ''}>
             {method === 'markup' ? (
@@ -992,7 +656,7 @@ export default function Products() {
         const metrics = getCalculatedMetrics(product);
         const pricingValue = productPricingValues[product.id] ?? product.pricing_value ?? (method === 'price' ? (product.target_price || 0) : 0);
         const priceValue = method === 'price' ? pricingValue : metrics.price;
-        
+
         return (
           <div className={method !== 'price' ? 'opacity-50' : ''}>
             {method === 'price' ? (
@@ -1023,7 +687,7 @@ export default function Products() {
         const metrics = getCalculatedMetrics(product);
         const pricingValue = productPricingValues[product.id] ?? product.pricing_value ?? (method === 'price' ? (product.target_price || 0) : 0);
         const profitValue = method === 'profit' ? pricingValue : metrics.profit;
-        
+
         return (
           <div className={method !== 'profit' ? 'opacity-50' : ''}>
             {method === 'profit' ? (
@@ -1054,7 +718,7 @@ export default function Products() {
         const metrics = getCalculatedMetrics(product);
         const pricingValue = productPricingValues[product.id] ?? product.pricing_value ?? (method === 'price' ? (product.target_price || 0) : 0);
         const marginValue = method === 'margin' ? pricingValue : metrics.margin;
-        
+
         return (
           <div className={method !== 'margin' ? 'opacity-50' : ''}>
             {method === 'margin' ? (
@@ -1185,14 +849,14 @@ export default function Products() {
       },
     },
   ], [
-    products, 
-    productPricingMethods, 
-    productPricingValues, 
-    globalPricingMethod, 
-    settings.currency,
+    products,
+    productPricingMethods,
+    productPricingValues,
+    globalPricingMethod,
+    settings?.currency,
     getDisplayValue,
     getCalculatedMetrics,
-    calculateProfitFromQty,
+    calculateTotalProfitFromQty,
     handleSaveField,
     handleSavePricingValue,
     formatCurrencyValue,
@@ -1247,7 +911,7 @@ export default function Products() {
       <div className="p-6">
         <div className="rounded-lg border border-destructive bg-destructive/10 p-4">
           <p className="text-destructive">{error}</p>
-          <Button onClick={fetchProducts} variant="outline" className="mt-4">
+          <Button onClick={() => productsQueryRefetch()} variant="outline" className="mt-4">
             Try Again
           </Button>
         </div>
@@ -1278,198 +942,198 @@ export default function Products() {
                   className="pl-9 h-10"
                 />
               </div>
-            <div className="flex items-center gap-2">
-              <Select
-                value={globalPricingMethod}
-                onValueChange={(value) => handleGlobalMethodChange(value as PricingMethod)}
-              >
+              <div className="flex items-center gap-2">
+                <Select
+                  value={globalPricingMethod}
+                  onValueChange={(value) => handleGlobalMethodChange(value as PricingMethod)}
+                >
                   <SelectTrigger className="w-[180px] h-10">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="markup">Markup %</SelectItem>
-                  <SelectItem value="price">Planned Sales Price $</SelectItem>
-                  <SelectItem value="profit">Desired Profit $</SelectItem>
-                  <SelectItem value="margin">Desired Margin %</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="markup">Markup %</SelectItem>
+                    <SelectItem value="price">Planned Sales Price $</SelectItem>
+                    <SelectItem value="profit">Desired Profit $</SelectItem>
+                    <SelectItem value="margin">Desired Margin %</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </>
           )}
           {products.length > 0 && (
             <>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon">
-                  <Filter className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-[300px]">
-                <DropdownMenuLabel>Add Filter</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <div className="p-2 space-y-3">
-                  {/* Column selection */}
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium text-muted-foreground">Column</label>
-                    <Select
-                      value={selectedFilterColumn}
-                      onValueChange={(value) => {
-                        setSelectedFilterColumn(value);
-                        setFilterValue('');
-                        setFilterOperator(value === 'status' ? 'equals' : 'contains');
-                      }}
-                    >
-                      <SelectTrigger className="h-8">
-                        <SelectValue placeholder="Select column..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="name">Name</SelectItem>
-                        <SelectItem value="status">Status</SelectItem>
-                        <SelectItem value="sku">SKU</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  {/* Filter operator selection */}
-                  {selectedFilterColumn && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="icon">
+                    <Filter className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-[300px]">
+                  <DropdownMenuLabel>Add Filter</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <div className="p-2 space-y-3">
+                    {/* Column selection */}
                     <div className="space-y-1">
-                      <label className="text-xs font-medium text-muted-foreground">Operator</label>
+                      <label className="text-xs font-medium text-muted-foreground">Column</label>
                       <Select
-                        value={filterOperator}
-                        onValueChange={setFilterOperator}
+                        value={selectedFilterColumn}
+                        onValueChange={(value) => {
+                          setSelectedFilterColumn(value);
+                          setFilterValue('');
+                          setFilterOperator(value === 'status' ? 'equals' : 'contains');
+                        }}
                       >
                         <SelectTrigger className="h-8">
-                          <SelectValue />
+                          <SelectValue placeholder="Select column..." />
                         </SelectTrigger>
                         <SelectContent>
-                          {selectedFilterColumn === 'status' ? (
-                            <>
-                              <SelectItem value="equals">Equals</SelectItem>
-                              <SelectItem value="notContains">Not Equals</SelectItem>
-                            </>
-                          ) : (
-                            <>
-                              <SelectItem value="contains">Contains</SelectItem>
-                              <SelectItem value="equals">Equals</SelectItem>
-                              <SelectItem value="notContains">Not Contains</SelectItem>
-                              <SelectItem value="startsWith">Starts With</SelectItem>
-                              <SelectItem value="endsWith">Ends With</SelectItem>
-                            </>
-                          )}
+                          <SelectItem value="name">Name</SelectItem>
+                          <SelectItem value="status">Status</SelectItem>
+                          <SelectItem value="sku">SKU</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
-                  )}
-                  
-                  {/* Dynamic filter input based on selected column */}
-                  {selectedFilterColumn && (
-                    <div className="space-y-1">
-                      <label className="text-xs font-medium text-muted-foreground">
-                        {selectedFilterColumn === 'name' ? 'Name' :
-                         selectedFilterColumn === 'status' ? 'Status' :
-                         selectedFilterColumn === 'sku' ? 'SKU' : ''}
-                      </label>
-                      {selectedFilterColumn === 'status' ? (
+
+                    {/* Filter operator selection */}
+                    {selectedFilterColumn && (
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium text-muted-foreground">Operator</label>
                         <Select
-                          value={filterValue}
-                          onValueChange={setFilterValue}
+                          value={filterOperator}
+                          onValueChange={setFilterOperator}
                         >
                           <SelectTrigger className="h-8">
-                            <SelectValue placeholder="Select status..." />
+                            <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="draft">Draft</SelectItem>
-                            <SelectItem value="in_progress">In Progress</SelectItem>
-                            <SelectItem value="on_sale">On Sale</SelectItem>
-                            <SelectItem value="inactive">Inactive</SelectItem>
+                            {selectedFilterColumn === 'status' ? (
+                              <>
+                                <SelectItem value="equals">Equals</SelectItem>
+                                <SelectItem value="notContains">Not Equals</SelectItem>
+                              </>
+                            ) : (
+                              <>
+                                <SelectItem value="contains">Contains</SelectItem>
+                                <SelectItem value="equals">Equals</SelectItem>
+                                <SelectItem value="notContains">Not Contains</SelectItem>
+                                <SelectItem value="startsWith">Starts With</SelectItem>
+                                <SelectItem value="endsWith">Ends With</SelectItem>
+                              </>
+                            )}
                           </SelectContent>
                         </Select>
-                      ) : (
-                        <Input
-                          placeholder={`Filter by ${selectedFilterColumn}...`}
-                          value={filterValue}
-                          onChange={(e) => setFilterValue(e.target.value)}
-                          className="h-8"
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' && filterValue) {
-                              table.getColumn(selectedFilterColumn)?.setFilterValue({
-                                operator: filterOperator,
-                                value: filterValue
-                              });
-                              setSelectedFilterColumn('');
-                              setFilterValue('');
-                              setFilterOperator('contains');
-                            }
-                          }}
-                        />
-                      )}
-                    </div>
-                  )}
-                  
-                  {/* Apply button */}
-                  {selectedFilterColumn && filterValue && (
-                    <Button
-                      size="sm"
-                      className="w-full"
-                      onClick={() => {
-                        table.getColumn(selectedFilterColumn)?.setFilterValue({
-                          operator: filterOperator,
-                          value: filterValue
-                        });
-                        setSelectedFilterColumn('');
-                        setFilterValue('');
-                        setFilterOperator('contains');
-                      }}
-                    >
-                      Apply Filter
-                    </Button>
-                  )}
-                </div>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon">
-                  <Columns className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-[250px]">
-                <DropdownMenuLabel>Toggle columns</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {table
-                  .getAllColumns()
-                  .filter((column) => column.getCanHide && column.getCanHide())
-                  .map((column) => {
-                    const columnId = column.id || '';
-                    return (
-                      <DropdownMenuCheckboxItem
-                        key={columnId}
-                        className="capitalize"
-                        checked={column.getIsVisible ? column.getIsVisible() : true}
-                        onSelect={(e) => e.preventDefault()}
-                        onCheckedChange={(value) => {
-                          if (column.toggleVisibility) {
-                            column.toggleVisibility(!!value);
-                          }
+                      </div>
+                    )}
+
+                    {/* Dynamic filter input based on selected column */}
+                    {selectedFilterColumn && (
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium text-muted-foreground">
+                          {selectedFilterColumn === 'name' ? 'Name' :
+                            selectedFilterColumn === 'status' ? 'Status' :
+                              selectedFilterColumn === 'sku' ? 'SKU' : ''}
+                        </label>
+                        {selectedFilterColumn === 'status' ? (
+                          <Select
+                            value={filterValue}
+                            onValueChange={setFilterValue}
+                          >
+                            <SelectTrigger className="h-8">
+                              <SelectValue placeholder="Select status..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="draft">Draft</SelectItem>
+                              <SelectItem value="in_progress">In Progress</SelectItem>
+                              <SelectItem value="on_sale">On Sale</SelectItem>
+                              <SelectItem value="inactive">Inactive</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Input
+                            placeholder={`Filter by ${selectedFilterColumn}...`}
+                            value={filterValue}
+                            onChange={(e) => setFilterValue(e.target.value)}
+                            className="h-8"
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && filterValue) {
+                                table.getColumn(selectedFilterColumn)?.setFilterValue({
+                                  operator: filterOperator,
+                                  value: filterValue
+                                });
+                                setSelectedFilterColumn('');
+                                setFilterValue('');
+                                setFilterOperator('contains');
+                              }
+                            }}
+                          />
+                        )}
+                      </div>
+                    )}
+
+                    {/* Apply button */}
+                    {selectedFilterColumn && filterValue && (
+                      <Button
+                        size="sm"
+                        className="w-full"
+                        onClick={() => {
+                          table.getColumn(selectedFilterColumn)?.setFilterValue({
+                            operator: filterOperator,
+                            value: filterValue
+                          });
+                          setSelectedFilterColumn('');
+                          setFilterValue('');
+                          setFilterOperator('contains');
                         }}
                       >
-                        {columnId === 'name' ? 'Name' :
-                         columnId === 'status' ? 'Status' :
-                         columnId === 'sku' ? 'SKU' :
-                         columnId === 'product_cost' ? 'Cost' :
-                         columnId === 'markup' ? 'Markup %' :
-                         columnId === 'price' ? 'Planned Sales Price $' :
-                         columnId === 'profit' ? 'Desired Profit $' :
-                         columnId === 'margin' ? 'Desired Margin %' :
-                         columnId === 'calculated_profit' ? 'Profit' :
-                         columnId === 'calculated_margin' ? 'Profit Margin' :
-                         columnId === 'actions' ? 'Actions' :
-                         columnId}
-                      </DropdownMenuCheckboxItem>
-                    );
-                  })}
-              </DropdownMenuContent>
-            </DropdownMenu>
+                        Apply Filter
+                      </Button>
+                    )}
+                  </div>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="icon">
+                    <Columns className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-[250px]">
+                  <DropdownMenuLabel>Toggle columns</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {table
+                    .getAllColumns()
+                    .filter((column) => column.getCanHide && column.getCanHide())
+                    .map((column) => {
+                      const columnId = column.id || '';
+                      return (
+                        <DropdownMenuCheckboxItem
+                          key={columnId}
+                          className="capitalize"
+                          checked={column.getIsVisible ? column.getIsVisible() : true}
+                          onSelect={(e) => e.preventDefault()}
+                          onCheckedChange={(value) => {
+                            if (column.toggleVisibility) {
+                              column.toggleVisibility(!!value);
+                            }
+                          }}
+                        >
+                          {columnId === 'name' ? 'Name' :
+                            columnId === 'status' ? 'Status' :
+                              columnId === 'sku' ? 'SKU' :
+                                columnId === 'product_cost' ? 'Cost' :
+                                  columnId === 'markup' ? 'Markup %' :
+                                    columnId === 'price' ? 'Planned Sales Price $' :
+                                      columnId === 'profit' ? 'Desired Profit $' :
+                                        columnId === 'margin' ? 'Desired Margin %' :
+                                          columnId === 'calculated_profit' ? 'Profit' :
+                                            columnId === 'calculated_margin' ? 'Profit Margin' :
+                                              columnId === 'actions' ? 'Actions' :
+                                                columnId}
+                        </DropdownMenuCheckboxItem>
+                      );
+                    })}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </>
           )}
           <Button onClick={() => navigate('/products/add')}>
@@ -1486,14 +1150,14 @@ export default function Products() {
           {table.getState().columnFilters.map((filter) => {
             const columnId = filter.id;
             const columnName = columnId === 'name' ? 'Name' :
-                             columnId === 'status' ? 'Status' :
-                             columnId === 'sku' ? 'SKU' : columnId;
-            
+              columnId === 'status' ? 'Status' :
+                columnId === 'sku' ? 'SKU' : columnId;
+
             // Handle both old format (string) and new format (object with operator and value)
-            const filterData = typeof filter.value === 'object' && filter.value !== null 
+            const filterData = typeof filter.value === 'object' && filter.value !== null
               ? filter.value as { operator: string; value: string }
               : { operator: columnId === 'status' ? 'equals' : 'contains', value: filter.value as string };
-            
+
             const operatorLabels: Record<string, string> = {
               contains: 'contains',
               equals: 'equals',
@@ -1501,17 +1165,17 @@ export default function Products() {
               startsWith: 'starts with',
               endsWith: 'ends with',
             };
-            
+
             const operatorLabel = operatorLabels[filterData.operator] || filterData.operator;
-            
+
             // Format status display value
-            const displayValue = columnId === 'status' 
+            const displayValue = columnId === 'status'
               ? (filterData.value === 'draft' ? 'Draft' :
-                 filterData.value === 'in_progress' ? 'In Progress' :
-                 filterData.value === 'on_sale' ? 'On Sale' :
-                 filterData.value === 'inactive' ? 'Inactive' : filterData.value)
+                filterData.value === 'in_progress' ? 'In Progress' :
+                  filterData.value === 'on_sale' ? 'On Sale' :
+                    filterData.value === 'inactive' ? 'Inactive' : filterData.value)
               : filterData.value;
-            
+
             return (
               <Badge
                 key={filter.id}
@@ -1565,20 +1229,20 @@ export default function Products() {
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
                   {headerGroup.headers.map((header) => (
-                      <TableHead 
-                        key={header.id}
-                        style={{ 
-                          width: header.getSize(),
-                          minWidth: header.column.columnDef.minSize,
-                          maxWidth: header.column.columnDef.maxSize,
-                        }}
-                      >
+                    <TableHead
+                      key={header.id}
+                      style={{
+                        width: header.getSize(),
+                        minWidth: header.column.columnDef.minSize,
+                        maxWidth: header.column.columnDef.maxSize,
+                      }}
+                    >
                       {header.isPlaceholder
                         ? null
                         : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext()
-                          )}
+                          header.column.columnDef.header,
+                          header.getContext()
+                        )}
                     </TableHead>
                   ))}
                 </TableRow>
@@ -1591,18 +1255,18 @@ export default function Products() {
                     {row.getVisibleCells().map((cell) => {
                       const isStatusColumn = cell.column.id === 'status';
                       return (
-                        <TableCell 
-                          key={cell.id} 
+                        <TableCell
+                          key={cell.id}
                           className={`px-4 relative ${isStatusColumn ? 'overflow-visible whitespace-nowrap' : 'overflow-hidden'}`}
-                          style={{ 
+                          style={{
                             width: cell.column.getSize(),
                             minWidth: cell.column.columnDef.minSize,
                             maxWidth: cell.column.columnDef.maxSize,
                             boxSizing: 'border-box',
                           }}
                         >
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </TableCell>
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </TableCell>
                       );
                     })}
                   </TableRow>
@@ -1630,7 +1294,7 @@ export default function Products() {
         }}
         onSuccess={() => {
           setEditingProductId(null);
-          fetchProducts(); // Refresh the products list
+          productsQueryRefetch(); // Refresh the products list
         }}
       />
 
@@ -1646,7 +1310,7 @@ export default function Products() {
               Some materials don't have enough stock to complete this batch. Stock will be reduced to negative values if you proceed.
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="py-4">
             <div className="space-y-3">
               {stockIssues.map((issue, index) => (

@@ -14,7 +14,7 @@ export const createProduct = async (req: AuthRequest, res: Response) => {
 
     // Validate input
     const validatedData = createProductSchema.parse(req.body);
-    const { name, sku, status, description, category, batch_size, target_price, pricing_method, pricing_value, materials, labor_costs, other_costs } = validatedData;
+    const { name, sku, status, description, category, batch_size, target_price, pricing_method, pricing_value, materials, labor_costs, other_costs, variants } = validatedData;
 
     // Start transaction: Create product
     console.log('Inserting product with userId:', req.userId);
@@ -29,7 +29,7 @@ export const createProduct = async (req: AuthRequest, res: Response) => {
 
     // Handle Vercel Postgres result structure
     // Vercel Postgres returns results in .rows array
-    let productId: number;
+    let productId: number | undefined;
     if (Array.isArray(productResult)) {
       productId = productResult[0]?.id;
     } else if (productResult && typeof productResult === 'object' && 'rows' in productResult) {
@@ -82,13 +82,47 @@ export const createProduct = async (req: AuthRequest, res: Response) => {
       }
     }
 
+    // Insert variants if provided
+    if (variants && variants.length > 0) {
+      for (const variant of variants) {
+        // Insert variant
+        const variantResult = await db`
+          INSERT INTO product_variants (product_id, name, sku, price_override, cost_override, stock_level, is_active)
+          VALUES (${productId}, ${variant.name}, ${variant.sku || null}, ${variant.price_override || null}, ${variant.cost_override || null}, ${variant.stock_level}, ${variant.is_active ?? true})
+          RETURNING id
+        `;
+
+        // Handle Vercel Postgres result structure
+        let variantId: number | null = null;
+        if (Array.isArray(variantResult)) {
+          variantId = variantResult[0]?.id;
+        } else if (variantResult && typeof variantResult === 'object' && 'rows' in variantResult) {
+          const rows = (variantResult as any).rows;
+          if (rows && rows.length > 0) {
+            variantId = rows[0].id;
+          }
+        } else if ((variantResult as any)?.id) {
+          variantId = (variantResult as any).id;
+        }
+
+        if (variantId && variant.attributes && variant.attributes.length > 0) {
+          for (const attr of variant.attributes) {
+            await db`
+              INSERT INTO variant_attributes (variant_id, attribute_name, attribute_value, display_order)
+              VALUES (${variantId}, ${attr.attribute_name}, ${attr.attribute_value}, ${attr.display_order || 0})
+            `;
+          }
+        }
+      }
+    }
+
     // If product status is 'on_sale', reduce stock for materials with user_material_id
     const effectiveStatus = status || 'draft';
     const effectiveBatchSize = batch_size || 1;
-    
+
     if (effectiveStatus === 'on_sale' && materials && materials.length > 0) {
       console.log('Product created with on_sale status, reducing stock. Batch size:', effectiveBatchSize);
-      
+
       // Reduce stock for each material that has user_material_id
       for (const material of materials) {
         if (!material.user_material_id) {
@@ -114,7 +148,7 @@ export const createProduct = async (req: AuthRequest, res: Response) => {
               updated_at = CURRENT_TIMESTAMP
           WHERE id = ${material.user_material_id} AND user_id = ${req.userId}
         `;
-        
+
         console.log(`Stock reduced for material ${material.user_material_id} by ${requiredQuantity}`);
       }
     }
@@ -140,18 +174,18 @@ export const createProduct = async (req: AuthRequest, res: Response) => {
         issues: error.issues,
       });
     }
-    
+
     console.error('Create product error:', {
       message: error.message,
       stack: error.stack,
       name: error.name,
       code: error.code,
     });
-    
+
     return res.status(500).json({
       status: 'error',
       message: 'Failed to create product',
-      ...(process.env.NODE_ENV === 'development' && { 
+      ...(process.env.NODE_ENV === 'development' && {
         error: error.message,
         stack: error.stack,
       }),
@@ -219,14 +253,22 @@ export const getProducts = async (req: AuthRequest, res: Response) => {
           .reduce((sum: number, o: any) => sum + Number(o.total_cost || 0), 0);
         const totalOtherCostsPerProduct = otherCostsPerProduct + (product.batch_size > 0 ? otherCostsPerBatch / product.batch_size : 0);
 
+        // Get variants (basic info for list view)
+        const variantsResult = await db`
+          SELECT id, name, sku, price_override, stock_level, is_active
+          FROM product_variants
+          WHERE product_id = ${product.id}
+        `;
+        const variants = Array.isArray(variantsResult) ? variantsResult : variantsResult.rows || [];
+
         // Calculate total cost per product
         const productCost = totalMaterialsCost + totalLaborCostPerProduct + totalOtherCostsPerProduct;
 
         // Calculate profit and profit margin
         const targetPrice = product.target_price ? Number(product.target_price) : null;
         const profit = targetPrice && productCost > 0 ? targetPrice - productCost : null;
-        const profitMargin = targetPrice && productCost > 0 && targetPrice > 0 
-          ? ((targetPrice - productCost) / targetPrice) * 100 
+        const profitMargin = targetPrice && productCost > 0 && targetPrice > 0
+          ? ((targetPrice - productCost) / targetPrice) * 100
           : null;
         const costsPercentage = targetPrice && productCost > 0 && targetPrice > 0
           ? (productCost / targetPrice) * 100
@@ -238,6 +280,7 @@ export const getProducts = async (req: AuthRequest, res: Response) => {
           profit,
           profit_margin: profitMargin,
           costs_percentage: costsPercentage,
+          variants,
         };
       })
     );
@@ -251,7 +294,7 @@ export const getProducts = async (req: AuthRequest, res: Response) => {
     return res.status(500).json({
       status: 'error',
       message: 'Failed to fetch products',
-      ...(process.env.NODE_ENV === 'development' && { 
+      ...(process.env.NODE_ENV === 'development' && {
         error: error.message,
         stack: error.stack,
       }),
@@ -319,6 +362,27 @@ export const getProduct = async (req: AuthRequest, res: Response) => {
     `;
     const otherCosts = Array.isArray(otherCostsResult) ? otherCostsResult : otherCostsResult.rows || [];
 
+    // Get variants with attributes
+    const variantsResult = await db`
+      SELECT id, name, sku, price_override, cost_override, stock_level, is_active, created_at, updated_at
+      FROM product_variants
+      WHERE product_id = ${productId}
+      ORDER BY id ASC
+    `;
+    const variantsRows = Array.isArray(variantsResult) ? variantsResult : variantsResult.rows || [];
+
+    // Get attributes for all variants
+    const variants = await Promise.all(variantsRows.map(async (variant: any) => {
+      const attributesResult = await db`
+        SELECT id, attribute_name, attribute_value, display_order
+        FROM variant_attributes
+        WHERE variant_id = ${variant.id}
+        ORDER BY display_order ASC, id ASC
+      `;
+      const attributes = Array.isArray(attributesResult) ? attributesResult : attributesResult.rows || [];
+      return { ...variant, attributes };
+    }));
+
     return res.json({
       status: 'success',
       data: {
@@ -326,6 +390,7 @@ export const getProduct = async (req: AuthRequest, res: Response) => {
         materials,
         labor_costs: laborCosts,
         other_costs: otherCosts,
+        variants: variants,
       },
     });
   } catch (error: any) {
@@ -333,7 +398,7 @@ export const getProduct = async (req: AuthRequest, res: Response) => {
     return res.status(500).json({
       status: 'error',
       message: 'Failed to fetch product',
-      ...(process.env.NODE_ENV === 'development' && { 
+      ...(process.env.NODE_ENV === 'development' && {
         error: error.message,
         stack: error.stack,
       }),
@@ -364,7 +429,7 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
       WHERE id = ${productId} AND user_id = ${req.userId}
     `;
     const currentProductRows = Array.isArray(currentProductResult) ? currentProductResult : currentProductResult.rows || [];
-    
+
     if (currentProductRows.length === 0) {
       return res.status(404).json({
         status: 'error',
@@ -373,15 +438,16 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
     }
 
     const currentProduct = currentProductRows[0];
-    
+
     // Helper to convert null to undefined for optional fields
     const nullToUndefined = (value: any) => value === null ? undefined : value;
-    
+
     // Check if materials/labor/other_costs are explicitly provided in the request
     // Only consider them "provided" if they're an array (even if empty - empty means "clear all")
     const hasMaterials = Array.isArray(req.body.materials);
     const hasLaborCosts = Array.isArray(req.body.labor_costs);
     const hasOtherCosts = Array.isArray(req.body.other_costs);
+    const hasVariants = Array.isArray(req.body.variants);
 
     // Merge request body with current product data for partial updates
     const updateData: any = {
@@ -406,24 +472,28 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
     if (hasOtherCosts) {
       updateData.other_costs = req.body.other_costs;
     }
-    
+    if (hasVariants) {
+      updateData.variants = req.body.variants;
+    }
+
     console.log('API received body:', JSON.stringify(req.body, null, 2));
     console.log('API merged updateData:', JSON.stringify(updateData, null, 2));
-    console.log('Has materials:', hasMaterials, 'Has labor:', hasLaborCosts, 'Has other:', hasOtherCosts);
+    console.log('Has materials:', hasMaterials, 'Has labor:', hasLaborCosts, 'Has other:', hasOtherCosts, 'Has variants:', hasVariants);
 
-    // Only validate with schema if we're updating materials/labor/other_costs
+    // Only validate with schema if we're updating materials/labor/other_costs/variants
     // Otherwise, use a simpler validation for just the product fields
     let validatedData: any;
-    if (hasMaterials || hasLaborCosts || hasOtherCosts) {
-      // Full validation including materials/labor/other_costs
+    if (hasMaterials || hasLaborCosts || hasOtherCosts || hasVariants) {
+      // Full validation including materials/labor/other_costs/variants
       validatedData = createProductSchema.parse(updateData);
     } else {
-      // Partial update - only validate product fields, don't require materials/labor/other_costs
+      // Partial update - only validate product fields, don't require materials/labor/other_costs/variants
       validatedData = {
         ...updateData,
         materials: undefined,
         labor_costs: undefined,
         other_costs: undefined,
+        variants: undefined,
       };
       // Still validate the product fields
       createProductSchema.partial().parse(validatedData);
@@ -433,14 +503,15 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
     const materials = validatedData.materials;
     const labor_costs = validatedData.labor_costs;
     const other_costs = validatedData.other_costs;
+    const variants = validatedData.variants;
 
     console.log('After validation - status:', status);
     console.log('After validation - validatedData:', JSON.stringify(validatedData, null, 2));
-    console.log('Has materials:', hasMaterials, 'Has labor:', hasLaborCosts, 'Has other:', hasOtherCosts);
+    console.log('Has materials:', hasMaterials, 'Has labor:', hasLaborCosts, 'Has other:', hasOtherCosts, 'Has variants:', hasVariants);
 
     // Check if status is changing to 'on_sale' - if so, reduce stock
     const isChangingToOnSale = status === 'on_sale' && currentProduct.status !== 'on_sale';
-    
+
     // Update product first
     await db`
       UPDATE products
@@ -460,9 +531,9 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
     // If status changed to 'on_sale', reduce stock for materials with user_material_id
     if (isChangingToOnSale) {
       const effectiveBatchSize = batch_size || currentProduct.batch_size || 1;
-      
+
       console.log('Status changing to on_sale, batch_size:', effectiveBatchSize);
-      
+
       // Get product materials from database
       const materialsResult = await db`
         SELECT user_material_id, quantity, units_made
@@ -497,16 +568,16 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
               updated_at = CURRENT_TIMESTAMP
           WHERE id = ${material.user_material_id} AND user_id = ${req.userId}
         `;
-        
+
         console.log(`Stock reduced for material ${material.user_material_id} by ${requiredQuantity}`);
       }
     }
 
     // Only update materials/labor/other_costs if they were explicitly provided in the request
-if (hasMaterials) {
+    if (hasMaterials) {
       // Check if product is currently 'on_sale' to handle stock updates
       const isCurrentlyOnSale = currentProduct.status === 'on_sale';
-      
+
       // Delete existing materials
       await db`DELETE FROM materials WHERE product_id = ${productId}`;
 
@@ -520,13 +591,13 @@ if (hasMaterials) {
             VALUES (${productId}, ${material.user_material_id || null}, ${material.name}, ${material.quantity}, ${material.unit}, ${material.price_per_unit}, ${unitsMade}, ${totalCost})
           `;
         }
-        
+
         // If product is 'on_sale', recalculate stock reduction for all materials
         if (isCurrentlyOnSale) {
           const effectiveBatchSize = batch_size || currentProduct.batch_size || 1;
-          
+
           console.log('Product is on_sale, recalculating stock after material update. Batch size:', effectiveBatchSize);
-          
+
           // Get all materials for this product
           const materialsResult = await db`
             SELECT user_material_id, quantity, units_made
@@ -557,7 +628,7 @@ if (hasMaterials) {
                   updated_at = CURRENT_TIMESTAMP
               WHERE id = ${material.user_material_id} AND user_id = ${req.userId}
             `;
-            
+
             console.log(`Stock recalculated for material ${material.user_material_id}`);
           }
         }
@@ -568,30 +639,70 @@ if (hasMaterials) {
       // Delete existing labor costs
       await db`DELETE FROM labor_costs WHERE product_id = ${productId}`;
 
-    // Insert new labor costs if provided
-    if (labor_costs && labor_costs.length > 0) {
-      for (const labor of labor_costs) {
-        const totalCost = (labor.time_spent_minutes / 60) * labor.hourly_rate;
-        await db`
+      // Insert new labor costs if provided
+      if (labor_costs && labor_costs.length > 0) {
+        for (const labor of labor_costs) {
+          const totalCost = (labor.time_spent_minutes / 60) * labor.hourly_rate;
+          await db`
           INSERT INTO labor_costs (product_id, activity, time_spent_minutes, hourly_rate, total_cost, per_unit)
           VALUES (${productId}, ${labor.activity}, ${labor.time_spent_minutes}, ${labor.hourly_rate}, ${totalCost}, ${labor.per_unit ?? true})
         `;
+        }
       }
-    }
     }
 
     if (hasOtherCosts) {
       // Delete existing other costs
       await db`DELETE FROM other_costs WHERE product_id = ${productId}`;
 
-    // Insert new other costs if provided
-    if (other_costs && other_costs.length > 0) {
-      for (const cost of other_costs) {
-        const totalCost = cost.quantity * cost.cost;
-        await db`
+      // Insert new other costs if provided
+      if (other_costs && other_costs.length > 0) {
+        for (const cost of other_costs) {
+          const totalCost = cost.quantity * cost.cost;
+          await db`
           INSERT INTO other_costs (product_id, item, quantity, cost, total_cost, per_unit)
           VALUES (${productId}, ${cost.item}, ${cost.quantity}, ${cost.cost}, ${totalCost}, ${cost.per_unit ?? true})
         `;
+        }
+      }
+    }
+
+
+
+    if (hasVariants) {
+      // Delete existing variants (and attributes via cascade)
+      await db`DELETE FROM product_variants WHERE product_id = ${productId}`;
+
+      // Insert new variants if provided
+      if (variants && variants.length > 0) {
+        for (const variant of variants) {
+          // Insert variant
+          const variantResult = await db`
+            INSERT INTO product_variants (product_id, name, sku, price_override, cost_override, stock_level, is_active)
+            VALUES (${productId}, ${variant.name}, ${variant.sku || null}, ${variant.price_override || null}, ${variant.cost_override || null}, ${variant.stock_level}, ${variant.is_active ?? true})
+            RETURNING id
+          `;
+
+          let variantId: number | null = null;
+          if (Array.isArray(variantResult)) {
+            variantId = variantResult[0]?.id;
+          } else if (variantResult && typeof variantResult === 'object' && 'rows' in variantResult) {
+            const rows = (variantResult as any).rows;
+            if (rows && rows.length > 0) {
+              variantId = rows[0].id;
+            }
+          } else if ((variantResult as any)?.id) {
+            variantId = (variantResult as any).id;
+          }
+
+          if (variantId && variant.attributes && variant.attributes.length > 0) {
+            for (const attr of variant.attributes) {
+              await db`
+                INSERT INTO variant_attributes (variant_id, attribute_name, attribute_value, display_order)
+                VALUES (${variantId}, ${attr.attribute_name}, ${attr.attribute_value}, ${attr.display_order || 0})
+              `;
+            }
+          }
         }
       }
     }
@@ -617,22 +728,22 @@ if (hasMaterials) {
         issues: error.issues,
       });
     }
-    
+
     console.error('Update product error:', {
       message: error.message,
       stack: error.stack,
       name: error.name,
       code: error.code,
     });
-    
-    const errorMessage = process.env.NODE_ENV === 'development' 
+
+    const errorMessage = process.env.NODE_ENV === 'development'
       ? error.message || 'Failed to update product'
       : 'Failed to update product';
-    
+
     return res.status(500).json({
       status: 'error',
       message: errorMessage,
-      ...(process.env.NODE_ENV === 'development' && { 
+      ...(process.env.NODE_ENV === 'development' && {
         error: error.message,
         stack: error.stack,
       }),
@@ -663,7 +774,7 @@ export const deleteProduct = async (req: AuthRequest, res: Response) => {
       WHERE id = ${productId} AND user_id = ${req.userId}
     `;
     const productRows = Array.isArray(productCheck) ? productCheck : productCheck.rows || [];
-    
+
     if (productRows.length === 0) {
       return res.status(404).json({
         status: 'error',
@@ -674,13 +785,16 @@ export const deleteProduct = async (req: AuthRequest, res: Response) => {
     // Delete related records first (cascade delete)
     // Delete materials
     await db`DELETE FROM materials WHERE product_id = ${productId}`;
-    
+
     // Delete labor costs
     await db`DELETE FROM labor_costs WHERE product_id = ${productId}`;
-    
+
     // Delete other costs
     await db`DELETE FROM other_costs WHERE product_id = ${productId}`;
-    
+
+    // Delete variants
+    await db`DELETE FROM product_variants WHERE product_id = ${productId}`;
+
     // Delete the product
     await db`DELETE FROM products WHERE id = ${productId} AND user_id = ${req.userId}`;
 
@@ -693,7 +807,7 @@ export const deleteProduct = async (req: AuthRequest, res: Response) => {
     return res.status(500).json({
       status: 'error',
       message: 'Failed to delete product',
-      ...(process.env.NODE_ENV === 'development' && { 
+      ...(process.env.NODE_ENV === 'development' && {
         error: error.message,
         stack: error.stack,
       }),

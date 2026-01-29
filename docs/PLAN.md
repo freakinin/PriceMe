@@ -14,17 +14,20 @@
   - Default labor hourly cost
 
 - ✅ **Product Management**
-  - Create products (multi-step wizard)
+  - Create products (single-screen UI with all fields visible)
   - Edit products
   - Delete products
   - Product status workflow (draft → in_progress → on_sale → inactive)
-  - Batch size management
+  - Batch size management (renamed to "Made")
+  - Real-time profit/margin/markup indicators
 
 - ✅ **Cost Tracking**
   - Materials tracking with user library
-  - Labor costs tracking
+  - Percentage-based quantity for consumable materials (per item or per batch)
+  - Labor costs tracking with default hourly rate from settings
   - Other costs tracking
   - Real-time cost calculations
+  - Dynamic profit/margin/markup indicators
 
 - ✅ **Pricing & Calculations**
   - Target price setting
@@ -44,12 +47,23 @@
   - User material library
   - Reusable materials across products
   - Material management page
+  - Add Stock functionality with weighted average cost calculation
+  - Inline category editing
+  - Out of stock filter toggle
+  - Stock level tracking with reorder points
+  - Last purchased date and price tracking
+  - Investment tracking (total cost)
+  - Consumable material flag (percentage-based materials)
 
 - ✅ **On Sale Page**
   - Dedicated page for products on sale
-  - Sales tracking (qty sold)
+  - Sales tracking (qty sold) - currently in localStorage
   - Revenue, profit, and margin analytics
-  - Stock calculation
+  - Stock calculation (Made - Sold)
+  - Investment column (total cost to produce)
+  - Profit calculation toggle (Real Profit vs Sold Profit)
+  - Real Profit: Revenue - Total Investment (all items made)
+  - Sold Profit: Revenue - COGS (only sold items)
 
 - ✅ **Home Dashboard**
   - Overview analytics
@@ -174,7 +188,31 @@
     - Data recovery
     - Version history
 
-19. **Product Variants**
+19. **Product Variants** 📋 _SPEC Ready_
     - Product variants support
     - Variant-specific pricing
-    - AI-powered variant price suggestions
+    - Variant stock tracking
+    - See: `docs/specs/product-variants.md`
+
+20. **Sales Transactions** 📋 _SPEC Ready_
+    - Transaction-based sales tracking
+    - Actual sale prices (not just target_price)
+    - Discount and coupon tracking
+    - Multi-platform sales tracking
+    - Historical sales data
+    - See: `docs/specs/sales-transactions.md`
+
+### Recently Completed ✅
+
+- ✅ New single-screen Add Product UI (replaced multi-step wizard)
+- ✅ On Sale page improvements (Made/Investment columns, profit toggle)
+- ✅ Materials library enhancements (Add Stock, weighted average, filters)
+- ✅ Percentage-based quantity for consumable materials
+- ✅ Labor hourly cost defaults from settings
+- ✅ Edit Material Dialog improvements (popup, better layout, consumable flag)
+- ✅ Batch size validation fixes
+- ✅ Real-time profit/margin/markup indicators in Add Product
+
+### Small things to fix
+
+- SKU auto generated even though typed when creating a product

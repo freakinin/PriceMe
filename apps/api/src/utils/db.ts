@@ -427,7 +427,7 @@ export async function initializeDatabase() {
         SELECT id FROM roadmap_features WHERE name = 'Custom Product Views'
       `;
       const existingRows = Array.isArray(existingFeature) ? existingFeature : existingFeature.rows || [];
-      
+
       if (existingRows.length === 0) {
         console.log('Adding initial roadmap feature: Custom Product Views...');
         await sql`
@@ -451,7 +451,7 @@ export async function initializeDatabase() {
         SELECT id FROM roadmap_features WHERE name = 'Material Yield Calculator'
       `;
       const existingRows = Array.isArray(existingFeature) ? existingFeature : existingFeature.rows || [];
-      
+
       if (existingRows.length === 0) {
         console.log('Adding roadmap feature: Material Yield Calculator...');
         await sql`
@@ -468,6 +468,35 @@ export async function initializeDatabase() {
     } catch (error: any) {
       console.log('Note: Could not seed Material Yield Calculator roadmap feature:', error.message);
     }
+
+    // Create product_variants table
+    await sql`
+      CREATE TABLE IF NOT EXISTS product_variants (
+        id SERIAL PRIMARY KEY,
+        product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
+        name VARCHAR(255) NOT NULL,
+        sku VARCHAR(100),
+        price_override DECIMAL(10, 2),
+        cost_override DECIMAL(10, 2),
+        stock_level INTEGER DEFAULT 0,
+        is_active BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+
+    // Create variant_attributes table
+    await sql`
+      CREATE TABLE IF NOT EXISTS variant_attributes (
+        id SERIAL PRIMARY KEY,
+        variant_id INTEGER REFERENCES product_variants(id) ON DELETE CASCADE,
+        attribute_name VARCHAR(50) NOT NULL,
+        attribute_value VARCHAR(100) NOT NULL,
+        display_order INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(variant_id, attribute_name)
+      );
+    `;
 
     console.log('✅ Database tables initialized successfully');
   } catch (error) {

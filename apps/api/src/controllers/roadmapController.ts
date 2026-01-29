@@ -5,7 +5,7 @@ import { AuthRequest } from '../middleware/auth.js';
 export const getRoadmapFeatures = async (req: AuthRequest, res: Response) => {
   try {
     const searchQuery = req.query.search as string | undefined;
-    
+
     let features;
     if (searchQuery) {
       features = await db`
@@ -96,7 +96,7 @@ export const voteOnFeature = async (req: AuthRequest, res: Response) => {
 
     if (existingVoteList.length > 0) {
       const currentVoteType = existingVoteList[0].vote_type;
-      
+
       // If voting the same way, remove the vote
       if (currentVoteType === voteType) {
         await db`
@@ -176,13 +176,13 @@ export const voteOnFeature = async (req: AuthRequest, res: Response) => {
       `;
     }
 
-    res.json({
+    return res.json({
       status: 'success',
       message: 'Vote recorded',
     });
   } catch (error: any) {
     console.error('Error voting on feature:', error);
-    res.status(500).json({
+    return res.status(500).json({
       status: 'error',
       message: 'Failed to record vote',
       error: error.message,
