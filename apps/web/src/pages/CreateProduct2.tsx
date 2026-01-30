@@ -69,12 +69,12 @@ export default function CreateProduct2() {
   const { setOpen } = useSidebar();
   const { settings } = useSettings();
   const { toast } = useToast();
-  
+
   // Collapse sidebar on mount
   useEffect(() => {
     setOpen(false);
-  }, [setOpen]);
-  
+  }, []);
+
   const [materials, setMaterials] = useState<Material[]>([]);
   const [laborCosts, setLaborCosts] = useState<Labor[]>([]);
   const [otherCosts, setOtherCosts] = useState<OtherCost[]>([]);
@@ -147,14 +147,14 @@ export default function CreateProduct2() {
   // Add material
   const addMaterial = () => {
     if (!materialName) return;
-    
+
     const quantity = materialQtyType === 'exact' ? parseFloat(materialQuantity) || 0 : 0;
     const percentage = materialQtyType === 'percentage' ? parseFloat(materialPercentage) : undefined;
     // For percentage per batch, units_made is always 1 (doesn't apply)
-    const unitsMade = (materialQtyType === 'percentage' && materialPerBatch) 
-      ? 1 
+    const unitsMade = (materialQtyType === 'percentage' && materialPerBatch)
+      ? 1
       : parseInt(materialUnitsMade) || 1;
-    
+
     const newMaterial: Material = {
       id: crypto.randomUUID(),
       name: materialName,
@@ -168,7 +168,7 @@ export default function CreateProduct2() {
       user_material_id: selectedMaterial?.id,
       stock_level: selectedMaterial?.stock_level,
     };
-    
+
     setMaterials([...materials, newMaterial]);
     resetMaterialForm();
   };
@@ -188,7 +188,7 @@ export default function CreateProduct2() {
   // Add labor
   const addLabor = () => {
     if (!laborActivity || !laborMinutes) return;
-    
+
     const newLabor: Labor = {
       id: crypto.randomUUID(),
       activity: laborActivity,
@@ -196,7 +196,7 @@ export default function CreateProduct2() {
       hourly_rate: parseFloat(laborRate) || 0,
       per_batch: laborPerBatch,
     };
-    
+
     setLaborCosts([...laborCosts, newLabor]);
     setLaborActivity('');
     setLaborMinutes('');
@@ -206,7 +206,7 @@ export default function CreateProduct2() {
   // Add other cost
   const addOtherCost = () => {
     if (!otherItem || !otherCost) return;
-    
+
     const newCost: OtherCost = {
       id: crypto.randomUUID(),
       item: otherItem,
@@ -214,7 +214,7 @@ export default function CreateProduct2() {
       cost: parseFloat(otherCost) || 0,
       per_batch: otherPerBatch,
     };
-    
+
     setOtherCosts([...otherCosts, newCost]);
     setOtherItem('');
     setOtherQuantity('1');
@@ -234,7 +234,7 @@ export default function CreateProduct2() {
     try {
       let quantity = 0;
       let stockLevel = 0;
-      
+
       if (material.quantity_type === 'percentage') {
         stockLevel = material.stock_level || 1;
         quantity = stockLevel;
@@ -242,7 +242,7 @@ export default function CreateProduct2() {
         quantity = material.quantity || 0;
         stockLevel = material.stock_level || quantity;
       }
-      
+
       const price = quantity * material.price_per_unit;
 
       const response = await api.post('/materials', {
@@ -256,10 +256,10 @@ export default function CreateProduct2() {
 
       if (response.data.status === 'success') {
         const savedMaterial = response.data.data;
-        
+
         // Update the material in local state to link it to library
-        setMaterials(materials.map(m => 
-          m.id === material.id 
+        setMaterials(materials.map(m =>
+          m.id === material.id
             ? { ...m, user_material_id: savedMaterial.id, stock_level: savedMaterial.stock_level || 0 }
             : m
         ));
@@ -318,7 +318,7 @@ export default function CreateProduct2() {
       // Determine pricing method and value from target_price if provided
       let pricing_method: 'price' | undefined = undefined;
       let pricing_value: number | undefined = undefined;
-      
+
       if (data.target_price) {
         pricing_method = 'price';
         pricing_value = data.target_price;
@@ -372,7 +372,7 @@ export default function CreateProduct2() {
       <div className="flex-1 overflow-y-auto p-6">
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            
+
             {/* Product Info Row */}
             <div className="grid grid-cols-4 gap-4 items-end">
               <FormField
@@ -408,8 +408,8 @@ export default function CreateProduct2() {
                   <FormItem>
                     <FormLabel>Batch Size</FormLabel>
                     <FormControl>
-                      <Input 
-                        type="number" 
+                      <Input
+                        type="number"
                         min={1}
                         {...field}
                         onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
@@ -426,8 +426,8 @@ export default function CreateProduct2() {
                   <FormItem>
                     <FormLabel>Target Price ({getCurrencySymbol(settings.currency)})</FormLabel>
                     <FormControl>
-                      <Input 
-                        type="number" 
+                      <Input
+                        type="number"
                         step="0.01"
                         placeholder="0.00"
                         {...field}
@@ -443,14 +443,14 @@ export default function CreateProduct2() {
 
             {/* 3-Column Grid: Materials, Labor, Other */}
             <div className="grid grid-cols-3 gap-6">
-              
+
               {/* Materials Column */}
               <div className="space-y-4">
                 <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
                   <Package className="h-4 w-4" />
                   Materials
                 </div>
-                
+
                 {/* Add Material Form */}
                 <div className="space-y-3 p-4 border rounded-lg bg-muted/20">
                   <div>
@@ -462,7 +462,7 @@ export default function CreateProduct2() {
                       placeholder="Search or add new material"
                     />
                   </div>
-                  
+
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <label className="text-xs text-muted-foreground flex items-center gap-1">
@@ -510,7 +510,7 @@ export default function CreateProduct2() {
                       </Select>
                     </div>
                   </div>
-                  
+
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <label className="text-xs text-muted-foreground">Price/Unit ({getCurrencySymbol(settings.currency)})</label>
@@ -538,16 +538,16 @@ export default function CreateProduct2() {
                       </div>
                     )}
                   </div>
-                  
+
                   <div className="flex items-center gap-1.5">
-                    <Checkbox 
-                      checked={materialPerBatch} 
+                    <Checkbox
+                      checked={materialPerBatch}
                       onCheckedChange={(c) => setMaterialPerBatch(!!c)}
                       id="mat-batch"
                     />
                     <label htmlFor="mat-batch" className="text-xs">Per batch</label>
                   </div>
-                  
+
                   <Button type="button" size="sm" className="w-full" onClick={addMaterial}>
                     <Plus className="h-3 w-3 mr-1" /> Add
                   </Button>
@@ -579,8 +579,8 @@ export default function CreateProduct2() {
                       <CardContent className="p-3">
                         <div className="font-medium text-sm truncate pr-8">{m.name}</div>
                         <div className="text-xs text-muted-foreground">
-                          {m.quantity_type === 'percentage' 
-                            ? `${m.quantity_percentage}%` 
+                          {m.quantity_type === 'percentage'
+                            ? `${m.quantity_percentage}%`
                             : `${m.quantity} ${m.unit}`}
                           {m.units_made > 1 && ` → ${m.units_made} items`}
                           {m.per_batch && ' / batch'}
@@ -601,7 +601,7 @@ export default function CreateProduct2() {
                   <Clock className="h-4 w-4" />
                   Labor
                 </div>
-                
+
                 {/* Add Labor Form */}
                 <div className="space-y-3 p-4 border rounded-lg bg-muted/20">
                   <div>
@@ -613,7 +613,7 @@ export default function CreateProduct2() {
                       className="h-9"
                     />
                   </div>
-                  
+
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <label className="text-xs text-muted-foreground">Minutes</label>
@@ -636,16 +636,16 @@ export default function CreateProduct2() {
                       />
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center gap-1.5">
-                    <Checkbox 
-                      checked={laborPerBatch} 
+                    <Checkbox
+                      checked={laborPerBatch}
                       onCheckedChange={(c) => setLaborPerBatch(!!c)}
                       id="labor-batch"
                     />
                     <label htmlFor="labor-batch" className="text-xs">Per batch</label>
                   </div>
-                  
+
                   <Button type="button" size="sm" className="w-full" onClick={addLabor}>
                     <Plus className="h-3 w-3 mr-1" /> Add
                   </Button>
@@ -683,7 +683,7 @@ export default function CreateProduct2() {
                   <Receipt className="h-4 w-4" />
                   Other Costs
                 </div>
-                
+
                 {/* Add Other Cost Form */}
                 <div className="space-y-3 p-4 border rounded-lg bg-muted/20">
                   <div>
@@ -695,7 +695,7 @@ export default function CreateProduct2() {
                       className="h-9"
                     />
                   </div>
-                  
+
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <label className="text-xs text-muted-foreground">Qty</label>
@@ -718,16 +718,16 @@ export default function CreateProduct2() {
                       />
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center gap-1.5">
-                    <Checkbox 
-                      checked={otherPerBatch} 
+                    <Checkbox
+                      checked={otherPerBatch}
                       onCheckedChange={(c) => setOtherPerBatch(!!c)}
                       id="other-batch"
                     />
                     <label htmlFor="other-batch" className="text-xs">Per batch</label>
                   </div>
-                  
+
                   <Button type="button" size="sm" className="w-full" onClick={addOtherCost}>
                     <Plus className="h-3 w-3 mr-1" /> Add
                   </Button>
@@ -784,13 +784,13 @@ export default function CreateProduct2() {
               <div className="text-xl font-bold text-primary">{formatCurrency(totalCostPerProduct, settings.currency)}</div>
             </div>
           </div>
-          
+
           <div className="flex gap-3 ml-auto">
             <Button type="button" variant="outline" onClick={() => navigate('/products')}>
               Cancel
             </Button>
-            <Button 
-              onClick={form.handleSubmit(onSubmit)} 
+            <Button
+              onClick={form.handleSubmit(onSubmit)}
               disabled={isSubmitting || !form.watch('name')}
             >
               {isSubmitting ? 'Saving...' : 'Save Product'}

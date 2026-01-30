@@ -318,7 +318,7 @@ export default function CreateProduct() {
 
   useEffect(() => {
     setOpen(false);
-  }, [setOpen]);
+  }, []);
 
   const form = useForm<ProductFormValues>({
     resolver: zodResolver(productSchema),
