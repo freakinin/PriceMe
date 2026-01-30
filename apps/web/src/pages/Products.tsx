@@ -505,7 +505,7 @@ export default function Products() {
         const getStatusBadge = (status: ProductStatus) => {
           const statusConfig = {
             draft: { label: 'Draft', className: 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200' },
-            in_progress: { label: 'In Progress', className: 'bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-200' },
+            in_progress: { label: 'In Progress', className: 'bg-[#F89C75] text-white border-transparent hover:bg-[#F89C75]/90' },
             on_sale: { label: 'On Sale', className: 'bg-[#11743B] text-white border-transparent hover:bg-[#11743B]/90' },
             inactive: { label: 'Inactive', className: 'bg-[#B03E52] text-white border-transparent hover:bg-[#B03E52]/90' },
           };
@@ -927,6 +927,8 @@ export default function Products() {
       '--secondary-foreground': '222 47% 11%',
       '--destructive': '350 48% 47%', // #B03E52
       '--destructive-foreground': '0 0% 100%',
+      '--muted': '18 50% 96%', // Very light orange for hover/backgrounds
+      '--muted-foreground': '18 40% 40%',
     } as React.CSSProperties}>
       <div className="mb-6 flex items-center justify-between">
         <div>
