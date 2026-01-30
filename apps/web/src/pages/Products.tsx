@@ -928,7 +928,8 @@ export default function Products() {
       '--destructive': '350 48% 47%', // #B03E52
       '--destructive-foreground': '0 0% 100%',
       '--muted': '18 50% 96%', // Very light orange for hover/backgrounds
-      '--muted-foreground': '18 40% 40%',
+      '--muted-foreground': '215 16% 47%', // Neutral gray for secondary text
+      '--foreground': '0 0% 13.3%', // #222222 Main text color
     } as React.CSSProperties}>
       <div className="mb-6 flex items-center justify-between">
         <div>
@@ -1234,7 +1235,7 @@ export default function Products() {
       ) : (
         <div className="rounded-lg border overflow-x-auto">
           <Table>
-            <TableHeader>
+            <TableHeader className="bg-[#FAFAFA]">
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
                   {headerGroup.headers.map((header) => (
