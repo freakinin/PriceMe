@@ -193,11 +193,15 @@ function AddMaterialForm({ onAdd, settings }: { onAdd: (data: z.infer<typeof mat
         )}
       </div>
 
-      <div className="flex items-center gap-1.5">
-        <Checkbox checked={perBatch} onCheckedChange={(c) => setPerBatch(!!c)} id="mat-batch" />
-        <label htmlFor="mat-batch" className="text-xs">Per batch</label>
+      <div className="flex items-center justify-between pt-2">
+        <div className="flex items-center gap-1.5">
+          <Checkbox checked={perBatch} onCheckedChange={(c) => setPerBatch(!!c)} id="mat-batch" />
+          <label htmlFor="mat-batch" className="text-xs">Per batch</label>
+        </div>
+        <Button type="button" variant="outline" size="sm" className="border-primary text-primary hover:bg-primary/5 px-4" onClick={handleAdd}>
+          <Plus className="h-3 w-3 mr-0.5" /> Add
+        </Button>
       </div>
-      <Button type="button" size="sm" className="w-full" onClick={handleAdd}><Plus className="h-3 w-3 mr-1" /> Add</Button>
     </div>
   );
 }
@@ -248,11 +252,15 @@ function AddLaborForm({ onAdd, settings }: { onAdd: (data: z.infer<typeof laborI
           <Input type="number" step="0.01" value={rate} onChange={e => setRate(e.target.value)} className="h-9" />
         </div>
       </div>
-      <div className="flex items-center gap-1.5">
-        <Checkbox checked={perBatch} onCheckedChange={(c) => setPerBatch(!!c)} id="labor-batch" />
-        <label htmlFor="labor-batch" className="text-xs">Per batch</label>
+      <div className="flex items-center justify-between pt-2">
+        <div className="flex items-center gap-1.5">
+          <Checkbox checked={perBatch} onCheckedChange={(c) => setPerBatch(!!c)} id="labor-batch" />
+          <label htmlFor="labor-batch" className="text-xs">Per batch</label>
+        </div>
+        <Button type="button" variant="outline" size="sm" className="border-primary text-primary hover:bg-primary/5 px-4" onClick={handleAdd}>
+          <Plus className="h-3 w-3 mr-0.5" /> Add
+        </Button>
       </div>
-      <Button type="button" size="sm" className="w-full" onClick={handleAdd}><Plus className="h-3 w-3 mr-1" /> Add</Button>
     </div>
   );
 }
@@ -293,11 +301,15 @@ function AddOtherCostForm({ onAdd, settings }: { onAdd: (data: z.infer<typeof ot
           <Input type="number" step="0.01" placeholder="0.00" value={cost} onChange={e => setCost(e.target.value)} className="h-9" />
         </div>
       </div>
-      <div className="flex items-center gap-1.5">
-        <Checkbox checked={perBatch} onCheckedChange={(c) => setPerBatch(!!c)} id="other-batch" />
-        <label htmlFor="other-batch" className="text-xs">Per batch</label>
+      <div className="flex items-center justify-between pt-2">
+        <div className="flex items-center gap-1.5">
+          <Checkbox checked={perBatch} onCheckedChange={(c) => setPerBatch(!!c)} id="other-batch" />
+          <label htmlFor="other-batch" className="text-xs">Per batch</label>
+        </div>
+        <Button type="button" variant="outline" size="sm" className="border-primary text-primary hover:bg-primary/5 px-4" onClick={handleAdd}>
+          <Plus className="h-3 w-3 mr-0.5" /> Add
+        </Button>
       </div>
-      <Button type="button" size="sm" className="w-full" onClick={handleAdd}><Plus className="h-3 w-3 mr-1" /> Add</Button>
     </div>
   );
 }

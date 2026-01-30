@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useRef } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { ArrowUpDown, ArrowUp, ArrowDown, Search, DollarSign, TrendingUp, Package, ShoppingCart, ToggleLeft, ToggleRight } from 'lucide-react';
 import {
   useReactTable,
@@ -22,220 +22,52 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import api from '@/lib/api';
 import { useSettings } from '@/hooks/useSettings';
 import { useToast } from '@/components/ui/use-toast';
 import { formatCurrency } from '@/utils/currency';
-
-// Inline editable cell component - matches Products page
-function EditableCell({
-  value,
-  onSave,
-  type = 'text',
-  formatDisplay,
-  className = '',
-}: {
-  value: string | number | null | undefined;
-  onSave: (value: string | number) => Promise<void>;
-  type?: 'text' | 'number';
-  formatDisplay?: (value: string | number | null | undefined) => string;
-  className?: string;
-}) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [editValue, setEditValue] = useState<string>(value?.toString() || '');
-  const [isSaving, setIsSaving] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const cellRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    setEditValue(value?.toString() || '');
-  }, [value]);
-
-  useEffect(() => {
-    if (isEditing && inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
-    }
-  }, [isEditing]);
-
-  const handleSave = async () => {
-    if (editValue === value?.toString()) {
-      setIsEditing(false);
-      return;
-    }
-
-    setIsSaving(true);
-    try {
-      const numValue = type === 'number' ? parseFloat(editValue) : editValue;
-      if (type === 'number' && isNaN(numValue as number)) {
-        throw new Error('Invalid number');
-      }
-      await onSave(numValue as string | number);
-      setIsEditing(false);
-    } catch (error) {
-      console.error('Error saving:', error);
-      setEditValue(value?.toString() || '');
-      setIsEditing(false);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleSave();
-    } else if (e.key === 'Escape') {
-      setEditValue(value?.toString() || '');
-      setIsEditing(false);
-    }
-  };
-
-  const handleBlur = () => {
-    handleSave();
-  };
-
-  if (isEditing) {
-    return (
-      <div ref={cellRef} className="absolute inset-0 overflow-hidden">
-        <input
-          ref={inputRef}
-          type={type === 'number' ? 'number' : 'text'}
-          step={type === 'number' ? '0.01' : undefined}
-          className="h-full w-full border-none outline-none px-4 py-1 text-sm bg-transparent focus:bg-background focus:outline-none focus:ring-0"
-          style={{ borderRadius: 0, maxWidth: '100%', boxSizing: 'border-box' }}
-          value={editValue}
-          onChange={(e) => setEditValue(e.target.value)}
-          onKeyDown={handleKeyDown}
-          onBlur={handleBlur}
-          disabled={isSaving}
-        />
-      </div>
-    );
-  }
-
-  // Format number display to remove trailing zeros
-  const formatNumberDisplay = (val: string | number | null | undefined): string => {
-    if (val === null || val === undefined) return '-';
-    let num: number;
-    if (typeof val === 'number') {
-      num = val;
-    } else {
-      num = parseFloat(val);
-      if (isNaN(num)) return val.toString();
-    }
-    // Remove trailing zeros: 4.0000 -> 4, 4.5000 -> 4.5, 4.1230 -> 4.123
-    return num % 1 === 0 
-      ? num.toString() 
-      : num.toString().replace(/\.?0+$/, '');
-  };
-
-  const displayValue = formatDisplay 
-    ? formatDisplay(value) 
-    : (type === 'number' ? formatNumberDisplay(value) : (value?.toString() || '-'));
-
-  const handleClick = () => {
-    setIsEditing(true);
-  };
-
-  return (
-    <div
-      className={`relative flex items-center h-full w-full min-w-0 cursor-cell bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200/50 dark:border-blue-800/50 rounded hover:bg-blue-100/70 dark:hover:bg-blue-900/40 hover:border-blue-300 dark:hover:border-blue-700 py-1 px-2 transition-all ${className}`}
-      onClick={handleClick}
-      onDoubleClick={handleClick}
-      title="Click to edit"
-    >
-      <div className="flex-1 truncate text-sm min-w-0">
-        {typeof displayValue === 'string' ? <span className="block truncate">{displayValue}</span> : displayValue}
-      </div>
-    </div>
-  );
-}
-
-type ProductStatus = 'draft' | 'in_progress' | 'on_sale' | 'inactive';
-
-interface Product {
-  id: number;
-  name: string;
-  sku: string | null;
-  status: ProductStatus | null;
-  batch_size: number;
-  target_price: number | null;
-  pricing_method: string | null;
-  pricing_value: number | null;
-  product_cost: number;
-  profit: number | null;
-  profit_margin: number | null;
-  costs_percentage: number | null;
-  created_at: string;
-  updated_at: string;
-}
+import { EditableCell } from '@/components/EditableCell';
+import { useProducts, type Product } from '@/hooks/useProducts';
 
 export default function OnSale() {
   const { settings } = useSettings();
   const { toast } = useToast();
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { products: allProducts, isLoading: loading, updateProduct } = useProducts();
+
+  // Filter only products with status 'on_sale'
+  const products = useMemo(() => {
+    return allProducts.filter(p => p.status === 'on_sale');
+  }, [allProducts]);
+
   const [qtySold, setQtySold] = useState<Record<number, number>>({});
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState<string>('');
   // true = use total investment (Made × Cost), false = use COGS (Sold × Cost)
   const [useFullInvestment, setUseFullInvestment] = useState(true);
 
+  // Initialize qty_sold from local storage
   useEffect(() => {
-    fetchProducts();
-  }, []);
-
-  const fetchProducts = async () => {
-    try {
-      setLoading(true);
-      const response = await api.get('/products');
-      if (response.data.status === 'success') {
-        const allProducts = response.data.data || [];
-        // Filter only products with status 'on_sale'
-        const onSaleProducts = allProducts.filter((p: Product) => p.status === 'on_sale');
-        
-        // Debug: Log the first product to see what data we're getting
-        if (onSaleProducts.length > 0) {
-          console.log('First on-sale product:', onSaleProducts[0]);
-          console.log('product_cost:', onSaleProducts[0].product_cost);
-          console.log('profit:', onSaleProducts[0].profit);
-          console.log('profit_margin:', onSaleProducts[0].profit_margin);
-          console.log('target_price:', onSaleProducts[0].target_price);
-        }
-        
-        setProducts(onSaleProducts);
-        // Initialize qty_sold from local storage or default to 0
-        const savedQtySold: Record<number, number> = {};
-        onSaleProducts.forEach((p: Product) => {
-          const saved = localStorage.getItem(`qty_sold_${p.id}`);
-          savedQtySold[p.id] = saved ? parseInt(saved, 10) : 0;
-        });
-        setQtySold(savedQtySold);
-      }
-    } catch (error: any) {
-      console.error('Error fetching products:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: error.response?.data?.message || 'Failed to load products',
+    if (products.length > 0) {
+      const savedQtySold: Record<number, number> = {};
+      products.forEach((p) => {
+        const saved = localStorage.getItem(`qty_sold_${p.id}`);
+        if (saved) savedQtySold[p.id] = parseInt(saved, 10);
       });
-    } finally {
-      setLoading(false);
+      setQtySold(prev => ({ ...prev, ...savedQtySold }));
     }
-  };
+  }, [products]);
 
   const handleSaveField = async (productId: number, field: string, value: string | number) => {
     if (field === 'qty_sold') {
-      setQtySold(prev => ({ ...prev, [productId]: value as number }));
-      localStorage.setItem(`qty_sold_${productId}`, String(value));
+      const numValue = typeof value === 'string' ? parseFloat(value) : value;
+      setQtySold(prev => ({ ...prev, [productId]: numValue as number }));
+      localStorage.setItem(`qty_sold_${productId}`, String(numValue));
       return;
     }
 
     if (field === 'batch_size') {
       try {
         const batchValue = Math.round(Number(value));
-        await api.put(`/products/${productId}`, { batch_size: batchValue });
-        setProducts(prev => prev.map(p => p.id === productId ? { ...p, batch_size: batchValue } : p));
+        await updateProduct({ id: productId, data: { batch_size: batchValue } });
         toast({
           variant: 'success',
           title: 'Updated',
@@ -246,7 +78,7 @@ export default function OnSale() {
         toast({
           variant: 'destructive',
           title: 'Error',
-          description: error.response?.data?.message || 'Failed to update batch size',
+          description: error.message || 'Failed to update batch size',
         });
         throw error;
       }
@@ -683,7 +515,7 @@ export default function OnSale() {
     // Use Investment or COGS based on toggle
     const totalCost = useFullInvestment ? totalInvestment : totalCOGS;
     const totalProfit = totalRevenue - totalCost;
-    
+
     const totalSold = products.reduce((sum, product) => {
       return sum + (qtySold[product.id] || 0);
     }, 0);
@@ -746,16 +578,14 @@ export default function OnSale() {
                       {formatCurrencyValue(analytics.totalProfit)}
                     </p>
                   </div>
-                  <div className={`h-12 w-12 rounded-full flex items-center justify-center ${
-                    analytics.totalProfit >= 0 
-                      ? 'bg-blue-100 dark:bg-blue-900/20' 
+                  <div className={`h-12 w-12 rounded-full flex items-center justify-center ${analytics.totalProfit >= 0
+                      ? 'bg-blue-100 dark:bg-blue-900/20'
                       : 'bg-red-100 dark:bg-red-900/20'
-                  }`}>
-                    <TrendingUp className={`h-6 w-6 ${
-                      analytics.totalProfit >= 0 
-                        ? 'text-blue-600 dark:text-blue-400' 
+                    }`}>
+                    <TrendingUp className={`h-6 w-6 ${analytics.totalProfit >= 0
+                        ? 'text-blue-600 dark:text-blue-400'
                         : 'text-red-600 dark:text-red-400'
-                    }`} />
+                      }`} />
                   </div>
                 </div>
               </CardContent>
@@ -807,7 +637,7 @@ export default function OnSale() {
                 className="pl-9 h-10"
               />
             </div>
-            
+
             {/* Profit Calculation Mode Toggle */}
             <TooltipProvider>
               <Tooltip>
@@ -830,7 +660,7 @@ export default function OnSale() {
                 </TooltipTrigger>
                 <TooltipContent side="bottom" className="max-w-[250px]">
                   <p className="text-sm">
-                    {useFullInvestment 
+                    {useFullInvestment
                       ? 'Real Profit: Revenue minus total investment (all items made)'
                       : 'Sold Profit: Revenue minus cost of sold items only'}
                   </p>

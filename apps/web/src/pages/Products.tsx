@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useMemo } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Package, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Columns, Filter, X, Search, AlertTriangle } from 'lucide-react';
 import {
@@ -54,6 +54,7 @@ import {
 } from '@/components/ui/dialog';
 import { useProducts, type Product, type PricingMethod, type ProductStatus } from '@/hooks/useProducts';
 import { useProductPricing } from '@/hooks/useProductPricing';
+import { EditableCell } from '@/components/EditableCell';
 
 // Helper function to format numbers - remove trailing zeros
 const formatNumberDisplay = (val: string | number | null | undefined): string => {
@@ -71,115 +72,7 @@ const formatNumberDisplay = (val: string | number | null | undefined): string =>
     : num.toString().replace(/\.?0+$/, '');
 };
 
-// Inline editable cell component - matches Materials exactly
-function EditableCell({
-  value,
-  onSave,
-  type = 'text',
-  formatDisplay,
-  className = '',
-}: {
-  value: string | number | null | undefined;
-  onSave: (value: string | number) => Promise<void>;
-  type?: 'text' | 'number';
-  formatDisplay?: (value: string | number | null | undefined) => string;
-  className?: string;
-}) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [editValue, setEditValue] = useState<string>(value?.toString() || '');
-  const [isSaving, setIsSaving] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const cellRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    setEditValue(value?.toString() || '');
-  }, [value]);
-
-  useEffect(() => {
-    if (isEditing && inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
-    }
-  }, [isEditing]);
-
-  const handleSave = async () => {
-    if (isSaving) return;
-
-    setIsSaving(true);
-    try {
-      let valueToSave: string | number;
-      if (type === 'number') {
-        valueToSave = parseFloat(editValue) || 0;
-      } else {
-        valueToSave = editValue;
-      }
-      await onSave(valueToSave);
-      setIsEditing(false);
-    } catch (error) {
-      // Revert on error
-      setEditValue(value?.toString() || '');
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleCancel = () => {
-    setEditValue(value?.toString() || '');
-    setIsEditing(false);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      handleSave();
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      handleCancel();
-    } else if (e.key === 'Tab') {
-      // Allow tab to move to next cell
-      handleSave();
-    }
-  };
-
-  if (isEditing) {
-    return (
-      <div ref={cellRef} className="absolute inset-0 overflow-hidden">
-        <input
-          ref={inputRef}
-          type={type === 'number' ? 'number' : 'text'}
-          step={type === 'number' ? '0.01' : undefined}
-          className="h-full w-full border-none outline-none px-4 py-1 text-sm bg-transparent focus:bg-background focus:outline-none focus:ring-0"
-          style={{ borderRadius: 0, maxWidth: '100%', boxSizing: 'border-box' }}
-          value={editValue}
-          onChange={(e) => setEditValue(e.target.value)}
-          onKeyDown={handleKeyDown}
-          onBlur={handleSave}
-          disabled={isSaving}
-        />
-      </div>
-    );
-  }
-
-  const displayValue = formatDisplay
-    ? formatDisplay(value)
-    : (type === 'number' ? formatNumberDisplay(value) : (value?.toString() || '-'));
-
-  const handleClick = () => {
-    setIsEditing(true);
-  };
-
-  return (
-    <div
-      className={`relative flex items-center h-full w-full min-w-0 cursor-cell hover:bg-muted/30 py-1 transition-colors ${className}`}
-      onClick={handleClick}
-      onDoubleClick={handleClick}
-    >
-      <div className="flex-1 truncate text-sm min-w-0">
-        {typeof displayValue === 'string' ? <span className="block truncate">{displayValue}</span> : displayValue}
-      </div>
-    </div>
-  );
-}
 
 export default function Products() {
   const { settings } = useSettings();
@@ -920,17 +813,7 @@ export default function Products() {
   }
 
   return (
-    <div className="p-6" style={{
-      '--primary': '212 93% 23%', // #043872
-      '--primary-foreground': '0 0% 100%',
-      '--secondary': '18 90% 72%', // #F89C75
-      '--secondary-foreground': '222 47% 11%',
-      '--destructive': '350 48% 47%', // #B03E52
-      '--destructive-foreground': '0 0% 100%',
-      '--muted': '18 50% 96%', // Very light orange for hover/backgrounds
-      '--muted-foreground': '215 16% 47%', // Neutral gray for secondary text
-      '--foreground': '0 0% 13.3%', // #222222 Main text color
-    } as React.CSSProperties}>
+    <div className="p-6">
       <div className="mb-6 flex items-center justify-between">
         <div>
           {products.length > 0 && (
