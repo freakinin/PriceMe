@@ -438,7 +438,7 @@ export default function Products() {
               await handleSaveField(product.id, 'status', value);
             }}
           >
-            <SelectTrigger className="h-8 border-none shadow-none px-2 hover:bg-muted/50 w-full [&>svg]:hidden">
+            <SelectTrigger className="h-8 border-none shadow-none pl-0 hover:bg-muted/50 w-full justify-start [&>svg]:hidden">
               {getStatusBadge(currentStatus)}
             </SelectTrigger>
             <SelectContent>
@@ -491,13 +491,38 @@ export default function Products() {
         const variants = row.original.variants;
         if (!variants || variants.length === 0) {
           return (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-6 px-2 text-xs text-muted-foreground hover:text-primary"
+            <div className="flex justify-start">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-xs text-muted-foreground hover:text-primary"
+                onClick={async () => {
+                  // Fetch full product details to get variants with attributes (even if empty initially)
+                  try {
+                    const res = await api.get(`/products/${row.original.id}`);
+                    if (res.data.status === 'success') {
+                      setSelectedProductForVariations(res.data.data);
+                      setVariationsModalOpen(true);
+                    }
+                  } catch (e) {
+                    toast({ variant: "destructive", title: "Error", description: "Failed to load product details" });
+                  }
+                }}
+              >
+                <Plus className="h-3 w-3 mr-1" /> Add
+              </Button>
+            </div>
+          );
+        }
+        return (
+          <div className="flex justify-start">
+            <Badge
+              variant="outline"
+              className="font-normal text-xs whitespace-nowrap cursor-pointer hover:bg-muted"
               onClick={async () => {
-                // Fetch full product details to get variants with attributes (even if empty initially)
+                // Fetch full product details to get variants with attributes
                 try {
+                  // Ensure we have fresh data including attributes
                   const res = await api.get(`/products/${row.original.id}`);
                   if (res.data.status === 'success') {
                     setSelectedProductForVariations(res.data.data);
@@ -508,30 +533,9 @@ export default function Products() {
                 }
               }}
             >
-              <Plus className="h-3 w-3 mr-1" /> Add
-            </Button>
-          );
-        }
-        return (
-          <Badge
-            variant="outline"
-            className="font-normal text-xs whitespace-nowrap cursor-pointer hover:bg-muted"
-            onClick={async () => {
-              // Fetch full product details to get variants with attributes
-              try {
-                // Ensure we have fresh data including attributes
-                const res = await api.get(`/products/${row.original.id}`);
-                if (res.data.status === 'success') {
-                  setSelectedProductForVariations(res.data.data);
-                  setVariationsModalOpen(true);
-                }
-              } catch (e) {
-                toast({ variant: "destructive", title: "Error", description: "Failed to load product details" });
-              }
-            }}
-          >
-            {variants.length} variant{variants.length !== 1 ? 's' : ''}
-          </Badge>
+              {variants.length} variant{variants.length !== 1 ? 's' : ''}
+            </Badge>
+          </div>
         );
       },
     },
@@ -542,27 +546,25 @@ export default function Products() {
       maxSize: 200,
       header: ({ column }) => {
         return (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 -ml-1 px-4"
+          <div
+            className="flex items-center justify-start cursor-pointer hover:text-foreground text-muted-foreground gap-2 w-full"
             onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
           >
             Cost
             {column.getIsSorted() === 'asc' ? (
-              <ArrowUp className="ml-2 h-3 w-3" />
+              <ArrowUp className="h-3 w-3" />
             ) : column.getIsSorted() === 'desc' ? (
-              <ArrowDown className="ml-2 h-3 w-3" />
+              <ArrowDown className="h-3 w-3" />
             ) : (
-              <ArrowUpDown className="ml-2 h-3 w-3 opacity-50" />
+              <ArrowUpDown className="h-3 w-3 opacity-50" />
             )}
-          </Button>
+          </div>
         );
       },
       accessorFn: (row) => row.product_cost,
       cell: ({ row }) => {
         const product = row.original;
-        return <div className="py-1">{formatCurrencyValue(product.product_cost)}</div>;
+        return <div className="text-left font-medium">{formatCurrencyValue(product.product_cost)}</div>;
       },
     },
     {
@@ -579,13 +581,14 @@ export default function Products() {
         const markupValue = method === 'markup' ? pricingValue : metrics.markup;
 
         return (
-          <div className={method !== 'markup' ? 'opacity-50' : ''}>
+          <div className={method !== 'markup' ? 'opacity-50 text-left' : 'text-left'}>
             {method === 'markup' ? (
               <EditableCell
                 value={markupValue}
                 onSave={async (value) => handleSavePricingValue(product.id, 'markup', value as number)}
                 type="number"
                 formatDisplay={formatPercentage}
+                className="text-left justify-start"
               />
             ) : (
               <div className="text-muted-foreground py-1">
@@ -610,13 +613,14 @@ export default function Products() {
         const priceValue = method === 'price' ? pricingValue : metrics.price;
 
         return (
-          <div className={method !== 'price' ? 'opacity-50' : ''}>
+          <div className={method !== 'price' ? 'opacity-50 text-left' : 'text-left'}>
             {method === 'price' ? (
               <EditableCell
                 value={priceValue}
                 onSave={async (value) => handleSavePricingValue(product.id, 'price', value as number)}
                 type="number"
                 formatDisplay={formatCurrencyValue}
+                className="text-left justify-start font-medium"
               />
             ) : (
               <div className="text-muted-foreground py-1">
@@ -641,13 +645,14 @@ export default function Products() {
         const profitValue = method === 'profit' ? pricingValue : metrics.profit;
 
         return (
-          <div className={method !== 'profit' ? 'opacity-50' : ''}>
+          <div className={method !== 'profit' ? 'opacity-50 text-left' : 'text-left'}>
             {method === 'profit' ? (
               <EditableCell
                 value={profitValue}
                 onSave={async (value) => handleSavePricingValue(product.id, 'profit', value as number)}
                 type="number"
                 formatDisplay={formatCurrencyValue}
+                className="text-left justify-start"
               />
             ) : (
               <div className="text-muted-foreground py-1">
@@ -672,13 +677,14 @@ export default function Products() {
         const marginValue = method === 'margin' ? pricingValue : metrics.margin;
 
         return (
-          <div className={method !== 'margin' ? 'opacity-50' : ''}>
+          <div className={method !== 'margin' ? 'opacity-50 text-left' : 'text-left'}>
             {method === 'margin' ? (
               <EditableCell
                 value={marginValue}
                 onSave={async (value) => handleSavePricingValue(product.id, 'margin', value as number)}
                 type="number"
                 formatDisplay={formatPercentage}
+                className="text-left justify-start"
               />
             ) : (
               <div className="text-muted-foreground py-1">
@@ -696,21 +702,19 @@ export default function Products() {
       maxSize: 200,
       header: ({ column }) => {
         return (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 -ml-1 px-4"
+          <div
+            className="flex items-center justify-start cursor-pointer hover:text-foreground text-muted-foreground gap-2 w-full"
             onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
           >
             Profit
             {column.getIsSorted() === 'asc' ? (
-              <ArrowUp className="ml-2 h-3 w-3" />
+              <ArrowUp className="h-3 w-3" />
             ) : column.getIsSorted() === 'desc' ? (
-              <ArrowDown className="ml-2 h-3 w-3" />
+              <ArrowDown className="h-3 w-3" />
             ) : (
-              <ArrowUpDown className="ml-2 h-3 w-3 opacity-50" />
+              <ArrowUpDown className="h-3 w-3 opacity-50" />
             )}
-          </Button>
+          </div>
         );
       },
       accessorFn: (row) => {
@@ -721,7 +725,7 @@ export default function Products() {
         const product = row.original;
         const metrics = getCalculatedMetrics(product);
         return (
-          <div className="py-1">
+          <div className="text-left">
             <span className={metrics.profit >= 0 ? 'text-green-600' : 'text-red-600'}>
               {formatCurrencyValue(metrics.profit)}
             </span>
@@ -736,21 +740,19 @@ export default function Products() {
       maxSize: 200,
       header: ({ column }) => {
         return (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 -ml-1 px-4"
+          <div
+            className="flex items-center justify-start cursor-pointer hover:text-foreground text-muted-foreground gap-2 w-full"
             onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
           >
             Profit Margin
             {column.getIsSorted() === 'asc' ? (
-              <ArrowUp className="ml-2 h-3 w-3" />
+              <ArrowUp className="h-3 w-3" />
             ) : column.getIsSorted() === 'desc' ? (
-              <ArrowDown className="ml-2 h-3 w-3" />
+              <ArrowDown className="h-3 w-3" />
             ) : (
-              <ArrowUpDown className="ml-2 h-3 w-3 opacity-50" />
+              <ArrowUpDown className="h-3 w-3 opacity-50" />
             )}
-          </Button>
+          </div>
         );
       },
       accessorFn: (row) => {
@@ -761,7 +763,7 @@ export default function Products() {
         const product = row.original;
         const metrics = getCalculatedMetrics(product);
         return (
-          <div className="py-1">
+          <div className="text-left">
             <span className={metrics.margin >= 0 ? 'text-green-600' : 'text-red-600'}>
               {formatPercentage(metrics.margin)}
             </span>
@@ -1200,7 +1202,7 @@ export default function Products() {
                       return (
                         <TableCell
                           key={cell.id}
-                          className={`px-4 relative ${isStatusColumn ? 'overflow-visible whitespace-nowrap' : 'overflow-hidden'}`}
+                          className={`p-2 relative ${isStatusColumn ? 'overflow-visible whitespace-nowrap' : 'overflow-hidden'}`}
                           style={{
                             width: cell.column.getSize(),
                             minWidth: cell.column.columnDef.minSize,

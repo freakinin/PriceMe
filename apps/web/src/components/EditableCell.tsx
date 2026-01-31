@@ -138,7 +138,7 @@ export function EditableCell({
                     ref={inputRef}
                     type={type === 'number' ? 'number' : 'text'}
                     step={type === 'number' ? '0.01' : undefined}
-                    className="h-full w-full border-none outline-none px-2 py-1 text-sm bg-transparent focus:bg-background focus:outline-none focus:ring-0"
+                    className={`h-full w-full border-none outline-none text-sm bg-transparent focus:bg-background focus:outline-none focus:ring-0 ${className.includes('text-right') ? 'text-right' : ''} ${className.includes('text-center') ? 'text-center' : ''}`}
                     style={{ borderRadius: 0 }}
                     value={editValue}
                     onChange={(e) => setEditValue(e.target.value)}
@@ -182,7 +182,7 @@ export function EditableCell({
 
     return (
         <div
-            className={`relative flex items-center h-full w-full cursor-cell hover:bg-muted/30 px-2 py-1 transition-colors ${className}`}
+            className={`relative flex items-center h-full w-full cursor-cell hover:bg-muted/30 transition-colors ${className}`}
             onClick={handleClick}
             onDoubleClick={handleClick}
         >
