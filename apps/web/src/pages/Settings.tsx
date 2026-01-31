@@ -208,299 +208,298 @@ export default function Settings() {
   }
 
   return (
-    <div className="p-6 max-w-5xl mx-auto pb-20">
+    <div className="min-h-full flex flex-col">
+      <div className="p-6 max-w-5xl mx-auto pb-20 w-full flex-1">
+        {error && (
+          <div className="mb-6 rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-destructive flex items-center gap-2">
+            <Settings2 className="h-4 w-4" />
+            <p>{error}</p>
+          </div>
+        )}
 
+        {settingsError && (
+          <div className="mb-6 rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-destructive">
+            <p>Failed to load settings: {settingsError}</p>
+          </div>
+        )}
 
-      {error && (
-        <div className="mb-6 rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-destructive flex items-center gap-2">
-          <Settings2 className="h-4 w-4" />
-          <p>{error}</p>
-        </div>
-      )}
-
-      {settingsError && (
-        <div className="mb-6 rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-destructive">
-          <p>Failed to load settings: {settingsError}</p>
-        </div>
-      )}
-
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-
-          {/* Financial Settings Section */}
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-center gap-2">
-                <DollarSign className="h-4 w-4 text-primary" />
-                <div>
-                  <CardTitle className="text-base">Financial Settings</CardTitle>
-                  <CardDescription className="text-xs">Configure currency, tax rates, and financial goals.</CardDescription>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+            {/* Financial Settings Section */}
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-2">
+                  <DollarSign className="h-4 w-4 text-primary" />
+                  <div>
+                    <CardTitle className="text-base">Financial Settings</CardTitle>
+                    <CardDescription className="text-xs">Configure currency, tax rates, and financial goals.</CardDescription>
+                  </div>
                 </div>
-              </div>
-            </CardHeader>
-            <Separator />
-            <CardContent className="pt-6">
-              <div className="grid md:grid-cols-2 gap-6">
-                <FormField
-                  control={form.control}
-                  name="currency"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Currency</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
+              </CardHeader>
+              <Separator />
+              <CardContent className="pt-6">
+                <div className="grid md:grid-cols-2 gap-6">
+                  <FormField
+                    control={form.control}
+                    name="currency"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Currency</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select currency" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {CURRENCIES.map((currency) => (
+                              <SelectItem key={currency.code} value={currency.code}>
+                                <span className="font-medium mr-2">{currency.symbol}</span>
+                                {currency.name} ({currency.code})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormDescription>
+                          Used for all price calculations and displays.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="tax_percentage"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Default Tax Rate (%)</FormLabel>
                         <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select currency" />
-                          </SelectTrigger>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            max="100"
+                            placeholder="0.00"
+                            {...field}
+                            value={field.value || ''}
+                            onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : 0)}
+                          />
                         </FormControl>
-                        <SelectContent>
-                          {CURRENCIES.map((currency) => (
-                            <SelectItem key={currency.code} value={currency.code}>
-                              <span className="font-medium mr-2">{currency.symbol}</span>
-                              {currency.name} ({currency.code})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormDescription>
-                        Used for all price calculations and displays.
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                        <FormDescription>
+                          Applied to applicable transactions automatically.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-                <FormField
-                  control={form.control}
-                  name="tax_percentage"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Default Tax Rate (%)</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          max="100"
-                          placeholder="0.00"
-                          {...field}
-                          value={field.value || ''}
-                          onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : 0)}
-                        />
-                      </FormControl>
-                      <FormDescription>
-                        Applied to applicable transactions automatically.
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                  <FormField
+                    control={form.control}
+                    name="revenue_goal"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Monthly Revenue Goal</FormLabel>
+                        <FormControl>
+                          <div className="relative">
+                            <span className="absolute left-3 top-2.5 text-muted-foreground">
+                              {CURRENCIES.find(c => c.code === form.watch('currency'))?.symbol || '$'}
+                            </span>
+                            <Input
+                              className="pl-8"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              placeholder="0.00"
+                              {...field}
+                              value={field.value === null || field.value === undefined ? '' : field.value}
+                              onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
+                            />
+                          </div>
+                        </FormControl>
+                        <FormDescription>
+                          Your target revenue for performance tracking.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-                <FormField
-                  control={form.control}
-                  name="revenue_goal"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Monthly Revenue Goal</FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <span className="absolute left-3 top-2.5 text-muted-foreground">
-                            {CURRENCIES.find(c => c.code === form.watch('currency'))?.symbol || '$'}
-                          </span>
-                          <Input
-                            className="pl-8"
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            placeholder="0.00"
-                            {...field}
-                            value={field.value === null || field.value === undefined ? '' : field.value}
-                            onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
-                          />
-                        </div>
-                      </FormControl>
-                      <FormDescription>
-                        Your target revenue for performance tracking.
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="labor_hourly_cost"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Default Hourly Labor Cost</FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <span className="absolute left-3 top-2.5 text-muted-foreground">
-                            {CURRENCIES.find(c => c.code === form.watch('currency'))?.symbol || '$'}
-                          </span>
-                          <Input
-                            className="pl-8"
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            placeholder="0.00"
-                            {...field}
-                            value={field.value === null || field.value === undefined ? '' : field.value}
-                            onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
-                          />
-                        </div>
-                      </FormControl>
-                      <FormDescription>
-                        Default cost per hour for labor calculations.
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Unit Management Section */}
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-center gap-2">
-                <Ruler className="h-4 w-4 text-primary" />
-                <div>
-                  <CardTitle className="text-base">Measurement Units</CardTitle>
-                  <CardDescription className="text-xs">Configure the units of measurement for your materials and products.</CardDescription>
+                  <FormField
+                    control={form.control}
+                    name="labor_hourly_cost"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Default Hourly Labor Cost</FormLabel>
+                        <FormControl>
+                          <div className="relative">
+                            <span className="absolute left-3 top-2.5 text-muted-foreground">
+                              {CURRENCIES.find(c => c.code === form.watch('currency'))?.symbol || '$'}
+                            </span>
+                            <Input
+                              className="pl-8"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              placeholder="0.00"
+                              {...field}
+                              value={field.value === null || field.value === undefined ? '' : field.value}
+                              onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
+                            />
+                          </div>
+                        </FormControl>
+                        <FormDescription>
+                          Default cost per hour for labor calculations.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 </div>
-              </div>
-            </CardHeader>
-            <Separator />
-            <CardContent className="pt-6 space-y-6">
-              <FormField
-                control={form.control}
-                name="unit_system"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>System of Measurement</FormLabel>
-                    <FormControl>
-                      <Tabs
-                        value={field.value || 'metric'}
-                        onValueChange={(value) => handleUnitSystemChange(value as 'imperial' | 'metric')}
-                        className="w-full max-w-md"
-                      >
-                        <TabsList className="grid w-full grid-cols-2">
-                          <TabsTrigger value="metric">Metric System</TabsTrigger>
-                          <TabsTrigger value="imperial">Imperial System</TabsTrigger>
-                        </TabsList>
-                      </Tabs>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              </CardContent>
+            </Card>
 
-              <div className="grid md:grid-cols-2 gap-8">
-                {/* Available Units */}
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-semibold">Active Units</h4>
-                    <span className="text-xs text-muted-foreground">Select units to use in the app</span>
+            {/* Unit Management Section */}
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-2">
+                  <Ruler className="h-4 w-4 text-primary" />
+                  <div>
+                    <CardTitle className="text-base">Measurement Units</CardTitle>
+                    <CardDescription className="text-xs">Configure the units of measurement for your materials and products.</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <Separator />
+              <CardContent className="pt-6 space-y-6">
+                <FormField
+                  control={form.control}
+                  name="unit_system"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>System of Measurement</FormLabel>
+                      <FormControl>
+                        <Tabs
+                          value={field.value || 'metric'}
+                          onValueChange={(value) => handleUnitSystemChange(value as 'imperial' | 'metric')}
+                          className="w-full max-w-md"
+                        >
+                          <TabsList className="grid w-full grid-cols-2">
+                            <TabsTrigger value="metric">Metric System</TabsTrigger>
+                            <TabsTrigger value="imperial">Imperial System</TabsTrigger>
+                          </TabsList>
+                        </Tabs>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <div className="grid md:grid-cols-2 gap-8">
+                  {/* Available Units */}
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-semibold">Active Units</h4>
+                      <span className="text-xs text-muted-foreground">Select units to use in the app</span>
+                    </div>
+
+                    <div className="space-y-4">
+                      {Object.entries(getAvailableUnits()).map(([category, units]) => (
+                        <div key={category} className="rounded-lg border p-3 bg-muted/20">
+                          <h5 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2.5">{category}</h5>
+                          <div className="flex flex-wrap gap-2">
+                            {units.map((unit) => {
+                              const isSelected = selectedUnits.includes(unit);
+                              return (
+                                <div
+                                  key={unit}
+                                  onClick={() => toggleUnit(unit)}
+                                  className={`
+                                    cursor-pointer select-none inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50
+                                    border h-8 px-3 shadow-sm
+                                    ${isSelected
+                                      ? 'bg-primary text-primary-foreground hover:bg-primary/90 border-primary'
+                                      : 'bg-background text-secondary-foreground hover:bg-accent/50 border-input'}
+                                  `}
+                                >
+                                  {unit}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
 
+                  {/* Custom Units */}
                   <div className="space-y-4">
-                    {Object.entries(getAvailableUnits()).map(([category, units]) => (
-                      <div key={category} className="rounded-lg border p-3 bg-muted/20">
-                        <h5 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2.5">{category}</h5>
-                        <div className="flex flex-wrap gap-2">
-                          {units.map((unit) => {
-                            const isSelected = selectedUnits.includes(unit);
-                            return (
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-semibold">Custom Units</h4>
+                      <span className="text-xs text-muted-foreground">Add specialized units</span>
+                    </div>
+
+                    <div className="bg-muted/30 p-4 rounded-lg border space-y-4">
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="e.g. carton, bundle"
+                          value={customUnit}
+                          onChange={(e) => setCustomUnit(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              addCustomUnit();
+                            }
+                          }}
+                          className="bg-background"
+                        />
+                        <Button type="button" onClick={addCustomUnit} size="icon" variant="secondary">
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </div>
+
+                      <div className="min-h-[100px]">
+                        {getCustomUnits().length > 0 ? (
+                          <div className="flex flex-wrap gap-2">
+                            {getCustomUnits().map((unit) => (
                               <div
                                 key={unit}
-                                onClick={() => toggleUnit(unit)}
-                                className={`
-                                  cursor-pointer select-none inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50
-                                  border h-8 px-3 shadow-sm
-                                  ${isSelected
-                                    ? 'bg-primary text-primary-foreground hover:bg-primary/90 border-primary'
-                                    : 'bg-background text-secondary-foreground hover:bg-accent/50 border-input'}
-                                `}
+                                className="group flex items-center gap-1.5 pl-3 pr-2 py-1 bg-background border rounded-full text-sm shadow-sm"
                               >
-                                {unit}
+                                <span>{unit}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => removeCustomUnit(unit)}
+                                  className="h-5 w-5 rounded-full flex items-center justify-center text-muted-foreground hover:bg-destructive hover:text-destructive-foreground transition-colors"
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
                               </div>
-                            );
-                          })}
-                        </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="h-full flex flex-col items-center justify-center text-muted-foreground text-sm opacity-60">
+                            <p>No custom units added</p>
+                          </div>
+                        )}
                       </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Custom Units */}
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-semibold">Custom Units</h4>
-                    <span className="text-xs text-muted-foreground">Add specialized units</span>
-                  </div>
-
-                  <div className="bg-muted/30 p-4 rounded-lg border space-y-4">
-                    <div className="flex gap-2">
-                      <Input
-                        placeholder="e.g. carton, bundle"
-                        value={customUnit}
-                        onChange={(e) => setCustomUnit(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            addCustomUnit();
-                          }
-                        }}
-                        className="bg-background"
-                      />
-                      <Button type="button" onClick={addCustomUnit} size="icon" variant="secondary">
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    </div>
-
-                    <div className="min-h-[100px]">
-                      {getCustomUnits().length > 0 ? (
-                        <div className="flex flex-wrap gap-2">
-                          {getCustomUnits().map((unit) => (
-                            <div
-                              key={unit}
-                              className="group flex items-center gap-1.5 pl-3 pr-2 py-1 bg-background border rounded-full text-sm shadow-sm"
-                            >
-                              <span>{unit}</span>
-                              <button
-                                type="button"
-                                onClick={() => removeCustomUnit(unit)}
-                                className="h-5 w-5 rounded-full flex items-center justify-center text-muted-foreground hover:bg-destructive hover:text-destructive-foreground transition-colors"
-                              >
-                                <X className="h-3 w-3" />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="h-full flex flex-col items-center justify-center text-muted-foreground text-sm opacity-60">
-                          <p>No custom units added</p>
-                        </div>
-                      )}
                     </div>
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+
+            <div className="flex items-center justify-end sticky bottom-0 p-4 bg-background border-t z-50 mt-auto">
+              <div className="max-w-5xl w-full mx-auto flex justify-end">
+                <Button type="submit" size="lg" disabled={saving}>
+                  <Save className="mr-2 h-4 w-4" />
+                  {saving ? 'Saving...' : 'Save All Changes'}
+                </Button>
               </div>
-            </CardContent>
-          </Card>
-
-          <div className="flex items-center justify-end fixed bottom-0 left-0 right-0 p-4 bg-background border-t z-50">
-            <div className="max-w-5xl w-full mx-auto flex justify-end">
-              <Button type="submit" size="lg" disabled={saving}>
-                <Save className="mr-2 h-4 w-4" />
-                {saving ? 'Saving...' : 'Save All Changes'}
-              </Button>
             </div>
-          </div>
-        </form>
-      </Form>
+          </form>
+        </Form>
+      </div>
     </div>
   );
 }

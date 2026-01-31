@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Package, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Columns, Filter, X, Search, AlertTriangle } from 'lucide-react';
+import { ProductVariationsModal } from '@/components/products/ProductVariationsModal';
 import {
   useReactTable,
   getCoreRowModel,
@@ -55,6 +56,8 @@ import {
 import { useProducts, type Product, type PricingMethod, type ProductStatus } from '@/hooks/useProducts';
 import { useProductPricing } from '@/hooks/useProductPricing';
 import { EditableCell } from '@/components/EditableCell';
+import { getCurrencySymbol } from '@/utils/currency'; // Assuming this utility is available
+import api from '@/lib/api';
 
 // Helper function to format numbers - remove trailing zeros
 const formatNumberDisplay = (val: string | number | null | undefined): string => {
@@ -100,6 +103,11 @@ export default function Products() {
   const [stockIssues, setStockIssues] = useState<Array<{ material: string; currentStock: number; required: number; shortfall: number; unit: string }>>([]);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [productToDelete, setProductToDelete] = useState<{ id: number; name: string } | null>(null);
+
+  // Variations Modal State
+  const [variationsModalOpen, setVariationsModalOpen] = useState(false);
+  const [selectedProductForVariations, setSelectedProductForVariations] = useState<Product | null>(null);
+
   const navigate = useNavigate();
   const { setOpen: setSidebarOpen } = useSidebar();
 
@@ -470,7 +478,23 @@ export default function Products() {
         const variants = row.original.variants;
         if (!variants || variants.length === 0) return <span className="text-muted-foreground">-</span>;
         return (
-          <Badge variant="outline" className="font-normal text-xs">
+          <Badge
+            variant="outline"
+            className="font-normal text-xs whitespace-nowrap cursor-pointer hover:bg-muted"
+            onClick={async () => {
+              // Fetch full product details to get variants with attributes
+              try {
+                // Ensure we have fresh data including attributes
+                const res = await api.get(`/products/${row.original.id}`);
+                if (res.data.status === 'success') {
+                  setSelectedProductForVariations(res.data.data);
+                  setVariationsModalOpen(true);
+                }
+              } catch (e) {
+                toast({ variant: "destructive", title: "Error", description: "Failed to load product details" });
+              }
+            }}
+          >
             {variants.length} variant{variants.length !== 1 ? 's' : ''}
           </Badge>
         );
@@ -1282,6 +1306,29 @@ export default function Products() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Product Variations Modal */}
+      {selectedProductForVariations && (
+        <ProductVariationsModal
+          open={variationsModalOpen}
+          onOpenChange={(open) => {
+            setVariationsModalOpen(open);
+            if (!open) setSelectedProductForVariations(null);
+          }}
+          variants={selectedProductForVariations.variants || []}
+          onSave={async (updatedVariants) => {
+            try {
+              await updateProduct({ id: selectedProductForVariations.id, data: { variants: updatedVariants } });
+              toast({ title: 'Success', description: 'Variations updated successfully', variant: 'success' });
+              // Close modal and refresh list is handled by updateProduct onSuccess
+            } catch (err) {
+              console.error("Failed to update variants", err);
+              toast({ variant: "destructive", title: "Error", description: "Failed to update variants" });
+            }
+          }}
+          currency={getCurrencySymbol(settings.currency)}
+        />
+      )}
     </div>
   );
 }

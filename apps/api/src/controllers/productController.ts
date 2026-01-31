@@ -255,7 +255,7 @@ export const getProducts = async (req: AuthRequest, res: Response) => {
 
         // Get variants (basic info for list view)
         const variantsResult = await db`
-          SELECT id, name, sku, price_override, stock_level, is_active
+          SELECT id, name, sku, price_override, cost_override, stock_level, is_active
           FROM product_variants
           WHERE product_id = ${product.id}
         `;

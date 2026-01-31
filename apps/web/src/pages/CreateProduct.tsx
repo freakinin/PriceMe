@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, X, Package, Clock, Receipt, Save } from 'lucide-react';
+import { Plus, X, Package, Clock, Receipt, Save, Settings2 } from 'lucide-react';
 import { useSidebar } from '@/components/ui/sidebar';
 import api from '@/lib/api';
 import { useSettings } from '@/hooks/useSettings';
@@ -23,7 +23,7 @@ import { formatCurrency, getCurrencySymbol } from '@/utils/currency';
 import { MaterialNameInput } from '@/components/MaterialNameInput';
 import { useToast } from '@/components/ui/use-toast';
 import { Card, CardContent } from '@/components/ui/card';
-import { VariantBuilder, type Variant } from '@/components/products/VariantBuilder';
+import { ProductVariationsModal, type Variant } from '@/components/products/ProductVariationsModal';
 import { useProducts } from '@/hooks/useProducts';
 import { useProductPricing } from '@/hooks/useProductPricing';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -327,6 +327,7 @@ export default function CreateProduct() {
   const { calculateProfitFromPrice } = useProductPricing();
 
   const [variants, setVariants] = useState<Variant[]>([]);
+  const [isVariationsModalOpen, setIsVariationsModalOpen] = useState(false);
 
   useEffect(() => {
     setOpen(false);
@@ -500,6 +501,26 @@ export default function CreateProduct() {
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] overflow-hidden">
       <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold tracking-tight">Create Product</h1>
+          <Button
+            variant="outline"
+            onClick={() => setIsVariationsModalOpen(true)}
+            className="gap-2"
+          >
+            <Settings2 className="h-4 w-4" />
+            {variants.length > 0 ? `Manage Variations (${variants.length})` : 'Add Variations'}
+          </Button>
+        </div>
+
+        <ProductVariationsModal
+          open={isVariationsModalOpen}
+          onOpenChange={setIsVariationsModalOpen}
+          variants={variants}
+          onSave={setVariants}
+          currency={getCurrencySymbol(settings.currency)}
+        />
+
         <Form {...form}>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
 
@@ -535,16 +556,7 @@ export default function CreateProduct() {
               )} />
             </div>
 
-            {/* Variants Section */}
-            <div className="border rounded-lg p-4 bg-muted/10">
-              <VariantBuilder
-                variants={variants}
-                onChange={setVariants}
-                currency={getCurrencySymbol(settings.currency)}
-              />
-            </div>
-
-            {/* 3 Columns */}
+            {/* 3-Column Grid: Materials, Labor, Other */}
             <div className="grid grid-cols-3 gap-6">
 
               {/* Materials */}
