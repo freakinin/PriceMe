@@ -378,12 +378,25 @@ export default function Products() {
         const product = row.original;
         const displayName = getDisplayValue(product, 'name') as string;
         return (
-          <EditableCell
-            value={displayName}
-            onSave={async (value) => handleSaveField(product.id, 'name', value)}
-            type="text"
-            className="font-medium"
-          />
+          <div className="flex items-center gap-1 group w-full">
+            <EditableCell
+              value={displayName}
+              onSave={async (value) => handleSaveField(product.id, 'name', value)}
+              type="text"
+              className="font-medium flex-1 min-w-0"
+            />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 text-muted-foreground hover:text-foreground"
+              onClick={(e) => {
+                e.stopPropagation();
+                setEditingProductId(product.id);
+              }}
+            >
+              <Edit className="h-3.5 w-3.5" />
+            </Button>
+          </div>
         );
       },
     },
@@ -476,7 +489,29 @@ export default function Products() {
       size: 100,
       cell: ({ row }) => {
         const variants = row.original.variants;
-        if (!variants || variants.length === 0) return <span className="text-muted-foreground">-</span>;
+        if (!variants || variants.length === 0) {
+          return (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-xs text-muted-foreground hover:text-primary"
+              onClick={async () => {
+                // Fetch full product details to get variants with attributes (even if empty initially)
+                try {
+                  const res = await api.get(`/products/${row.original.id}`);
+                  if (res.data.status === 'success') {
+                    setSelectedProductForVariations(res.data.data);
+                    setVariationsModalOpen(true);
+                  }
+                } catch (e) {
+                  toast({ variant: "destructive", title: "Error", description: "Failed to load product details" });
+                }
+              }}
+            >
+              <Plus className="h-3 w-3 mr-1" /> Add
+            </Button>
+          );
+        }
         return (
           <Badge
             variant="outline"
@@ -745,15 +780,6 @@ export default function Products() {
         const product = row.original;
         return (
           <div className="flex items-center justify-end gap-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => {
-                setEditingProductId(product.id);
-              }}
-            >
-              <Edit className="h-4 w-4" />
-            </Button>
             <Button
               variant="ghost"
               size="icon"

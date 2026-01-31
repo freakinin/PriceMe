@@ -12,6 +12,12 @@ import {
     DialogFooter,
     DialogDescription,
 } from '@/components/ui/dialog';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 import { X, ArrowRight, ArrowLeft, Check, Plus } from 'lucide-react';
 
@@ -59,6 +65,10 @@ export function ProductVariationsModal({
     const [options, setOptions] = useState<string[]>([]);
     const [currentOption, setCurrentOption] = useState('');
     const [localVariants, setLocalVariants] = useState<Variant[]>(initialVariants || []);
+
+    // Pagination State
+    const [currentPage, setCurrentPage] = useState(1);
+    const ITEMS_PER_PAGE = 10;
 
     // Reset state when opening
     useEffect(() => {
@@ -141,54 +151,135 @@ export function ProductVariationsModal({
         setOptions(options.filter(o => o !== opt));
     };
 
-    const handleSaveAttribute = () => {
-        const finalType = selectedType === 'create_new' ? customType : selectedType;
-        if (!options.length || !finalType) return;
-
-        setDefinedAttributes([...definedAttributes, { name: finalType, options: [...options] }]);
-
-        // Reset for next
-        setSelectedType('');
-        setCustomType('');
-        setOptions([]);
-        setCurrentOption('');
-        setView('add_type'); // Go back to type selection to allow adding more
-    };
-
-    const handleGenerateMatrix = () => {
-        if (definedAttributes.length === 0) return;
+    const generateAndMergeVariants = (
+        attributes: { name: string; options: string[] }[],
+        currentVariants: Variant[]
+    ): Variant[] => {
+        if (attributes.length === 0) return [];
 
         // Generate Cartesian Product
         const generateCombinations = (
-            attributes: { name: string; options: string[] }[],
+            attrs: { name: string; options: string[] }[],
             index: number = 0,
             current: { name: string; value: string }[] = []
         ): { name: string; value: string }[][] => {
-            if (index === attributes.length) return [current];
-
+            if (index === attrs.length) return [current];
             const combinations: { name: string; value: string }[][] = [];
-            for (const option of attributes[index].options) {
-                combinations.push(...generateCombinations(attributes, index + 1, [...current, { name: attributes[index].name, value: option }]));
+            for (const option of attrs[index].options) {
+                combinations.push(...generateCombinations(attrs, index + 1, [...current, { name: attrs[index].name, value: option }]));
             }
             return combinations;
         };
 
-        const combos = generateCombinations(definedAttributes);
+        const combos = generateCombinations(attributes);
 
-        const newVariants: Variant[] = combos.map(combo => ({
-            tempId: crypto.randomUUID(),
-            name: combo.map(c => `${c.name}: ${c.value}`).join(' / '),
-            is_active: true,
-            stock_level: 0,
-            attributes: combo.map((c, i) => ({
+        return combos.map(combo => {
+            const comboName = combo.map(c => `${c.name}: ${c.value}`).join(' / ');
+            const comboAttributes = combo.map((c, i) => ({
                 attribute_name: c.name,
                 attribute_value: c.value,
                 display_order: i + 1
-            }))
-        }));
+            }));
 
+            // 1. Try to find exact match by ATTRIBUTE EQUALITY (Robust)
+            const exactMatch = currentVariants.find(v => {
+                if (!v.attributes || v.attributes.length !== comboAttributes.length) return false;
+                // Check if every attribute in combo exists in variant
+                return comboAttributes.every(cA =>
+                    v.attributes.some(vA =>
+                        vA.attribute_name === cA.attribute_name &&
+                        vA.attribute_value === cA.attribute_value
+                    )
+                );
+            });
+
+            if (exactMatch) {
+                // Return exact match but ensure name is standardized if needed
+                return { ...exactMatch, name: comboName };
+            }
+
+            // 2. Try to find "parent" match (subset)
+            // Use this if we added a NEW attribute column (e.g. Size -> Size + Color)
+            const parentMatch = currentVariants.find(oldV => {
+                if (!oldV.attributes || oldV.attributes.length === 0) return false;
+                // It's a match if every attribute of the OLD variant exists in the NEW combo
+                return oldV.attributes.every(oldAttr =>
+                    comboAttributes.some(newAttr =>
+                        newAttr.attribute_name === oldAttr.attribute_name &&
+                        newAttr.attribute_value === oldAttr.attribute_value
+                    )
+                );
+            });
+
+            if (parentMatch) {
+                return {
+                    ...parentMatch,
+                    // Use new name and attributes
+                    name: comboName,
+                    attributes: comboAttributes,
+                    // Clear ID to ensure it's treated as new/updated row
+                    id: undefined,
+                    tempId: crypto.randomUUID()
+                };
+            }
+
+            // 3. New variant
+            return {
+                tempId: crypto.randomUUID(),
+                name: comboName,
+                is_active: true,
+                stock_level: 0,
+                attributes: comboAttributes
+            };
+        });
+    };
+
+    const handleSaveAttribute = () => {
+        const finalType = selectedType === 'create_new' ? customType : selectedType;
+
+        // Auto-commit currentOption if exists and valid
+        let finalOptions = [...options];
+        if (currentOption.trim() && !options.includes(currentOption.trim())) {
+            finalOptions.push(currentOption.trim());
+        }
+
+        if (!finalOptions.length || !finalType) return;
+
+        let newAttributes = [...definedAttributes];
+        const existingIndex = newAttributes.findIndex(a => a.name === finalType);
+
+        if (existingIndex >= 0) {
+            // Merge options if type already exists
+            const existing = newAttributes[existingIndex];
+            const newOptions = Array.from(new Set([...existing.options, ...finalOptions]));
+            newAttributes[existingIndex] = { ...existing, options: newOptions };
+        } else {
+            // Add new type
+            newAttributes.push({ name: finalType, options: [...finalOptions] });
+        }
+
+        const newVariants = generateAndMergeVariants(newAttributes, localVariants);
+
+        setDefinedAttributes(newAttributes);
         setLocalVariants(newVariants);
+
+        // Reset and go back to LIST
+        setSelectedType('');
+        setCustomType('');
+        setOptions([]);
+        setCurrentOption('');
         setView('list');
+    };
+
+
+
+    const handleEditAttribute = (attrName: string) => {
+        const attr = definedAttributes.find(a => a.name === attrName);
+        if (!attr) return;
+        setSelectedType(attrName);
+        setCustomType('');
+        setOptions([...attr.options]);
+        setView('add_options');
     };
 
     // Helper to get attribute value for a variant
@@ -279,9 +370,9 @@ export function ProductVariationsModal({
                             )}
 
                             {hasAttributes && (
-                                <Button className="w-full mt-4" onClick={handleGenerateMatrix}>
-                                    Generate Variations
-                                </Button>
+                                <div className="mt-4 text-xs text-muted-foreground p-3 bg-muted/20 rounded">
+                                    Changes are auto-saved to the variations table.
+                                </div>
                             )}
                         </div>
                     )}
@@ -368,11 +459,11 @@ export function ProductVariationsModal({
                                 </div>
 
                                 <div className="pt-4 flex justify-between">
-                                    <Button variant="ghost" onClick={() => setView('add_type')}>
+                                    <Button variant="ghost" onClick={() => setView(definedAttributes.find(a => a.name === selectedType) ? 'list' : 'add_type')}>
                                         <ArrowLeft className="h-4 w-4 mr-2" /> Back
                                     </Button>
-                                    <Button onClick={handleSaveAttribute} disabled={options.length === 0}>
-                                        Save Attribute & Add More
+                                    <Button onClick={handleSaveAttribute} disabled={options.length === 0 && !currentOption.trim()}>
+                                        Save
                                     </Button>
                                 </div>
                             </div>
@@ -383,23 +474,39 @@ export function ProductVariationsModal({
                             <div className="space-y-4">
                                 <div className="flex justify-end gap-2">
                                     <Button variant="outline" size="sm" onClick={() => {
-                                        // Reset attributes to start fresh or add to existing?
-                                        // Simple mode: Start fresh builder, but this clears current unless we merge.
-                                        // For now, let's just go to add_type
                                         setView('add_type');
-                                    }} disabled={!canAddMoreAttributes && localVariants.length > 0}>
-                                        <Plus className="h-4 w-4 mr-2" /> {canAddMoreAttributes ? 'Add Attributes' : 'Max Attributes Reached'}
+                                    }} disabled={!canAddMoreAttributes}>
+                                        <Plus className="h-4 w-4 mr-2" /> Add Variation Type
                                     </Button>
                                 </div>
-                                <div className="border rounded-md overflow-hidden">
-                                    <div className="w-full overflow-x-auto">
+                                <div className="border rounded-md overflow-hidden flex flex-col max-h-[500px]">
+                                    <div className="overflow-auto flex-1">
                                         <table className="w-full text-sm text-left">
                                             <thead className="text-xs text-muted-foreground bg-muted/50 font-medium">
                                                 <tr>
                                                     {/* Dynamic Headers for Attributes */}
                                                     {definedAttributes.length > 0 ? (
                                                         definedAttributes.map(attr => (
-                                                            <th key={attr.name} className="p-3 font-medium whitespace-nowrap w-[1%]">{attr.name}</th>
+                                                            <th key={attr.name} className="p-3 font-medium whitespace-nowrap w-[1%]">
+                                                                <div className="flex items-center gap-2">
+                                                                    {attr.name}
+                                                                    <TooltipProvider>
+                                                                        <Tooltip>
+                                                                            <TooltipTrigger asChild>
+                                                                                <button
+                                                                                    className="ml-2 h-5 w-5 rounded-full bg-primary/10 hover:bg-primary/20 flex items-center justify-center text-primary transition-colors focus:outline-none focus:ring-2 focus:ring-primary/20"
+                                                                                    onClick={() => handleEditAttribute(attr.name)}
+                                                                                >
+                                                                                    <Plus className="h-3 w-3" />
+                                                                                </button>
+                                                                            </TooltipTrigger>
+                                                                            <TooltipContent>
+                                                                                <p>Add {attr.name}</p>
+                                                                            </TooltipContent>
+                                                                        </Tooltip>
+                                                                    </TooltipProvider>
+                                                                </div>
+                                                            </th>
                                                         ))
                                                     ) : (
                                                         <th className="p-3 font-medium">Variant Name</th>
@@ -410,68 +517,98 @@ export function ProductVariationsModal({
                                                     <th className="p-3 font-medium text-center w-[60px]">Active</th>
                                                 </tr>
                                             </thead>
-                                            <tbody className="divide-y">
-                                                {localVariants.length === 0 && (
+                                            <tbody>
+                                                {localVariants.length > 0 ? (
+                                                    localVariants
+                                                        .slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
+                                                        .map((variant, pIdx) => {
+                                                            const idx = (currentPage - 1) * ITEMS_PER_PAGE + pIdx;
+                                                            return (
+                                                                <tr key={variant.tempId} className={`border-t font-medium ${!variant.is_active ? 'opacity-50' : ''}`}>
+                                                                    {/* Attribute Cells */}
+                                                                    {definedAttributes.length > 0 ? (
+                                                                        definedAttributes.map(attr => (
+                                                                            <td key={attr.name} className="p-3 whitespace-nowrap">
+                                                                                {getAttributeValue(variant, attr.name)}
+                                                                            </td>
+                                                                        ))
+                                                                    ) : (
+                                                                        <td className="p-3 text-muted-foreground">Default Variant</td>
+                                                                    )}
+
+                                                                    <td className="p-3 align-middle">
+                                                                        <Input
+                                                                            className="h-8 bg-background"
+                                                                            placeholder="SKU"
+                                                                            value={variant.sku || ''}
+                                                                            onChange={e => updateVariantSku(idx, e.target.value)}
+                                                                            disabled={!variant.is_active}
+                                                                        />
+                                                                    </td>
+                                                                    <td className="p-3 align-middle">
+                                                                        <Input
+                                                                            className="h-8 bg-background"
+                                                                            type="number"
+                                                                            step="0.01"
+                                                                            placeholder="Cost"
+                                                                            value={variant.cost_override || ''}
+                                                                            onChange={e => updateVariantCost(idx, e.target.value)}
+                                                                            disabled={!variant.is_active}
+                                                                        />
+                                                                    </td>
+                                                                    <td className="p-3 align-middle">
+                                                                        <Input
+                                                                            className="h-8 bg-background"
+                                                                            value={variant.stock_level}
+                                                                            onChange={e => updateVariantStock(idx, e.target.value)}
+                                                                            disabled={!variant.is_active}
+                                                                        />
+                                                                    </td>
+                                                                    <td className="p-3 align-middle text-center">
+                                                                        <Switch
+                                                                            checked={variant.is_active}
+                                                                            onCheckedChange={() => toggleVariantStatus(idx)}
+                                                                        />
+                                                                    </td>
+                                                                </tr>
+                                                            );
+                                                        })
+                                                ) : (
                                                     <tr>
-                                                        <td colSpan={definedAttributes.length + 4} className="p-8 text-center text-muted-foreground italic">
-                                                            No variants generated. Click "Add Attributes" to start.
+                                                        <td colSpan={6} className="p-4 text-center text-muted-foreground text-sm">
+                                                            No variations generated yet. Add options to start.
                                                         </td>
                                                     </tr>
                                                 )}
-                                                {localVariants.map((variant, idx) => (
-                                                    <tr key={idx} className={`group hover:bg-muted/5 ${!variant.is_active ? 'opacity-50 bg-muted/30' : ''}`}>
-                                                        {/* Dynamic Cells for Attributes */}
-                                                        {definedAttributes.length > 0 ? (
-                                                            definedAttributes.map(attr => (
-                                                                <td key={attr.name} className="p-3 align-middle text-sm whitespace-nowrap">
-                                                                    {getAttributeValue(variant, attr.name)}
-                                                                </td>
-                                                            ))
-                                                        ) : (
-                                                            <td className="p-3 align-middle font-medium truncate max-w-[200px]" title={variant.name}>
-                                                                {variant.name}
-                                                            </td>
-                                                        )}
-                                                        <td className="p-3 align-middle">
-                                                            <Input
-                                                                type="text"
-                                                                className="h-8 bg-background"
-                                                                placeholder="SKU"
-                                                                value={variant.sku || ''}
-                                                                onChange={e => updateVariantSku(idx, e.target.value)}
-                                                                disabled={!variant.is_active}
-                                                            />
-                                                        </td>
-                                                        <td className="p-3 align-middle">
-                                                            <Input
-                                                                type="number"
-                                                                className="h-8 bg-background"
-                                                                placeholder="0.00"
-                                                                value={variant.cost_override || ''}
-                                                                onChange={e => updateVariantCost(idx, e.target.value)}
-                                                                disabled={!variant.is_active}
-                                                            />
-                                                        </td>
-                                                        <td className="p-3 align-middle">
-                                                            <Input
-                                                                type="number"
-                                                                className="h-8 bg-background"
-                                                                value={variant.stock_level}
-                                                                onChange={e => updateVariantStock(idx, e.target.value)}
-                                                                disabled={!variant.is_active}
-                                                            />
-                                                        </td>
-                                                        <td className="p-3 align-middle text-center">
-                                                            <Switch
-                                                                checked={variant.is_active}
-                                                                onCheckedChange={() => toggleVariantStatus(idx)}
-                                                            />
-                                                        </td>
-                                                    </tr>
-                                                ))}
                                             </tbody>
                                         </table>
                                     </div>
+                                    {/* Pagination Controls */}
+                                    {localVariants.length > ITEMS_PER_PAGE && (
+                                        <div className="flex items-center justify-between p-2 border-t bg-muted/20 text-sm">
+                                            <div className="text-muted-foreground">
+                                                Page {currentPage} of {Math.ceil(localVariants.length / ITEMS_PER_PAGE)}
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                                    disabled={currentPage === 1}
+                                                >
+                                                    Previous
+                                                </Button>
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => setCurrentPage(p => Math.min(Math.ceil(localVariants.length / ITEMS_PER_PAGE), p + 1))}
+                                                    disabled={currentPage >= Math.ceil(localVariants.length / ITEMS_PER_PAGE)}
+                                                >
+                                                    Next
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         )}

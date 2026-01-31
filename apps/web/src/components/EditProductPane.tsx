@@ -6,13 +6,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ChevronRight, ChevronLeft, Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useSettings } from '@/hooks/useSettings';
 import { formatCurrency, getCurrencySymbol } from '@/utils/currency';
 import { MaterialNameInput } from '@/components/MaterialNameInput';
@@ -207,7 +208,7 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
   const { settings } = useSettings();
   const { toast } = useToast();
   const { updateProduct } = useProducts();
-  const [currentStep, setCurrentStep] = useState(1);
+  const [activeTab, setActiveTab] = useState('basic');
 
   // Fetch full product details
   const { data: product, isLoading: isLoadingProduct } = useQuery({
@@ -272,7 +273,7 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
           per_unit: Boolean(o.per_unit ?? true)
         })) || []
       });
-      setCurrentStep(1);
+      setActiveTab('basic');
     }
   }, [open, product, reset]);
 
@@ -293,34 +294,25 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
         <SheetHeader>
-          <SheetTitle>Edit Product</SheetTitle>
+          <SheetTitle>Edit {product?.name || 'Product'}</SheetTitle>
         </SheetHeader>
 
         {isLoadingProduct || !product ? (
           <div className="py-8 text-center text-muted-foreground">Loading product data...</div>
         ) : (
           <div className="mt-6 space-y-6">
-            {/* Stepper */}
-            <div className="flex items-center gap-1.5 text-xs mb-6">
-              {[1, 2, 3, 4].map(step => (
-                <div key={step} className="flex items-center gap-1.5">
-                  {step > 1 && <div className="w-4 h-px bg-muted" />}
-                  <button type="button" onClick={() => setCurrentStep(step)} className="flex items-center gap-1.5 hover:opacity-80 transition-opacity">
-                    <div className={`flex items-center justify-center w-4 h-4 rounded-full text-[10px] font-medium ${currentStep >= step ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>{step}</div>
-                    <span className={currentStep >= step ? 'text-foreground' : 'text-muted-foreground'}>
-                      {step === 1 ? 'Basic' : step === 2 ? 'Materials' : step === 3 ? 'Labor' : 'Other'}
-                    </span>
-                  </button>
-                </div>
-              ))}
-            </div>
-
             <Form {...form}>
-              <form onSubmit={handleSubmit(onFinalSubmit)} className="space-y-6">
+              <form onSubmit={handleSubmit(onFinalSubmit)} className="flex flex-col h-full">
+                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                  <TabsList className="grid w-full grid-cols-4 mb-6">
+                    <TabsTrigger value="basic">Basic</TabsTrigger>
+                    <TabsTrigger value="materials">Materials</TabsTrigger>
+                    <TabsTrigger value="labor">Labor</TabsTrigger>
+                    <TabsTrigger value="other">Other</TabsTrigger>
+                  </TabsList>
 
-                {/* Step 1: Basic Info */}
-                {currentStep === 1 && (
-                  <div className="space-y-4">
+                  {/* Tab 1: Basic Info */}
+                  <TabsContent value="basic" className="space-y-4 mt-0">
                     <FormField control={control} name="name" render={({ field }) => (
                       <FormItem><FormLabel>Product Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
                     )} />
@@ -335,12 +327,10 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
                     <FormField control={control} name="target_price" render={({ field }) => (
                       <FormItem><FormLabel>Target Price ({getCurrencySymbol(settings?.currency || 'USD')})</FormLabel><FormControl><Input {...field} value={field.value || ''} type="number" step="0.01" onChange={e => field.onChange(parseFloat(e.target.value) || 0)} /></FormControl><FormMessage /></FormItem>
                     )} />
-                  </div>
-                )}
+                  </TabsContent>
 
-                {/* Step 2: Materials */}
-                {currentStep === 2 && (
-                  <div className="space-y-4">
+                  {/* Tab 2: Materials */}
+                  <TabsContent value="materials" className="space-y-4 mt-0">
                     <AddMaterialForm onAdd={(data) => materialsArray.append(data)} />
 
                     {materialsArray.fields.length > 0 && (
@@ -373,12 +363,10 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
                         </table>
                       </div>
                     )}
-                  </div>
-                )}
+                  </TabsContent>
 
-                {/* Step 3: Labor */}
-                {currentStep === 3 && (
-                  <div className="space-y-4">
+                  {/* Tab 3: Labor */}
+                  <TabsContent value="labor" className="space-y-4 mt-0">
                     <AddLaborForm currency={settings?.currency || 'USD'} onAdd={(data) => laborArray.append(data)} />
 
                     {laborArray.fields.length > 0 && (
@@ -411,12 +399,10 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
                         </table>
                       </div>
                     )}
-                  </div>
-                )}
+                  </TabsContent>
 
-                {/* Step 4: Other Costs */}
-                {currentStep === 4 && (
-                  <div className="space-y-4">
+                  {/* Tab 4: Other Costs */}
+                  <TabsContent value="other" className="space-y-4 mt-0">
                     <AddOtherCostForm currency={settings?.currency || 'USD'} onAdd={(data) => otherCostsArray.append(data)} />
 
                     {otherCostsArray.fields.length > 0 && (
@@ -449,23 +435,13 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
                         </table>
                       </div>
                     )}
-                  </div>
-                )}
+                  </TabsContent>
 
-                <div className="flex justify-between pt-4 border-t mt-4">
-                  <div>
-                    {currentStep > 1 && <Button type="button" variant="outline" onClick={() => setCurrentStep(s => s - 1)}><ChevronLeft className="mr-2 h-3 w-3" /> Back</Button>}
+                  <div className="flex justify-end gap-2 pt-6 mt-6 border-t">
+                    <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+                    <Button type="submit">Save Changes</Button>
                   </div>
-                  <div className="flex gap-2">
-                    {currentStep < 4 ? (
-                      <Button type="button" onClick={() => setCurrentStep(s => s + 1)}>Next <ChevronRight className="ml-2 h-3 w-3" /></Button>
-                    ) : (
-                      <Button type="submit">Save Changes</Button>
-                    )}
-                    {/* Always allow saving */}
-                    {currentStep < 4 && <Button type="submit" variant="secondary">Save</Button>}
-                  </div>
-                </div>
+                </Tabs>
               </form>
             </Form>
           </div>
