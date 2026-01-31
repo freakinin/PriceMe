@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Package, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Columns, Filter, X, Search, AlertTriangle } from 'lucide-react';
+import { Plus, Package, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Columns, Filter, X, Search, AlertTriangle, Loader2 } from 'lucide-react';
 import { ProductVariationsModal } from '@/components/products/ProductVariationsModal';
 import {
   useReactTable,
@@ -107,6 +107,7 @@ export default function Products() {
   // Variations Modal State
   const [variationsModalOpen, setVariationsModalOpen] = useState(false);
   const [selectedProductForVariations, setSelectedProductForVariations] = useState<Product | null>(null);
+  const [updatingProductId, setUpdatingProductId] = useState<number | null>(null);
 
   const navigate = useNavigate();
   const { setOpen: setSidebarOpen } = useSidebar();
@@ -488,7 +489,19 @@ export default function Products() {
       header: 'Variants',
       size: 100,
       cell: ({ row }) => {
-        const variants = row.original.variants;
+        const product = row.original;
+        const variants = product.variants;
+        const isThisRowUpdating = updatingProductId === product.id;
+
+        if (isThisRowUpdating) {
+          return (
+            <div className="flex justify-start items-center h-6">
+              <Loader2 className="h-3 w-3 animate-spin text-primary" />
+              <span className="ml-2 text-[10px] text-muted-foreground italic">Saving...</span>
+            </div>
+          );
+        }
+
         if (!variants || variants.length === 0) {
           return (
             <div className="flex justify-start">
@@ -497,11 +510,10 @@ export default function Products() {
                 size="sm"
                 className="h-6 px-2 text-xs text-muted-foreground hover:text-primary"
                 onClick={async () => {
-                  // Fetch full product details to get variants with attributes (even if empty initially)
                   try {
-                    const res = await api.get(`/products/${row.original.id}`);
+                    const res = await api.get(`/products/${product.id}`);
                     if (res.data.status === 'success') {
-                      setSelectedProductForVariations(res.data.data);
+                      setSelectedProductForVariations({ ...product, ...res.data.data });
                       setVariationsModalOpen(true);
                     }
                   } catch (e) {
@@ -520,12 +532,10 @@ export default function Products() {
               variant="outline"
               className="font-normal text-xs whitespace-nowrap cursor-pointer hover:bg-muted"
               onClick={async () => {
-                // Fetch full product details to get variants with attributes
                 try {
-                  // Ensure we have fresh data including attributes
-                  const res = await api.get(`/products/${row.original.id}`);
+                  const res = await api.get(`/products/${product.id}`);
                   if (res.data.status === 'success') {
-                    setSelectedProductForVariations(res.data.data);
+                    setSelectedProductForVariations({ ...product, ...res.data.data });
                     setVariationsModalOpen(true);
                   }
                 } catch (e) {
@@ -1345,16 +1355,21 @@ export default function Products() {
           }}
           variants={selectedProductForVariations.variants || []}
           onSave={async (updatedVariants) => {
+            const pid = selectedProductForVariations.id;
             try {
-              await updateProduct({ id: selectedProductForVariations.id, data: { variants: updatedVariants } });
+              setUpdatingProductId(pid);
+              await updateProduct({ id: pid, data: { variants: updatedVariants } });
               toast({ title: 'Success', description: 'Variations updated successfully', variant: 'success' });
-              // Close modal and refresh list is handled by updateProduct onSuccess
             } catch (err) {
               console.error("Failed to update variants", err);
               toast({ variant: "destructive", title: "Error", description: "Failed to update variants" });
+            } finally {
+              setUpdatingProductId(null);
             }
           }}
           currency={getCurrencySymbol(settings.currency)}
+          baseCost={selectedProductForVariations.product_cost ?? 0}
+          basePrice={selectedProductForVariations.target_price ?? 0}
         />
       )}
     </div>

@@ -45,6 +45,8 @@ interface ProductVariationsModalProps {
     variants: Variant[];
     onSave: (variants: Variant[]) => void;
     currency: string;
+    baseCost?: number;
+    basePrice?: number;
 }
 
 const COMMON_VARIANT_TYPES = ['Size', 'Color', 'Material', 'Style', 'Weight', 'Dimensions'];
@@ -54,7 +56,9 @@ export function ProductVariationsModal({
     onOpenChange,
     variants: initialVariants,
     onSave,
-    currency
+    currency,
+    baseCost = 0,
+    basePrice = 0
 }: ProductVariationsModalProps) {
     const [definedAttributes, setDefinedAttributes] = useState<{ name: string; options: string[] }[]>([]);
     const [view, setView] = useState<'list' | 'add_type' | 'add_options'>('list');
@@ -70,11 +74,12 @@ export function ProductVariationsModal({
     const [currentPage, setCurrentPage] = useState(1);
     const ITEMS_PER_PAGE = 10;
 
-    // Reset state when opening
+    // Reset state when opening - ONLY run when 'open' becomes true
     useEffect(() => {
         if (open) {
+            // First time opening - initialize everything
             setLocalVariants(initialVariants || []);
-            // Extract existing attribute types to pre-populate
+
             if (initialVariants && initialVariants.length > 0) {
                 const attrsMap = new Map<string, Set<string>>();
 
@@ -99,9 +104,8 @@ export function ProductVariationsModal({
                                 }
                                 attrsMap.get(key)?.add(val);
 
-                                // Also backfill the attribute into the variant struct for display
+                                // Backfill attributes to local variants for display consistency
                                 if (!v.attributes) v.attributes = [];
-                                // Check if already exists to avoid dupes if mixed
                                 if (!v.attributes.find(a => a.attribute_name === key)) {
                                     v.attributes.push({ attribute_name: key, attribute_value: val });
                                 }
@@ -120,7 +124,7 @@ export function ProductVariationsModal({
                 setDefinedAttributes([]);
             }
         }
-    }, [open, initialVariants]);
+    }, [open]); // Removed initialVariants from dependency array to prevent wiping state during background refetches
 
     // VIEW: ADD TYPE
     const handleTypeSelect = (type: string) => {
@@ -287,6 +291,19 @@ export function ProductVariationsModal({
         return variant.attributes.find(a => a.attribute_name === attrName)?.attribute_value || '-';
     };
 
+    // Helper for financial calculations
+    const getVariantMetrics = (variant: Variant) => {
+        // Cost is base cost + override (which can be positive or negative "extra")
+        // Use loose check for null/undefined to handle API response 'null'
+        const extraCost = variant.cost_override != null ? Number(variant.cost_override) : 0;
+        const cost = baseCost + extraCost;
+
+        const price = variant.price_override != null ? Number(variant.price_override) : basePrice;
+        const profit = price - cost;
+        const margin = price > 0 ? (profit / price) * 100 : 0;
+        return { cost, price, profit, margin };
+    };
+
     // VIEW: LIST (MANAGE)
     const toggleVariantStatus = (index: number) => {
         const updated = [...localVariants];
@@ -296,7 +313,15 @@ export function ProductVariationsModal({
 
     const updateVariantCost = (index: number, val: string) => {
         const updated = [...localVariants];
-        updated[index].cost_override = val ? parseFloat(val) : undefined;
+        const numVal = parseFloat(val);
+        updated[index].cost_override = isNaN(numVal) ? undefined : numVal;
+        setLocalVariants(updated);
+    };
+
+    const updateVariantPrice = (index: number, val: string) => {
+        const updated = [...localVariants];
+        const numVal = parseFloat(val);
+        updated[index].price_override = isNaN(numVal) ? undefined : numVal;
         setLocalVariants(updated);
     };
 
@@ -317,8 +342,8 @@ export function ProductVariationsModal({
         const sanitizedVariants = localVariants.map(v => ({
             ...v,
             sku: v.sku === null || v.sku === '' ? undefined : v.sku,
-            price_override: v.price_override === null ? undefined : v.price_override,
-            cost_override: v.cost_override === null ? undefined : v.cost_override,
+            price_override: v.price_override === null || v.price_override === undefined ? undefined : v.price_override,
+            cost_override: v.cost_override === null || v.cost_override === undefined ? undefined : v.cost_override,
             stock_level: v.stock_level ?? 0,
         }));
 
@@ -332,7 +357,7 @@ export function ProductVariationsModal({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-3xl min-h-[500px] flex flex-col">
+            <DialogContent className="sm:max-w-5xl min-h-[500px] flex flex-col">
                 <DialogHeader>
                     <DialogTitle>
                         {view === 'list' && 'Manage Variations'}
@@ -472,12 +497,31 @@ export function ProductVariationsModal({
                         {/* VIEW: LIST (MATRIX) */}
                         {view === 'list' && (
                             <div className="space-y-4">
-                                <div className="flex justify-end gap-2">
-                                    <Button variant="outline" size="sm" onClick={() => {
-                                        setView('add_type');
-                                    }} disabled={!canAddMoreAttributes}>
-                                        <Plus className="h-4 w-4 mr-2" /> Add Variation Type
-                                    </Button>
+                                <div className="flex items-start justify-between gap-4 mb-3">
+                                    <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-900/30 rounded-md p-2.5 flex-1">
+                                        <p className="text-[11px] text-blue-700 dark:text-blue-300 leading-relaxed">
+                                            <strong>Cost Adjustments:</strong> Enter the <strong>extra</strong> cost for this variation (e.g., <code className="bg-blue-100 dark:bg-blue-900/40 px-1 rounded">2.5</code>).
+                                            Use a negative number (e.g., <code className="bg-blue-100 dark:bg-blue-900/40 px-1 rounded">-1.5</code>) if cheaper than base.
+                                        </p>
+                                    </div>
+                                    <TooltipProvider>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <span>
+                                                    <Button variant="outline" size="sm" onClick={() => {
+                                                        setView('add_type');
+                                                    }} disabled={!canAddMoreAttributes}>
+                                                        <Plus className="h-4 w-4 mr-1" /> Variation
+                                                    </Button>
+                                                </span>
+                                            </TooltipTrigger>
+                                            {!canAddMoreAttributes && (
+                                                <TooltipContent>
+                                                    <p>Maximum of 2 variation types reached</p>
+                                                </TooltipContent>
+                                            )}
+                                        </Tooltip>
+                                    </TooltipProvider>
                                 </div>
                                 <div className="border rounded-md overflow-hidden flex flex-col max-h-[500px]">
                                     <div className="overflow-auto flex-1">
@@ -513,6 +557,8 @@ export function ProductVariationsModal({
                                                     )}
                                                     <th className="p-3 font-medium w-[100px]">SKU</th>
                                                     <th className="p-3 font-medium w-[110px]">Cost ({currency})</th>
+                                                    <th className="p-3 font-medium w-[110px]">Price ({currency})</th>
+                                                    <th className="p-3 font-medium w-[120px]">Financials</th>
                                                     <th className="p-3 font-medium w-[90px]">Stock</th>
                                                     <th className="p-3 font-medium text-center w-[60px]">Active</th>
                                                 </tr>
@@ -550,11 +596,43 @@ export function ProductVariationsModal({
                                                                             className="h-8 bg-background"
                                                                             type="number"
                                                                             step="0.01"
-                                                                            placeholder="Cost"
-                                                                            value={variant.cost_override || ''}
+                                                                            placeholder="Extra: 0.00"
+                                                                            value={variant.cost_override != null ? variant.cost_override : ''}
                                                                             onChange={e => updateVariantCost(idx, e.target.value)}
                                                                             disabled={!variant.is_active}
                                                                         />
+                                                                    </td>
+                                                                    <td className="p-3 align-middle">
+                                                                        <Input
+                                                                            className="h-8 bg-background"
+                                                                            type="number"
+                                                                            step="0.01"
+                                                                            placeholder={`Base: ${basePrice}`}
+                                                                            value={variant.price_override != null ? variant.price_override : ''}
+                                                                            onChange={e => updateVariantPrice(idx, e.target.value)}
+                                                                            disabled={!variant.is_active}
+                                                                        />
+                                                                    </td>
+                                                                    <td className="p-3 align-middle">
+                                                                        {(() => {
+                                                                            const metrics = getVariantMetrics(variant);
+                                                                            return (
+                                                                                <div className="flex flex-col text-[11px] leading-tight">
+                                                                                    <div className="flex justify-between gap-2">
+                                                                                        <span className="text-muted-foreground uppercase text-[9px] font-bold">Profit:</span>
+                                                                                        <span className={metrics.profit >= 0 ? 'text-green-600' : 'text-red-600'}>
+                                                                                            {metrics.profit < 0 ? '-' : ''}{currency}{Math.abs(metrics.profit).toFixed(2)}
+                                                                                        </span>
+                                                                                    </div>
+                                                                                    <div className="flex justify-between gap-2">
+                                                                                        <span className="text-muted-foreground uppercase text-[9px] font-bold">Margin:</span>
+                                                                                        <span className={metrics.margin >= 0 ? 'text-green-600' : 'text-red-600'}>
+                                                                                            {metrics.margin.toFixed(1)}%
+                                                                                        </span>
+                                                                                    </div>
+                                                                                </div>
+                                                                            );
+                                                                        })()}
                                                                     </td>
                                                                     <td className="p-3 align-middle">
                                                                         <Input
