@@ -76,6 +76,12 @@
   - Upvote/downvote functionality
   - Feature search
 
+- ✅ **Product Templates**
+  - Save product configurations as templates
+  - Quick product creation from templates
+  - Template management from create screen and DB
+  - See: `docs/specs/product-templates.md`
+
 - ✅ **Product Variants** (Recently Implemented)
   - Product variants support
   - Variant-specific pricing
@@ -86,7 +92,7 @@
 
 ## Future Features 🚀
 
-### High Priority
+### High Priority (Next Up)
 
 1. **Sales Transactions** 📋 _SPEC Ready_
    - Replace localStorage-based sales with a proper DB system
@@ -94,10 +100,10 @@
    - Historical sales data and analytics
    - See: `docs/specs/sales-transactions.md`
 
-2. **Product Templates**
-   - Save product configurations as templates
-   - Quick product creation from templates
-   - Template library management
+2. **Integration Features**
+   - Etsy integration (Authentication ready)
+   - Shopify integration
+   - CSV import/export
 
 3. **Export Functionality**
    - Export products to CSV/Excel
