@@ -498,6 +498,29 @@ export async function initializeDatabase() {
       );
     `;
 
+    // Create product_templates table
+    await sql`
+      CREATE TABLE IF NOT EXISTS product_templates (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        category VARCHAR(100),
+        
+        default_batch_size INTEGER DEFAULT 1,
+        default_pricing_method VARCHAR(20),
+        default_markup_percentage DECIMAL(5, 2),
+        
+        materials_json JSONB,
+        labor_costs_json JSONB,
+        other_costs_json JSONB,
+        variants_json JSONB,
+
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+
     console.log('✅ Database tables initialized successfully');
   } catch (error) {
     console.error('❌ Error initializing database:', error);

@@ -57,7 +57,7 @@
 
 - ✅ **On Sale Page**
   - Dedicated page for products on sale
-  - Sales tracking (qty sold) - currently in localStorage
+  - Sales tracking (qty sold) - currently in localStorage (Database migration planned)
   - Revenue, profit, and margin analytics
   - Stock calculation (Made - Sold)
   - Investment column (total cost to produce)
@@ -76,134 +76,133 @@
   - Upvote/downvote functionality
   - Feature search
 
+- ✅ **Product Variants** (Recently Implemented)
+  - Product variants support
+  - Variant-specific pricing
+  - Variant stock tracking
+  - See: `docs/specs/product-variants.md`
+
 ---
 
 ## Future Features 🚀
 
 ### High Priority
 
-1. **Product Templates**
+1. **Sales Transactions** 📋 _SPEC Ready_
+   - Replace localStorage-based sales with a proper DB system
+   - Record actual sale prices, discounts, and platforms
+   - Historical sales data and analytics
+   - See: `docs/specs/sales-transactions.md`
+
+2. **Product Templates**
    - Save product configurations as templates
    - Quick product creation from templates
    - Template library management
 
-2. **Export Functionality**
+3. **Export Functionality**
    - Export products to CSV/Excel
    - Export cost breakdowns as PDF
    - Export product list with all details
 
-3. **Bulk Operations**
+4. **Bulk Operations**
    - Bulk edit products (status, category, etc.)
    - Bulk delete products
    - Bulk update pricing
 
-4. **Advanced Analytics**
+5. **Advanced Analytics**
    - Cost trend analysis over time
    - Profit margin trends
    - Material cost analysis
    - Labor cost analysis
    - Revenue forecasting
 
-5. **Product Categories**
+6. **Product Categories**
    - Category management
    - Filter by category
    - Category-based analytics
 
 ### Medium Priority
 
-6. **Inventory Tracking**
+7. **Inventory Tracking**
    - Stock levels per product
    - Low stock alerts
    - Inventory history
    - Stock adjustments
 
-7. **Material Library Enhancements**
+8. **Material Library Enhancements**
    - Material cost history
    - Price alerts for materials
    - Supplier management
    - Material usage analytics
 
-8. **Pricing Strategies**
+9. **Pricing Strategies**
    - Multiple pricing methods per product
    - A/B testing for pricing
    - Competitor price tracking
    - Dynamic pricing suggestions
 
-9. **Reporting**
-   - Custom report builder
-   - Scheduled reports
-   - Email reports
-   - Report templates
+10. **Reporting**
+    - Custom report builder
+    - Scheduled reports
+    - Email reports
+    - Report templates
 
-10. **Product Comparison**
+11. **Product Comparison**
     - Side-by-side product comparison
     - Cost breakdown comparison
     - Profitability comparison
 
 ### Low Priority / Future Enhancements
 
-11. **Multi-currency Support**
+12. **Multi-currency Support**
     - Currency conversion
     - Multi-currency pricing
     - Exchange rate tracking
 
-12. **Integration Features**
+13. **Integration Features**
     - Etsy integration
     - Shopify integration
     - CSV import/export
     - API for third-party integrations
 
-13. **Collaboration Features**
+14. **Collaboration Features**
     - Team accounts
     - Role-based access control
     - Shared product libraries
     - Comments and notes on products
 
-14. **Mobile App**
+15. **Mobile App**
     - React Native mobile app
     - Quick product creation on mobile
     - Barcode scanning for materials
 
-15. **Advanced Search**
+16. **Advanced Search**
     - Full-text search
     - Search history
     - Saved searches
     - Search filters presets
 
-16. **Notifications**
+17. **Notifications**
     - Low stock alerts
     - Price change notifications
     - Material price alerts
     - System notifications
 
-17. **Data Visualization**
+18. **Data Visualization**
     - Charts and graphs for analytics
     - Profit trends visualization
     - Cost breakdown pie charts
     - Revenue forecasting charts
 
-18. **Backup & Restore**
+19. **Backup & Restore**
     - Data export/import
     - Backup scheduling
     - Data recovery
     - Version history
 
-19. **Product Variants** 📋 _SPEC Ready_
-    - Product variants support
-    - Variant-specific pricing
-    - Variant stock tracking
-    - See: `docs/specs/product-variants.md`
-
-20. **Sales Transactions** 📋 _SPEC Ready_
-    - Transaction-based sales tracking
-    - Actual sale prices (not just target_price)
-    - Discount and coupon tracking
-    - Multi-platform sales tracking
-    - Historical sales data
-    - See: `docs/specs/sales-transactions.md`
-
 ### Recently Completed ✅
 
+- ✅ **Product Variants** (Cartesian generator, cost/price overrides, stock)
 - ✅ New single-screen Add Product UI (replaced multi-step wizard)
 - ✅ On Sale page improvements (Made/Investment columns, profit toggle)
 - ✅ Materials library enhancements (Add Stock, weighted average, filters)
@@ -215,4 +214,4 @@
 
 ### Small things to fix
 
-- SKU auto generated even though typed when creating a product
+- [x] SKU auto generated even though typed when creating a product

@@ -1,5 +1,6 @@
 
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -322,15 +323,36 @@ export default function CreateProduct() {
   const { setOpen } = useSidebar();
   const { settings } = useSettings();
   const { toast } = useToast();
-  const { createProduct } = useProducts();
+  const { createProduct, isCreating } = useProducts();
   // Helper used for display calculations, similar to Products page, but here we calculate on the fly
   const { calculateProfitFromPrice } = useProductPricing();
 
   const [variants, setVariants] = useState<Variant[]>([]);
   const [isVariationsModalOpen, setIsVariationsModalOpen] = useState(false);
 
+  const [templates, setTemplates] = useState<any[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
+  const [pricingMethod, setPricingMethod] = useState<'price' | 'markup' | 'margin' | undefined>(undefined);
+  const [markupPercentage, setMarkupPercentage] = useState<number | undefined>(undefined);
+
+
   useEffect(() => {
     setOpen(false);
+  }, []);
+
+  // Fetch templates on mount
+  useEffect(() => {
+    const fetchTemplates = async () => {
+      try {
+        const res = await api.get('/templates');
+        if (res.data.status === 'success') {
+          setTemplates(res.data.data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch templates', err);
+      }
+    };
+    fetchTemplates();
   }, []);
 
   const form = useForm<ProductFormValues>({
@@ -339,14 +361,85 @@ export default function CreateProduct() {
       name: '',
       sku: '',
       batch_size: 1,
-      target_price: undefined,
+      target_price: 0,
       materials: [],
       labor_costs: [],
-      other_costs: []
-    }
+      other_costs: [],
+    },
   });
 
-  const { control, handleSubmit, watch } = form;
+  const { reset, control, handleSubmit, watch, setValue, getValues } = form;
+
+  const handleLoadTemplate = async (templateId: string) => {
+    if (!templateId || templateId === 'none') {
+      setSelectedTemplateId('');
+      // Optionally reset form to default values if 'none' is selected
+      reset();
+      setVariants([]); // Clear variants if template is removed
+      setPricingMethod(undefined);
+      setMarkupPercentage(undefined);
+      return;
+    }
+
+    try {
+      const res = await api.get(`/templates/${templateId}`);
+      if (res.data.status === 'success') {
+        const tmpl = res.data.data;
+
+        // Parse JSON fields
+        const materials = Array.isArray(tmpl.materials_json)
+          ? tmpl.materials_json
+          : (typeof tmpl.materials_json === 'string' ? JSON.parse(tmpl.materials_json) : []);
+
+        const laborCosts = Array.isArray(tmpl.labor_costs_json)
+          ? tmpl.labor_costs_json
+          : (typeof tmpl.labor_costs_json === 'string' ? JSON.parse(tmpl.labor_costs_json) : []);
+
+        const otherCosts = Array.isArray(tmpl.other_costs_json)
+          ? tmpl.other_costs_json
+          : (typeof tmpl.other_costs_json === 'string' ? JSON.parse(tmpl.other_costs_json) : []);
+
+        const variants = Array.isArray(tmpl.variants_json)
+          ? tmpl.variants_json
+          : (typeof tmpl.variants_json === 'string' ? JSON.parse(tmpl.variants_json) : []);
+
+        // Populate form
+        setValue('name', tmpl.name || ''); // Or keep blank to force new name? Let's use template name as base.
+        setValue('batch_size', tmpl.default_batch_size || 1);
+
+        // Clear existing arrays and add template items
+        setValue('materials', materials);
+        setValue('labor_costs', laborCosts);
+        setValue('other_costs', otherCosts);
+
+        // Handle Pricing Method specific logic if needed (e.g. set method state)
+        if (tmpl.default_pricing_method) {
+          setPricingMethod(tmpl.default_pricing_method as any);
+          if (tmpl.default_markup_percentage) {
+            setMarkupPercentage(tmpl.default_markup_percentage);
+          }
+        }
+
+        if (variants.length > 0) {
+          setVariants(variants); // Changed from setLocalVariants
+        }
+
+        toast({
+          title: "Template Loaded",
+          description: `Loaded configuration from ${tmpl.name}`,
+        });
+
+        setSelectedTemplateId(templateId);
+      }
+    } catch (err) {
+      console.error('Failed to load template', err);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to load template data",
+      });
+    }
+  };
 
   // Arrays
   const materialsArray = useFieldArray({ control, name: 'materials' });
@@ -457,7 +550,7 @@ export default function CreateProduct() {
 
       const productData = {
         name: data.name,
-        sku: data.sku,
+        sku: data.sku || undefined,
         batch_size: data.batch_size,
         target_price: data.target_price,
         pricing_method,
@@ -498,20 +591,44 @@ export default function CreateProduct() {
     }
   };
 
+  // Header Portal Target
+  const [headerContainer, setHeaderContainer] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    setHeaderContainer(document.getElementById('header-actions'));
+  }, []);
+
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] overflow-hidden">
       <div className="flex-1 overflow-y-auto p-6">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold tracking-tight">Create Product</h1>
-          <Button
-            variant="outline"
-            onClick={() => setIsVariationsModalOpen(true)}
-            className="gap-2"
-          >
-            <Settings2 className="h-4 w-4" />
-            {variants.length > 0 ? `Manage Variations (${variants.length})` : 'Add Variations'}
-          </Button>
-        </div>
+
+        {/* Header Actions Portal */}
+        {headerContainer && createPortal(
+          <div className="flex items-center gap-2">
+            <Select value={selectedTemplateId} onValueChange={handleLoadTemplate}>
+              <SelectTrigger className="w-[200px] h-9">
+                <SelectValue placeholder="Load Template..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">None (Clear)</SelectItem>
+                {templates.map((t) => (
+                  <SelectItem key={t.id} value={t.id.toString()}>
+                    {t.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsVariationsModalOpen(true)}
+              className="gap-2 h-9"
+            >
+              <Settings2 className="h-4 w-4" />
+              {variants.length > 0 ? `Manage Variations (${variants.length})` : 'Add Variations'}
+            </Button>
+          </div>,
+          headerContainer
+        )}
 
         <ProductVariationsModal
           open={isVariationsModalOpen}
@@ -527,7 +644,7 @@ export default function CreateProduct() {
             {/* Top Section */}
             <div className="grid grid-cols-4 gap-4 items-end">
               <FormField control={control} name="name" render={({ field }) => (
-                <FormItem>
+                <FormItem className="col-span-2">
                   <FormLabel>Product Name *</FormLabel>
                   <FormControl><Input placeholder="My Product" {...field} /></FormControl>
                   <FormMessage />
@@ -536,7 +653,7 @@ export default function CreateProduct() {
               <FormField control={control} name="sku" render={({ field }) => (
                 <FormItem>
                   <FormLabel>SKU</FormLabel>
-                  <FormControl><Input placeholder="SKU-001" {...field} /></FormControl>
+                  <FormControl><Input placeholder="SKU-001" autoComplete="off" {...field} value={field.value || ''} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )} />
@@ -660,28 +777,49 @@ export default function CreateProduct() {
       </div>
 
       {/* Bottom Bar */}
-      <div className="shrink-0 bg-background border-t px-6 py-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
+      {/* Bottom Bar */}
+      <div className="shrink-0 bg-background border-t px-6 py-2 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
         <div className="flex items-center justify-between">
-          <div className="flex gap-8">
-            <div>
-              <div className="text-xs text-muted-foreground">Total Cost</div>
-              <div className="text-2xl font-bold text-primary">{formatCurrency(totalCostPerProduct, settings.currency)}</div>
+
+          {/* Left: Cost Breakdown & Total */}
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-4 text-xs text-muted-foreground">
+              <span>Materials: <span className="font-medium text-foreground">{formatCurrency(totalMaterialsCost, settings.currency)}</span></span>
+              <span>Labor: <span className="font-medium text-foreground">{formatCurrency(totalLaborCost, settings.currency)}</span></span>
+              <span>Other: <span className="font-medium text-foreground">{formatCurrency(totalOtherCost, settings.currency)}</span></span>
             </div>
-            <div className="h-10 w-px bg-border my-auto" />
-            <div className="grid grid-cols-3 gap-x-8 gap-y-1 text-sm">
-              <div className="text-muted-foreground">Profit:</div>
-              <div className={`col-span-2 font-medium ${profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatCurrency(profit, settings.currency)}</div>
-
-              <div className="text-muted-foreground">Margin:</div>
-              <div className={`col-span-2 font-medium ${profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatNumberDisplay(margin)}%</div>
-
-              <div className="text-muted-foreground">Markup:</div>
-              <div className="col-span-2 font-medium">{formatNumberDisplay(markup)}%</div>
+            <div className="h-8 w-px bg-border my-auto" />
+            <div className="flex items-center gap-3">
+              <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Total Cost</div>
+              <div className="text-xl font-bold text-primary">{formatCurrency(totalCostPerProduct, settings.currency)}</div>
             </div>
           </div>
+
+          {/* Center: Circular Indicators - Smaller */}
+          <div className="flex items-center gap-3">
+            {/* Profit Circle */}
+            <div className={`flex flex-col items-center justify-center w-14 h-14 rounded-full border-2 ${profit >= 0 ? 'border-green-100 bg-green-50/50' : 'border-red-100 bg-red-50/50'}`}>
+              <div className="text-[8px] text-muted-foreground uppercase">Profit</div>
+              <div className={`font-bold text-xs ${profit >= 0 ? 'text-green-700' : 'text-red-700'}`}>{formatCurrency(profit, settings.currency)}</div>
+            </div>
+
+            {/* Margin Circle */}
+            <div className={`flex flex-col items-center justify-center w-14 h-14 rounded-full border-2 ${margin >= 0 ? 'border-blue-100 bg-blue-50/50' : 'border-red-100 bg-red-50/50'}`}>
+              <div className="text-[8px] text-muted-foreground uppercase">Margin</div>
+              <div className={`font-bold text-xs ${margin >= 0 ? 'text-blue-700' : 'text-red-700'}`}>{formatNumberDisplay(margin)}%</div>
+            </div>
+
+            {/* Markup Circle */}
+            <div className="flex flex-col items-center justify-center w-14 h-14 rounded-full border-2 border-purple-100 bg-purple-50/50">
+              <div className="text-[8px] text-muted-foreground uppercase">Markup</div>
+              <div className="font-bold text-xs text-purple-700">{formatNumberDisplay(markup)}%</div>
+            </div>
+          </div>
+
+          {/* Right: Buttons */}
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => navigate('/products')}>Cancel</Button>
-            <Button onClick={handleSubmit(onSubmit)}>Create Product</Button>
+            <Button variant="outline" size="sm" onClick={() => navigate('/products')}>Cancel</Button>
+            <Button size="sm" onClick={handleSubmit(onSubmit)}>Create Product</Button>
           </div>
         </div>
       </div>

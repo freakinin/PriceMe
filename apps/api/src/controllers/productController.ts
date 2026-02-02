@@ -17,10 +17,10 @@ export const createProduct = async (req: AuthRequest, res: Response) => {
     const { name, sku, status, description, category, batch_size, target_price, pricing_method, pricing_value, materials, labor_costs, other_costs, variants } = validatedData;
 
     // Start transaction: Create product
-    console.log('Inserting product with userId:', req.userId);
+    console.log('Inserting product with userId:', req.userId, 'and SKU:', sku);
     const productResult = await db`
       INSERT INTO products (user_id, name, sku, status, description, category, batch_size, target_price, pricing_method, pricing_value)
-      VALUES (${req.userId}, ${name}, ${sku || null}, ${status || 'draft'}, ${description || null}, ${category || null}, ${batch_size || 1}, ${target_price || null}, ${pricing_method || null}, ${pricing_value || null})
+      VALUES (${req.userId}, ${name}, ${sku !== undefined ? sku : null}, ${status || 'draft'}, ${description || null}, ${category || null}, ${batch_size || 1}, ${target_price || null}, ${pricing_method || null}, ${pricing_value || null})
       RETURNING id
     `;
 
@@ -505,20 +505,21 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
       await db`BEGIN`;
 
       // Update product first
+      console.log('Updating product', productId, 'with SKU:', sku);
       await db`
-        UPDATE products
-        SET name = ${name},
-            sku = ${sku || null},
-            description = ${description || null},
-            category = ${category || null},
-            status = ${status !== undefined ? status : null},
-            batch_size = ${batch_size || 1},
-            target_price = ${target_price || null},
-            pricing_method = ${pricing_method || null},
-            pricing_value = ${pricing_value || null},
-            updated_at = CURRENT_TIMESTAMP
-        WHERE id = ${productId} AND user_id = ${req.userId}
-      `;
+          UPDATE products
+          SET name = ${name},
+              sku = ${sku !== undefined ? sku : null},
+              description = ${description || null},
+              category = ${category || null},
+              status = ${status !== undefined ? status : null},
+              batch_size = ${batch_size || 1},
+              target_price = ${target_price || null},
+              pricing_method = ${pricing_method || null},
+              pricing_value = ${pricing_value || null},
+              updated_at = CURRENT_TIMESTAMP
+          WHERE id = ${productId} AND user_id = ${req.userId}
+        `;
 
       // If status changed to 'on_sale', reduce stock for materials
       if (isChangingToOnSale) {

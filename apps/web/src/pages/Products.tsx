@@ -274,7 +274,7 @@ export default function Products() {
 
       await updateProduct({
         id: productId,
-        data: { [field]: value }
+        data: { [field]: (field === 'sku' && value === '') ? undefined : value }
       });
 
     } catch (error: any) {
