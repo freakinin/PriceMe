@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { db } from '../utils/db';
-import { createTemplateSchema } from '../../../../packages/shared/src/schemas/template';
+import { createTemplateSchema } from '@priceme/shared';
 
 // Get all templates for the authenticated user
 export const getTemplates = async (req: AuthRequest, res: Response) => {
@@ -12,13 +12,13 @@ export const getTemplates = async (req: AuthRequest, res: Response) => {
       ORDER BY name ASC
     `;
 
-        res.json({
+        return res.json({
             status: 'success',
             data: Array.isArray(templates) ? templates : templates.rows || [],
         });
     } catch (error) {
         console.error('Error fetching templates:', error);
-        res.status(500).json({
+        return res.status(500).json({
             status: 'error',
             message: 'Failed to fetch templates',
         });
@@ -82,7 +82,7 @@ export const createTemplate = async (req: AuthRequest, res: Response) => {
 
         const id = Array.isArray(result) ? result[0].id : result.rows[0].id;
 
-        res.status(201).json({
+        return res.status(201).json({
             status: 'success',
             message: 'Template created successfully',
             data: { id, name },
@@ -96,7 +96,7 @@ export const createTemplate = async (req: AuthRequest, res: Response) => {
             });
         }
         console.error('Error creating template:', error);
-        res.status(500).json({
+        return res.status(500).json({
             status: 'error',
             message: 'Failed to create template',
         });
@@ -121,13 +121,13 @@ export const getTemplate = async (req: AuthRequest, res: Response) => {
             return res.status(404).json({ status: 'error', message: 'Template not found' });
         }
 
-        res.json({
+        return res.json({
             status: 'success',
             data: rows[0],
         });
     } catch (error) {
         console.error('Error fetching template:', error);
-        res.status(500).json({ status: 'error', message: 'Failed to fetch template' });
+        return res.status(500).json({ status: 'error', message: 'Failed to fetch template' });
     }
 };
 
@@ -150,12 +150,12 @@ export const deleteTemplate = async (req: AuthRequest, res: Response) => {
             return res.status(404).json({ status: 'error', message: 'Template not found or unauthorized' });
         }
 
-        res.json({
+        return res.json({
             status: 'success',
             message: 'Template deleted successfully',
         });
     } catch (error) {
         console.error('Error deleting template:', error);
-        res.status(500).json({ status: 'error', message: 'Failed to delete template' });
+        return res.status(500).json({ status: 'error', message: 'Failed to delete template' });
     }
 };

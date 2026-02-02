@@ -134,3 +134,4 @@ export const createPricingDataSchema = z.object({
 export const updatePricingDataSchema = createPricingDataSchema.partial();
 
 export * from './template';
+export * from './sales';

@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { ArrowUpDown, ArrowUp, ArrowDown, Search, DollarSign, TrendingUp, Package, ShoppingCart, ToggleLeft, ToggleRight } from 'lucide-react';
+import { ArrowUpDown, ArrowUp, ArrowDown, Search, DollarSign, TrendingUp, Package, ShoppingCart, ToggleLeft, ToggleRight, PlusCircle, History } from 'lucide-react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -27,43 +27,121 @@ import { useToast } from '@/components/ui/use-toast';
 import { formatCurrency } from '@/utils/currency';
 import { EditableCell } from '@/components/EditableCell';
 import { useProducts, type Product } from '@/hooks/useProducts';
+import { useSales } from '@/hooks/useSales';
+import { SaleDialog } from '@/components/sales/SaleDialog';
 
 export default function OnSale() {
   const { settings } = useSettings();
   const { toast } = useToast();
-  const { products: allProducts, isLoading: loading, updateProduct } = useProducts();
+  const { products: allProducts, isLoading: loadingProducts, updateProduct } = useProducts();
+  const { sales, isLoading: loadingSales, fetchSales, addSale } = useSales();
 
   // Filter only products with status 'on_sale'
   const products = useMemo(() => {
     return allProducts.filter(p => p.status === 'on_sale');
   }, [allProducts]);
 
-  const [qtySold, setQtySold] = useState<Record<number, number>>({});
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState<string>('');
   // true = use total investment (Made × Cost), false = use COGS (Sold × Cost)
   const [useFullInvestment, setUseFullInvestment] = useState(true);
 
-  // Initialize qty_sold from local storage
+  const [activeProductForSale, setActiveProductForSale] = useState<Product | null>(null);
+  const [isSaleDialogOpen, setIsSaleDialogOpen] = useState(false);
+  const [legacyDataCount, setLegacyDataCount] = useState(0);
+  const [isMigrating, setIsMigrating] = useState(false);
+
+  // Fetch sales on mount
   useEffect(() => {
-    if (products.length > 0) {
-      const savedQtySold: Record<number, number> = {};
-      products.forEach((p) => {
-        const saved = localStorage.getItem(`qty_sold_${p.id}`);
-        if (saved) savedQtySold[p.id] = parseInt(saved, 10);
-      });
-      setQtySold(prev => ({ ...prev, ...savedQtySold }));
+    fetchSales();
+
+    // Check for legacy data
+    let count = 0;
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('qty_sold_')) {
+        const val = localStorage.getItem(key);
+        if (val && parseFloat(val) > 0) count++;
+      }
     }
-  }, [products]);
+    setLegacyDataCount(count);
+  }, [fetchSales]);
+
+  // Aggregate sales by product
+  const salesByProduct = useMemo(() => {
+    const map: Record<number, { qty: number, revenue: number, count: number }> = {};
+    sales.forEach(sale => {
+      if (!map[sale.product_id]) {
+        map[sale.product_id] = { qty: 0, revenue: 0, count: 0 };
+      }
+      const actualRevenue = (sale.unit_price * sale.quantity) - (sale.discount_amount || 0);
+      map[sale.product_id].qty += Number(sale.quantity);
+      map[sale.product_id].revenue += actualRevenue;
+      map[sale.product_id].count += 1;
+    });
+    return map;
+  }, [sales]);
+
+  const handleMigrate = async () => {
+    setIsMigrating(true);
+    try {
+      let migrated = 0;
+      const processing: Promise<any>[] = [];
+
+      // Helper to get all keys first to avoid iteration issues while deleting
+      const keys: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('qty_sold_')) keys.push(key);
+      }
+
+      for (const key of keys) {
+        const pid = parseInt(key.replace('qty_sold_', ''), 10);
+        const qty = parseFloat(localStorage.getItem(key) || '0');
+
+        if (qty > 0) {
+          const product = allProducts.find(p => p.id === pid);
+          // If product not found in current list, we might miss it if pagination existed, 
+          // but here allProducts is full list. If product deleted, we skip.
+          if (product) {
+            const price = product.target_price || 0;
+            processing.push(
+              addSale({
+                product_id: pid,
+                quantity: qty,
+                unit_price: price,
+                sale_date: new Date().toISOString(),
+                notes: 'Migrated from legacy storage',
+                platform: 'Direct',
+                discount_amount: 0,
+                discount_percentage: 0
+              }).then(() => {
+                localStorage.removeItem(key);
+                migrated++;
+              })
+            );
+          } else {
+            // Clean up orphan data
+            localStorage.removeItem(key);
+          }
+        } else {
+          localStorage.removeItem(key);
+        }
+      }
+
+      await Promise.all(processing);
+      toast({ title: "Migration Complete", description: `Successfully migrated sales records for ${migrated} products.` });
+      setLegacyDataCount(0);
+      fetchSales();
+    } catch (e) {
+      console.error("Migration failed", e);
+      toast({ variant: 'destructive', title: "Migration Failed", description: "Some records may not have been migrated." });
+    } finally {
+      setIsMigrating(false);
+    }
+  };
 
   const handleSaveField = async (productId: number, field: string, value: string | number) => {
-    if (field === 'qty_sold') {
-      const numValue = typeof value === 'string' ? parseFloat(value) : value;
-      setQtySold(prev => ({ ...prev, [productId]: numValue as number }));
-      localStorage.setItem(`qty_sold_${productId}`, String(numValue));
-      return;
-    }
-
     if (field === 'batch_size') {
       try {
         const batchValue = Math.round(Number(value));
@@ -83,6 +161,16 @@ export default function OnSale() {
         throw error;
       }
     }
+  };
+
+  const handleRecordSale = (product: Product) => {
+    setActiveProductForSale(product);
+    setIsSaleDialogOpen(true);
+  };
+
+  const handleSaleSaved = async (data: any) => {
+    await addSale(data);
+    await fetchSales(); // Refresh list to update numbers
   };
 
   const formatCurrencyValue = (value: number | null | undefined): string => {
@@ -159,8 +247,8 @@ export default function OnSale() {
     },
     {
       id: 'qty_sold',
-      size: 100,
-      minSize: 80,
+      size: 120,
+      minSize: 100,
       maxSize: 150,
       header: ({ column }) => {
         return (
@@ -181,16 +269,25 @@ export default function OnSale() {
           </Button>
         );
       },
-      accessorFn: (row) => qtySold[row.id] || 0,
+      accessorFn: (row) => salesByProduct[row.id]?.qty || 0,
       cell: ({ row }) => {
         const product = row.original;
-        const currentQtySold = qtySold[product.id] || 0;
+        const stats = salesByProduct[product.id];
+        const qty = stats?.qty || 0;
+
         return (
-          <EditableCell
-            value={currentQtySold}
-            onSave={async (value) => handleSaveField(product.id, 'qty_sold', value)}
-            type="number"
-          />
+          <div className="flex items-center gap-2 group">
+            <span className="font-semibold">{qty}</span>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+              onClick={() => handleRecordSale(product)}
+              title="Record Sale"
+            >
+              <PlusCircle className="h-4 w-4 text-primary" />
+            </Button>
+          </div>
         );
       },
     },
@@ -254,13 +351,13 @@ export default function OnSale() {
         );
       },
       accessorFn: (row) => {
-        const qtySoldValue = qtySold[row.id] || 0;
+        const qtySoldValue = salesByProduct[row.id]?.qty || 0;
         const batchSize = row.batch_size || 0;
         return batchSize - qtySoldValue;
       },
       cell: ({ row }) => {
         const product = row.original;
-        const qtySoldValue = qtySold[product.id] || 0;
+        const qtySoldValue = salesByProduct[product.id]?.qty || 0;
         const batchSize = product.batch_size || 0;
         const stock = batchSize - qtySoldValue;
         return (
@@ -335,15 +432,11 @@ export default function OnSale() {
         );
       },
       accessorFn: (row) => {
-        const qtySoldValue = qtySold[row.id] || 0;
-        const price = row.target_price ?? 0;
-        return qtySoldValue * price;
+        return salesByProduct[row.id]?.revenue || 0;
       },
       cell: ({ row }) => {
         const product = row.original;
-        const qtySoldValue = qtySold[product.id] || 0;
-        const price = product.target_price ?? 0;
-        const revenue = qtySoldValue * price;
+        const revenue = salesByProduct[product.id]?.revenue || 0;
         return (
           <div className="py-1">
             <span className="font-medium">{formatCurrencyValue(revenue)}</span>
@@ -376,25 +469,29 @@ export default function OnSale() {
         );
       },
       accessorFn: (row) => {
-        const qtySoldValue = qtySold[row.id] || 0;
+        const stats = salesByProduct[row.id];
+        const qtySoldValue = stats?.qty || 0;
+        const revenue = stats?.revenue || 0;
+
         const madeQty = row.batch_size || 0;
-        const price = row.target_price ?? 0;
         const productCost = typeof row.product_cost === 'number' ? row.product_cost : 0;
-        const revenue = qtySoldValue * price;
+
         // Use total investment or COGS based on toggle
         const cost = useFullInvestment ? (madeQty * productCost) : (qtySoldValue * productCost);
         return revenue - cost;
       },
       cell: ({ row }) => {
         const product = row.original;
-        const qtySoldValue = qtySold[product.id] || 0;
+        const stats = salesByProduct[product.id];
+        const qtySoldValue = stats?.qty || 0;
+        const revenue = stats?.revenue || 0;
         const madeQty = product.batch_size || 0;
-        const price = product.target_price ?? 0;
         const productCost = typeof product.product_cost === 'number' ? product.product_cost : 0;
-        const revenue = qtySoldValue * price;
+
         // Use total investment or COGS based on toggle
         const cost = useFullInvestment ? (madeQty * productCost) : (qtySoldValue * productCost);
         const profit = revenue - cost;
+
         return (
           <div className="py-1">
             <span className={profit >= 0 ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>
@@ -429,13 +526,15 @@ export default function OnSale() {
         );
       },
       accessorFn: (row) => {
-        const qtySoldValue = qtySold[row.id] || 0;
+        const stats = salesByProduct[row.id];
+        const qtySoldValue = stats?.qty || 0;
+        const revenue = stats?.revenue || 0;
         const madeQty = row.batch_size || 0;
-        const price = row.target_price ?? 0;
         const productCost = typeof row.product_cost === 'number' ? row.product_cost : 0;
-        const revenue = qtySoldValue * price;
+
         const cost = useFullInvestment ? (madeQty * productCost) : (qtySoldValue * productCost);
         const profit = revenue - cost;
+
         if (revenue > 0) {
           return (profit / revenue) * 100;
         }
@@ -443,17 +542,19 @@ export default function OnSale() {
       },
       cell: ({ row }) => {
         const product = row.original;
-        const qtySoldValue = qtySold[product.id] || 0;
+        const stats = salesByProduct[product.id];
+        const qtySoldValue = stats?.qty || 0;
+        const revenue = stats?.revenue || 0;
         const madeQty = product.batch_size || 0;
-        const price = product.target_price ?? 0;
         const productCost = typeof product.product_cost === 'number' ? product.product_cost : 0;
-        const revenue = qtySoldValue * price;
+
         const cost = useFullInvestment ? (madeQty * productCost) : (qtySoldValue * productCost);
         const profit = revenue - cost;
+
         const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
         return (
           <div className="py-1">
-            {qtySoldValue > 0 && price > 0 ? (
+            {qtySoldValue > 0 && revenue > 0 ? (
               <span className={margin >= 0 ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>
                 {formatPercentage(margin)}
               </span>
@@ -464,7 +565,7 @@ export default function OnSale() {
         );
       },
     },
-  ], [qtySold, settings.currency, useFullInvestment]);
+  ], [salesByProduct, settings.currency, useFullInvestment]);
 
   const table = useReactTable({
     data: products,
@@ -492,11 +593,8 @@ export default function OnSale() {
 
   // Calculate analytics
   const analytics = useMemo(() => {
-    const totalRevenue = products.reduce((sum, product) => {
-      const qtySoldValue = qtySold[product.id] || 0;
-      const price = product.target_price ?? 0;
-      return sum + (qtySoldValue * price);
-    }, 0);
+    // Total Revenue from actual sales
+    const totalRevenue = Object.values(salesByProduct).reduce((sum, s) => sum + s.revenue, 0);
 
     // Total Investment = sum of (Made × Cost Per Product)
     const totalInvestment = products.reduce((sum, product) => {
@@ -507,7 +605,7 @@ export default function OnSale() {
 
     // COGS = sum of (Sold × Cost Per Product)
     const totalCOGS = products.reduce((sum, product) => {
-      const qtySoldValue = qtySold[product.id] || 0;
+      const qtySoldValue = salesByProduct[product.id]?.qty || 0;
       const productCost = typeof product.product_cost === 'number' ? product.product_cost : 0;
       return sum + (qtySoldValue * productCost);
     }, 0);
@@ -516,9 +614,7 @@ export default function OnSale() {
     const totalCost = useFullInvestment ? totalInvestment : totalCOGS;
     const totalProfit = totalRevenue - totalCost;
 
-    const totalSold = products.reduce((sum, product) => {
-      return sum + (qtySold[product.id] || 0);
-    }, 0);
+    const totalSold = Object.values(salesByProduct).reduce((sum, s) => sum + s.qty, 0);
 
     const totalMade = products.reduce((sum, product) => {
       return sum + (product.batch_size || 0);
@@ -535,9 +631,9 @@ export default function OnSale() {
       totalMade,
       averageMargin,
     };
-  }, [products, qtySold, useFullInvestment]);
+  }, [products, salesByProduct, useFullInvestment]);
 
-  if (loading) {
+  if (loadingProducts || loadingSales) {
     return (
       <div className="p-6">
         <div className="space-y-4">
@@ -551,6 +647,22 @@ export default function OnSale() {
 
   return (
     <div className="p-6">
+      {legacyDataCount > 0 && (
+        <div className="bg-amber-100 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-900 p-4 mb-6 rounded-lg flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <History className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+            <div>
+              <h3 className="font-semibold text-amber-800 dark:text-amber-200">Legacy Sales Data Found</h3>
+              <p className="text-sm text-amber-700 dark:text-amber-300">
+                We found {legacyDataCount} products with sales records stored in your browser. Migrate them to the database to keep them safe.
+              </p>
+            </div>
+          </div>
+          <Button onClick={handleMigrate} disabled={isMigrating} variant="outline" className="border-amber-300 text-amber-900 hover:bg-amber-200 dark:hover:bg-amber-900/40">
+            {isMigrating ? 'Migrating...' : 'Migrate Data'}
+          </Button>
+        </div>
+      )}
       {products.length > 0 && (
         <>
           {/* Analytics Cards */}
@@ -579,12 +691,12 @@ export default function OnSale() {
                     </p>
                   </div>
                   <div className={`h-12 w-12 rounded-full flex items-center justify-center ${analytics.totalProfit >= 0
-                      ? 'bg-blue-100 dark:bg-blue-900/20'
-                      : 'bg-red-100 dark:bg-red-900/20'
+                    ? 'bg-blue-100 dark:bg-blue-900/20'
+                    : 'bg-red-100 dark:bg-red-900/20'
                     }`}>
                     <TrendingUp className={`h-6 w-6 ${analytics.totalProfit >= 0
-                        ? 'text-blue-600 dark:text-blue-400'
-                        : 'text-red-600 dark:text-red-400'
+                      ? 'text-blue-600 dark:text-blue-400'
+                      : 'text-red-600 dark:text-red-400'
                       }`} />
                   </div>
                 </div>
@@ -731,6 +843,15 @@ export default function OnSale() {
             </TableBody>
           </Table>
         </div>
+      )}
+
+      {activeProductForSale && (
+        <SaleDialog
+          open={isSaleDialogOpen}
+          onOpenChange={setIsSaleDialogOpen}
+          product={activeProductForSale}
+          onSave={handleSaleSaved}
+        />
       )}
     </div>
   );

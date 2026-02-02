@@ -57,13 +57,19 @@
 
 - ✅ **On Sale Page**
   - Dedicated page for products on sale
-  - Sales tracking (qty sold) - currently in localStorage (Database migration planned)
+  - Sales tracking (migrated to Database) with legacy localStorage support
   - Revenue, profit, and margin analytics
   - Stock calculation (Made - Sold)
   - Investment column (total cost to produce)
   - Profit calculation toggle (Real Profit vs Sold Profit)
   - Real Profit: Revenue - Total Investment (all items made)
   - Sold Profit: Revenue - COGS (only sold items)
+
+- ✅ **Sales Transactions**
+  - Replace localStorage-based sales with a proper DB system
+  - Record actual sale prices, discounts, and platforms
+  - Historical sales data and analytics
+  - See: `docs/specs/sales-transactions.md`
 
 - ✅ **Home Dashboard**
   - Overview analytics
@@ -94,13 +100,7 @@
 
 ### High Priority (Next Up)
 
-1. **Sales Transactions** 📋 _SPEC Ready_
-   - Replace localStorage-based sales with a proper DB system
-   - Record actual sale prices, discounts, and platforms
-   - Historical sales data and analytics
-   - See: `docs/specs/sales-transactions.md`
-
-2. **Integration Features**
+1. **Integration Features**
    - Etsy integration (Authentication ready)
    - Shopify integration
    - CSV import/export

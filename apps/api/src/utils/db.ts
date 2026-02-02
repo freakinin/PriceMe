@@ -521,6 +521,37 @@ export async function initializeDatabase() {
       );
     `;
 
+    // Create sales table
+    await sql`
+      CREATE TABLE IF NOT EXISTS sales (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+        product_id INTEGER REFERENCES products(id) ON DELETE CASCADE NOT NULL,
+        variant_id INTEGER REFERENCES product_variants(id) ON DELETE SET NULL,
+        sale_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+        quantity DECIMAL(10, 4) NOT NULL CHECK (quantity > 0),
+        unit_price DECIMAL(10, 2) NOT NULL CHECK (unit_price >= 0),
+        discount_amount DECIMAL(10, 2) DEFAULT 0 CHECK (discount_amount >= 0),
+        discount_percentage DECIMAL(5, 2) DEFAULT 0 CHECK (discount_percentage >= 0 AND discount_percentage <= 100),
+        coupon_code VARCHAR(50),
+        platform VARCHAR(50),
+        customer_name VARCHAR(255),
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+
+    // Create indexes for sales table using exception handling for IF NOT EXISTS which is not supported in all PG versions for INDEX in the same way or just simple CREATE INDEX IF NOT EXISTS is fine for modern PG which Vercel uses
+    try {
+      await sql`CREATE INDEX IF NOT EXISTS idx_sales_user_id ON sales(user_id)`;
+      await sql`CREATE INDEX IF NOT EXISTS idx_sales_product_id ON sales(product_id)`;
+      await sql`CREATE INDEX IF NOT EXISTS idx_sales_sale_date ON sales(sale_date)`;
+      await sql`CREATE INDEX IF NOT EXISTS idx_sales_platform ON sales(platform)`;
+    } catch (e: any) {
+      console.log('Note: Index creation for sales table:', e.message);
+    }
+
     console.log('✅ Database tables initialized successfully');
   } catch (error) {
     console.error('❌ Error initializing database:', error);
