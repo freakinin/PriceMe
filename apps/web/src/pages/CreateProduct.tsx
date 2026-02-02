@@ -323,7 +323,7 @@ export default function CreateProduct() {
   const { setOpen } = useSidebar();
   const { settings } = useSettings();
   const { toast } = useToast();
-  const { createProduct, isCreating } = useProducts();
+  const { createProduct } = useProducts();
   // Helper used for display calculations, similar to Products page, but here we calculate on the fly
   const { calculateProfitFromPrice } = useProductPricing();
 
@@ -332,8 +332,7 @@ export default function CreateProduct() {
 
   const [templates, setTemplates] = useState<any[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
-  const [pricingMethod, setPricingMethod] = useState<'price' | 'markup' | 'margin' | undefined>(undefined);
-  const [markupPercentage, setMarkupPercentage] = useState<number | undefined>(undefined);
+
 
 
   useEffect(() => {
@@ -368,7 +367,7 @@ export default function CreateProduct() {
     },
   });
 
-  const { reset, control, handleSubmit, watch, setValue, getValues } = form;
+  const { reset, control, handleSubmit, watch, setValue } = form;
 
   const handleLoadTemplate = async (templateId: string) => {
     if (!templateId || templateId === 'none') {
@@ -376,8 +375,7 @@ export default function CreateProduct() {
       // Optionally reset form to default values if 'none' is selected
       reset();
       setVariants([]); // Clear variants if template is removed
-      setPricingMethod(undefined);
-      setMarkupPercentage(undefined);
+      setVariants([]); // Clear variants if template is removed
       return;
     }
 
@@ -414,10 +412,11 @@ export default function CreateProduct() {
 
         // Handle Pricing Method specific logic if needed (e.g. set method state)
         if (tmpl.default_pricing_method) {
-          setPricingMethod(tmpl.default_pricing_method as any);
-          if (tmpl.default_markup_percentage) {
-            setMarkupPercentage(tmpl.default_markup_percentage);
-          }
+          // These would set the removed state variables, remove if not needed or re-implement
+          // setPricingMethod(tmpl.default_pricing_method as any); 
+          // if (tmpl.default_markup_percentage) {
+          //    setMarkupPercentage(tmpl.default_markup_percentage);
+          // }
         }
 
         if (variants.length > 0) {
