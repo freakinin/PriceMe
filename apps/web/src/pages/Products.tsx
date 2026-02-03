@@ -58,6 +58,8 @@ import { useProductPricing } from '@/hooks/useProductPricing';
 import { EditableCell } from '@/components/EditableCell';
 import { getCurrencySymbol } from '@/utils/currency'; // Assuming this utility is available
 import api from '@/lib/api';
+import { Checkbox } from '@/components/ui/checkbox';
+import { BulkActionToolbar } from '@/components/BulkActionToolbar';
 
 // Helper function to format numbers - remove trailing zeros
 const formatNumberDisplay = (val: string | number | null | undefined): string => {
@@ -80,7 +82,7 @@ const formatNumberDisplay = (val: string | number | null | undefined): string =>
 export default function Products() {
   const { settings } = useSettings();
   const { toast } = useToast();
-  const { products, isLoading: loading, error, updateProduct, deleteProduct, checkStockLevels, refetch: productsQueryRefetch } = useProducts();
+  const { products, isLoading: loading, error, updateProduct, deleteProduct, bulkDeleteProducts, bulkUpdateStatus, checkStockLevels, refetch: productsQueryRefetch } = useProducts();
   const { calculatePriceFromMethod, calculateProfitFromPrice, calculateValueFromMethod, getCalculationTypeDescription } = useProductPricing();
 
   const [editingProductId, setEditingProductId] = useState<number | null>(null);
@@ -103,6 +105,8 @@ export default function Products() {
   const [stockIssues, setStockIssues] = useState<Array<{ material: string; currentStock: number; required: number; shortfall: number; unit: string }>>([]);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [productToDelete, setProductToDelete] = useState<{ id: number; name: string } | null>(null);
+  const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
+  const [rowSelection, setRowSelection] = useState({});
 
   // Variations Modal State
   const [variationsModalOpen, setVariationsModalOpen] = useState(false);
@@ -363,6 +367,30 @@ export default function Products() {
 
   // Column definitions for TanStack Table
   const columns = useMemo<ColumnDef<Product>[]>(() => [
+    {
+      id: "select",
+      header: ({ table }) => (
+        <Checkbox
+          checked={table.getIsAllPageRowsSelected() || (table.getIsSomePageRowsSelected() && "indeterminate")}
+          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+          aria-label="Select all"
+          className="translate-y-[2px]"
+        />
+      ),
+      cell: ({ row }) => (
+        <Checkbox
+          checked={row.getIsSelected()}
+          onCheckedChange={(value) => row.toggleSelected(!!value)}
+          aria-label="Select row"
+          className="translate-y-[2px]"
+        />
+      ),
+      enableSorting: false,
+      enableHiding: false,
+      size: 40,
+      minSize: 40,
+      maxSize: 40,
+    },
     {
       accessorKey: 'name',
       header: 'Name',
@@ -838,11 +866,13 @@ export default function Products() {
     },
     enableColumnResizing: true,
     columnResizeMode: 'onChange',
+    onRowSelectionChange: setRowSelection,
     state: {
       sorting,
       columnFilters,
       columnVisibility,
       globalFilter,
+      rowSelection,
     },
   });
 
@@ -1372,6 +1402,63 @@ export default function Products() {
           basePrice={selectedProductForVariations.target_price ?? 0}
         />
       )}
+      <BulkActionToolbar
+        selectedCount={Object.keys(rowSelection).length}
+        onClearSelection={() => setRowSelection({})}
+        entityName="Products"
+        onDelete={async () => {
+          setBulkDeleteDialogOpen(true);
+        }}
+        onUpdateStatus={async (status) => {
+          try {
+            const ids = table.getSelectedRowModel().flatRows.map(row => row.original.id);
+            await bulkUpdateStatus({ ids, status: status as ProductStatus });
+            setRowSelection({});
+            toast({ title: 'Success', description: `Products status updated to ${status}` });
+          } catch (e: any) {
+            toast({ variant: 'destructive', title: 'Error', description: e.message });
+          }
+        }}
+      />
+
+      {/* Bulk Delete Confirmation Dialog */}
+      <Dialog open={bulkDeleteDialogOpen} onOpenChange={setBulkDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              Delete {Object.keys(rowSelection).length} Products
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete {Object.keys(rowSelection).length} products? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setBulkDeleteDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={async () => {
+                try {
+                  const ids = table.getSelectedRowModel().flatRows.map(row => row.original.id);
+                  await bulkDeleteProducts(ids);
+                  setRowSelection({});
+                  setBulkDeleteDialogOpen(false);
+                  toast({ title: 'Success', description: 'Products deleted successfully' });
+                } catch (e: any) {
+                  toast({ variant: 'destructive', title: 'Error', description: e.message });
+                }
+              }}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

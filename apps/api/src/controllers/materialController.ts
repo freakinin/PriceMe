@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { db } from '../utils/db';
 import { AuthRequest } from '../middleware/auth';
 import { z } from 'zod';
+import { bulkDeleteSchema } from '@priceme/shared';
 
 // Helper to preprocess numbers (handle strings from JSON)
 const numericPreprocess = (val: unknown) => {
@@ -49,6 +50,17 @@ const updateMaterialSchema = z.object({
   last_purchased_quantity: z.preprocess(numericPreprocess, z.number().nonnegative().optional()),
   category: z.string().optional(),
   is_percentage_type: z.boolean().optional(),
+});
+
+const bulkUpdateMaterialsSchema = z.object({
+  ids: z.array(z.number()),
+  data: z.object({
+    category: z.string().optional(),
+    reorder_point: z.number().optional(),
+    unit: z.string().optional(),
+  }).refine(data => Object.keys(data).length > 0, {
+    message: "At least one field must be provided for update"
+  })
 });
 
 export const createMaterial = async (req: AuthRequest, res: Response) => {
@@ -144,7 +156,7 @@ export const getMaterials = async (req: AuthRequest, res: Response) => {
 
     // Build query with all conditions
     let result;
-    
+
     // Simple case: no filters
     if (!search && (!category || category === 'all') && !lowStock) {
       if (finalSortBy === 'created_at' && finalSortOrder === 'DESC') {
@@ -191,7 +203,7 @@ export const getMaterials = async (req: AuthRequest, res: Response) => {
         SELECT * FROM user_materials
         WHERE user_id = ${req.userId}
       `;
-      
+
       if (search) {
         baseQuery = db`
           SELECT * FROM user_materials
@@ -199,7 +211,7 @@ export const getMaterials = async (req: AuthRequest, res: Response) => {
           AND (name ILIKE ${`%${search}%`} OR supplier ILIKE ${`%${search}%`} OR category ILIKE ${`%${search}%`} OR details ILIKE ${`%${search}%`})
         `;
       }
-      
+
       if (category && category !== 'all') {
         if (search) {
           baseQuery = db`
@@ -216,7 +228,7 @@ export const getMaterials = async (req: AuthRequest, res: Response) => {
           `;
         }
       }
-      
+
       if (lowStock) {
         if (search && category && category !== 'all') {
           baseQuery = db`
@@ -248,10 +260,10 @@ export const getMaterials = async (req: AuthRequest, res: Response) => {
           `;
         }
       }
-      
+
       const queryResult = await baseQuery;
       const materials = Array.isArray(queryResult) ? queryResult : queryResult.rows || [];
-      
+
       // Sort in memory
       materials.sort((a: any, b: any) => {
         const aVal = a[finalSortBy];
@@ -264,7 +276,7 @@ export const getMaterials = async (req: AuthRequest, res: Response) => {
           return aVal < bVal ? 1 : aVal > bVal ? -1 : 0;
         }
       });
-      
+
       result = materials;
     }
 
@@ -285,7 +297,7 @@ export const getMaterials = async (req: AuthRequest, res: Response) => {
     return res.status(500).json({
       status: 'error',
       message: 'Failed to fetch materials',
-      ...(process.env.NODE_ENV === 'development' && { 
+      ...(process.env.NODE_ENV === 'development' && {
         error: error.message,
         stack: error.stack,
         details: error,
@@ -356,7 +368,7 @@ export const updateMaterial = async (req: AuthRequest, res: Response) => {
     }
 
     console.log('Update material request body:', JSON.stringify(req.body, null, 2));
-    
+
     let validatedData;
     try {
       validatedData = updateMaterialSchema.parse(req.body);
@@ -511,6 +523,7 @@ export const deleteMaterial = async (req: AuthRequest, res: Response) => {
     });
   } catch (error: any) {
     console.error('Delete material error:', error);
+
     return res.status(500).json({
       status: 'error',
       message: 'Failed to delete material',
@@ -518,4 +531,99 @@ export const deleteMaterial = async (req: AuthRequest, res: Response) => {
     });
   }
 };
+
+export const bulkDeleteMaterials = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.userId) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'Unauthorized',
+      });
+    }
+
+    const validatedData = bulkDeleteSchema.parse(req.body);
+    const { ids } = validatedData;
+
+    const result = await db`
+      DELETE FROM user_materials
+      WHERE id = ANY(${ids as any}::int[]) AND user_id = ${req.userId}
+      RETURNING id
+    `;
+
+    const deletedCount = Array.isArray(result) ? result.length : (result as any).rowCount;
+
+    return res.json({
+      status: 'success',
+      message: `${deletedCount} materials deleted successfully`,
+      data: { deletedCount },
+    });
+  } catch (error: any) {
+    if (error.name === 'ZodError') {
+      return res.status(400).json({ status: 'error', message: 'Validation failed', issues: error.issues });
+    }
+    console.error('Bulk delete material error:', error);
+    return res.status(500).json({ status: 'error', message: 'Failed to bulk delete materials' });
+  }
+};
+
+export const bulkUpdateMaterials = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.userId) {
+      return res.status(401).json({ status: 'error', message: 'Unauthorized' });
+    }
+
+    const validatedData = bulkUpdateMaterialsSchema.parse(req.body);
+    const { ids, data } = validatedData;
+
+    let updatedCount = 0;
+
+    // Run sequential updates for each field if present to avoid complex dynamic query building with @vercel/postgres
+    // This is safe and acceptable for a small number of fields (max 3)
+
+    if (data.category !== undefined) {
+      const result = await db`
+        UPDATE user_materials
+        SET category = ${data.category}
+        WHERE id = ANY(${ids as any}::int[]) AND user_id = ${req.userId}
+      `;
+      // We take the max count, though they should be same if valid
+      const count = Array.isArray(result) ? result.length : (result as any).rowCount;
+      updatedCount = Math.max(updatedCount, count);
+    }
+
+    if (data.reorder_point !== undefined) {
+      const result = await db`
+        UPDATE user_materials
+        SET reorder_point = ${data.reorder_point}
+        WHERE id = ANY(${ids as any}::int[]) AND user_id = ${req.userId}
+      `;
+      const count = Array.isArray(result) ? result.length : (result as any).rowCount;
+      updatedCount = Math.max(updatedCount, count);
+    }
+
+    if (data.unit !== undefined) {
+      const result = await db`
+        UPDATE user_materials
+        SET unit = ${data.unit}
+        WHERE id = ANY(${ids as any}::int[]) AND user_id = ${req.userId}
+      `;
+      const count = Array.isArray(result) ? result.length : (result as any).rowCount;
+      updatedCount = Math.max(updatedCount, count);
+    }
+
+    return res.json({
+      status: 'success',
+      message: `${updatedCount} materials updated successfully`,
+      data: { updatedCount }
+    });
+
+  } catch (error: any) {
+    if (error.name === 'ZodError') {
+      return res.status(400).json({ status: 'error', message: 'Validation failed', issues: error.issues });
+    }
+    console.error('Bulk update material error:', error);
+    return res.status(500).json({ status: 'error', message: 'Failed to bulk update materials' });
+  }
+};
+
 

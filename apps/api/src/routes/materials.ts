@@ -6,12 +6,17 @@ import {
   getMaterial,
   updateMaterial,
   deleteMaterial,
+  bulkDeleteMaterials,
+  bulkUpdateMaterials,
 } from '../controllers/materialController';
 
 const router = Router();
 
 router.use(authenticate);
 
+// Bulk operations must come before /:id routes
+router.post('/bulk-delete', bulkDeleteMaterials);
+router.post('/bulk-update', bulkUpdateMaterials);
 router.post('/', createMaterial);
 router.get('/', getMaterials);
 router.get('/:id', getMaterial);

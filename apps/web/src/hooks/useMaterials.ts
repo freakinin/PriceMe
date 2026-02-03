@@ -68,6 +68,24 @@ export function useMaterials() {
         },
     });
 
+    const bulkDeleteMutation = useMutation({
+        mutationFn: async (ids: number[]) => {
+            await api.post('/materials/bulk-delete', { ids });
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['materials'] });
+        },
+    });
+
+    const bulkUpdateMutation = useMutation({
+        mutationFn: async ({ ids, data }: { ids: number[], data: { category?: string; reorder_point?: number; unit?: string } }) => {
+            await api.post('/materials/bulk-update', { ids, data });
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['materials'] });
+        },
+    });
+
     return {
         materials: query.data || [],
         isLoading: query.isLoading,
@@ -75,9 +93,11 @@ export function useMaterials() {
         createMaterial: createMutation.mutateAsync,
         updateMaterial: updateMutation.mutateAsync,
         deleteMaterial: deleteMutation.mutateAsync,
+        bulkDeleteMaterials: bulkDeleteMutation.mutateAsync,
+        bulkUpdateMaterials: bulkUpdateMutation.mutateAsync,
         isCreating: createMutation.isPending,
-        isUpdating: updateMutation.isPending,
-        isDeleting: deleteMutation.isPending,
+        isUpdating: updateMutation.isPending || bulkUpdateMutation.isPending,
+        isDeleting: deleteMutation.isPending || bulkDeleteMutation.isPending,
         refetch: query.refetch
     };
 }

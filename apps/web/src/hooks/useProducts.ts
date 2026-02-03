@@ -74,6 +74,26 @@ export function useProducts() {
         },
     });
 
+    const bulkDeleteProductMutation = useMutation({
+        mutationFn: async (ids: number[]) => {
+            const response = await api.post('/products/bulk-delete', { ids });
+            return response.data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['products'] });
+        },
+    });
+
+    const bulkUpdateStatusMutation = useMutation({
+        mutationFn: async ({ ids, status }: { ids: number[], status: ProductStatus }) => {
+            const response = await api.post('/products/bulk-status', { ids, status });
+            return response.data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['products'] });
+        },
+    });
+
     // Helper to calculate stock issues - potentially could be its own hook
     const checkStockLevels = async (productId: number, batchSize: number) => {
         try {
@@ -130,9 +150,11 @@ export function useProducts() {
         createProduct: createProductMutation.mutateAsync,
         updateProduct: updateProductMutation.mutateAsync,
         deleteProduct: deleteProductMutation.mutateAsync,
+        bulkDeleteProducts: bulkDeleteProductMutation.mutateAsync,
+        bulkUpdateStatus: bulkUpdateStatusMutation.mutateAsync,
         checkStockLevels,
-        isUpdating: updateProductMutation.isPending,
-        isDeleting: deleteProductMutation.isPending,
+        isUpdating: updateProductMutation.isPending || bulkUpdateStatusMutation.isPending,
+        isDeleting: deleteProductMutation.isPending || bulkDeleteProductMutation.isPending,
         isCreating: createProductMutation.isPending
     };
 }

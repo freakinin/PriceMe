@@ -50,8 +50,8 @@ import { useToast } from '@/components/ui/use-toast';
 import EditMaterialDialog from '@/components/EditMaterialDialog';
 import { useMaterials, type Material } from '@/hooks/useMaterials';
 import { EditableCell } from '@/components/EditableCell';
-
-
+import { Checkbox } from '@/components/ui/checkbox';
+import { BulkActionToolbar } from '@/components/BulkActionToolbar';
 
 export default function Materials() {
   const { settings } = useSettings();
@@ -59,7 +59,7 @@ export default function Materials() {
   const { setOpen: setSidebarOpen } = useSidebar();
 
   // Use custom hook for materials
-  const { materials, isLoading: loading, updateMaterial: updateMaterialMutation, deleteMaterial: deleteMaterialMutation } = useMaterials();
+  const { materials, isLoading: loading, updateMaterial: updateMaterialMutation, deleteMaterial: deleteMaterialMutation, bulkDeleteMaterials, bulkUpdateMaterials } = useMaterials();
 
   const [globalFilter, setGlobalFilter] = useState('');
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -79,6 +79,11 @@ export default function Materials() {
   const [isAddingStock, setIsAddingStock] = useState(false);
   const [showOutOfStockOnly, setShowOutOfStockOnly] = useState(false);
   const [deleteConfirmMaterial, setDeleteConfirmMaterial] = useState<Material | null>(null);
+  const [rowSelection, setRowSelection] = useState({});
+  const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
+  const [bulkEditOpen, setBulkEditOpen] = useState(false);
+  const [bulkEditField, setBulkEditField] = useState<'category' | 'reorder_point' | 'unit' | null>(null);
+  const [bulkEditValue, setBulkEditValue] = useState<string | number>('');
 
   useEffect(() => {
     // Close sidebar when Materials page loads
@@ -242,11 +247,36 @@ export default function Materials() {
     },
   };
 
-  // Column definitions with inline editing
   const columns = useMemo<ColumnDef<Material>[]>(
     () => [
       {
+        id: "select",
+        header: ({ table }) => (
+          <Checkbox
+            checked={table.getIsAllPageRowsSelected() || (table.getIsSomePageRowsSelected() && "indeterminate")}
+            onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+            aria-label="Select all"
+            className="translate-y-[2px]"
+          />
+        ),
+        cell: ({ row }) => (
+          <Checkbox
+            checked={row.getIsSelected()}
+            onCheckedChange={(value) => row.toggleSelected(!!value)}
+            aria-label="Select row"
+            className="translate-y-[2px]"
+          />
+        ),
+        enableSorting: false,
+        enableHiding: false,
+        size: 40,
+        minSize: 40,
+        maxSize: 40,
+      },
+      {
         accessorKey: 'name',
+        minSize: 300,
+        maxSize: 300,
         enableColumnFilter: true,
         filterFn: (row, columnId, filterValue: any) => {
           if (!filterValue || !filterValue.value) return true;
@@ -255,28 +285,42 @@ export default function Materials() {
         },
         header: ({ column }) => {
           return (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 -ml-2"
+            <div
+              className="flex items-center justify-start cursor-pointer hover:text-foreground text-muted-foreground gap-2 w-full"
               onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
             >
               Material
-              {column.getIsSorted() === 'asc' ? <ArrowUp className="ml-2 h-3 w-3" /> : column.getIsSorted() === 'desc' ? <ArrowDown className="ml-2 h-3 w-3" /> : <ArrowUpDown className="ml-2 h-3 w-3 opacity-50" />}
-            </Button>
+              {column.getIsSorted() === 'asc' ? <ArrowUp className="h-3 w-3" /> : column.getIsSorted() === 'desc' ? <ArrowDown className="h-3 w-3" /> : <ArrowUpDown className="h-3 w-3 opacity-50" />}
+            </div>
           );
         },
-        cell: ({ row }) => (
-          <EditableCell
-            value={row.original.name}
-            onSave={async (value) => updateMaterial(row.original.id, { name: value as string })}
-            type="text"
-          />
-        ),
+        cell: ({ row }) => {
+          const material = row.original;
+          return (
+            <div className="flex items-center gap-1 group w-full">
+              <EditableCell
+                value={material.name}
+                onSave={async (value) => updateMaterial(material.id, { name: value as string })}
+                type="text"
+                className="font-medium flex-1 min-w-0"
+              />
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 text-muted-foreground hover:text-foreground"
+              >
+                <Edit className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          );
+        },
       },
       {
         accessorKey: 'unit',
         header: 'Unit',
+        size: 100,
+        minSize: 80,
+        maxSize: 120,
         cell: ({ row }) => (
           <EditableCell
             value={row.original.unit}
@@ -289,15 +333,13 @@ export default function Materials() {
       {
         accessorKey: 'price_per_unit',
         header: ({ column }) => (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 -ml-2"
+          <div
+            className="flex items-center justify-start cursor-pointer hover:text-foreground text-muted-foreground gap-2 w-full"
             onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
           >
             Price/Unit
-            {column.getIsSorted() === 'asc' ? <ArrowUp className="ml-2 h-3 w-3" /> : column.getIsSorted() === 'desc' ? <ArrowDown className="ml-2 h-3 w-3" /> : <ArrowUpDown className="ml-2 h-3 w-3 opacity-50" />}
-          </Button>
+            {column.getIsSorted() === 'asc' ? <ArrowUp className="h-3 w-3" /> : column.getIsSorted() === 'desc' ? <ArrowDown className="h-3 w-3" /> : <ArrowUpDown className="h-3 w-3 opacity-50" />}
+          </div>
         ),
         cell: ({ row }) => {
           const material = row.original;
@@ -327,15 +369,13 @@ export default function Materials() {
       {
         accessorKey: 'price',
         header: ({ column }) => (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 -ml-2"
+          <div
+            className="flex items-center justify-start cursor-pointer hover:text-foreground text-muted-foreground gap-2 w-full"
             onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
           >
             Investment
-            {column.getIsSorted() === 'asc' ? <ArrowUp className="ml-2 h-3 w-3" /> : column.getIsSorted() === 'desc' ? <ArrowDown className="ml-2 h-3 w-3" /> : <ArrowUpDown className="ml-2 h-3 w-3 opacity-50" />}
-          </Button>
+            {column.getIsSorted() === 'asc' ? <ArrowUp className="h-3 w-3" /> : column.getIsSorted() === 'desc' ? <ArrowDown className="h-3 w-3" /> : <ArrowUpDown className="h-3 w-3 opacity-50" />}
+          </div>
         ),
         cell: ({ row }) => <div className="text-sm px-2 py-1">{formatCurrency(row.original.price, settings.currency)}</div>,
       },
@@ -375,15 +415,13 @@ export default function Materials() {
           return customFilterFunctions[operator as keyof typeof customFilterFunctions]?.(row, columnId, filterValue.value) ?? true;
         },
         header: ({ column }) => (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 -ml-2"
+          <div
+            className="flex items-center justify-start cursor-pointer hover:text-foreground text-muted-foreground gap-2 w-full"
             onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
           >
             Stock Level
-            {column.getIsSorted() === 'asc' ? <ArrowUp className="ml-2 h-3 w-3" /> : column.getIsSorted() === 'desc' ? <ArrowDown className="ml-2 h-3 w-3" /> : <ArrowUpDown className="ml-2 h-3 w-3 opacity-50" />}
-          </Button>
+            {column.getIsSorted() === 'asc' ? <ArrowUp className="h-3 w-3" /> : column.getIsSorted() === 'desc' ? <ArrowDown className="h-3 w-3" /> : <ArrowUpDown className="h-3 w-3 opacity-50" />}
+          </div>
         ),
         cell: ({ row }) => {
           const material = row.original;
@@ -408,15 +446,13 @@ export default function Materials() {
       {
         accessorKey: 'last_purchased_date',
         header: ({ column }) => (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 -ml-2"
+          <div
+            className="flex items-center justify-start cursor-pointer hover:text-foreground text-muted-foreground gap-2 w-full"
             onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
           >
             Last Purchased
-            {column.getIsSorted() === 'asc' ? <ArrowUp className="ml-2 h-3 w-3" /> : column.getIsSorted() === 'desc' ? <ArrowDown className="ml-2 h-3 w-3" /> : <ArrowUpDown className="ml-2 h-3 w-3 opacity-50" />}
-          </Button>
+            {column.getIsSorted() === 'asc' ? <ArrowUp className="h-3 w-3" /> : column.getIsSorted() === 'desc' ? <ArrowDown className="h-3 w-3" /> : <ArrowUpDown className="h-3 w-3 opacity-50" />}
+          </div>
         ),
         cell: ({ row }) => {
           const material = row.original;
@@ -487,7 +523,8 @@ export default function Materials() {
       const searchValue = String(filterValue || '').toLowerCase();
       return !!(material.name.toLowerCase().includes(searchValue) || (material.supplier && material.supplier.toLowerCase().includes(searchValue)) || (material.category && material.category.toLowerCase().includes(searchValue)) || (material.details && material.details.toLowerCase().includes(searchValue)));
     },
-    state: { sorting, columnFilters, columnVisibility, globalFilter },
+    onRowSelectionChange: setRowSelection,
+    state: { sorting, columnFilters, columnVisibility, globalFilter, rowSelection },
   });
 
   return (
@@ -585,13 +622,37 @@ export default function Materials() {
             <TableHeader>
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => <TableHead key={header.id}>{header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}</TableHead>)}
+                  {headerGroup.headers.map((header) => {
+                    const isSelect = header.column.id === 'select';
+                    return (
+                      <TableHead
+                        key={header.id}
+                        className={isSelect ? "sticky left-0 z-20 bg-background" : ""}
+                      >
+                        {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+                      </TableHead>
+                    );
+                  })}
                 </TableRow>
               ))}
             </TableHeader>
             <TableBody>
               {table.getRowModel().rows?.length ? (
-                table.getRowModel().rows.map((row) => <TableRow key={row.id} data-state={row.getIsSelected() && 'selected'}>{row.getVisibleCells().map((cell) => <TableCell key={cell.id} className="p-0 relative">{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>)}</TableRow>)
+                table.getRowModel().rows.map((row) => (
+                  <TableRow key={row.id} data-state={row.getIsSelected() && 'selected'}>
+                    {row.getVisibleCells().map((cell) => {
+                      const isSelect = cell.column.id === 'select';
+                      return (
+                        <TableCell
+                          key={cell.id}
+                          className={`p-2 relative ${isSelect ? "sticky left-0 z-10 bg-background group-hover:bg-muted/50" : ""}`}
+                        >
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </TableCell>
+                      );
+                    })}
+                  </TableRow>
+                ))
               ) : (
                 <TableRow><TableCell colSpan={columns.length} className="h-24 text-center">No results found.</TableCell></TableRow>
               )}
@@ -625,6 +686,159 @@ export default function Materials() {
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>Delete Material</DialogTitle><DialogDescription>Are you sure you want to delete <strong>{deleteConfirmMaterial?.name}</strong>? This action cannot be undone.</DialogDescription></DialogHeader>
           <DialogFooter className="gap-2 sm:gap-0"><Button variant="outline" onClick={() => setDeleteConfirmMaterial(null)}>Cancel</Button><Button variant="destructive" onClick={confirmDelete}>Delete</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <BulkActionToolbar
+        selectedCount={Object.keys(rowSelection).length}
+        onClearSelection={() => setRowSelection({})}
+        entityName="Materials"
+        onDelete={async () => {
+          setBulkDeleteDialogOpen(true);
+        }}
+        onEdit={() => {
+          setBulkEditOpen(true);
+          setBulkEditField(null);
+          setBulkEditValue('');
+        }}
+      />
+
+      {/* Bulk Edit Dialog */}
+      <Dialog open={bulkEditOpen} onOpenChange={setBulkEditOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Bulk Edit {Object.keys(rowSelection).length} Materials</DialogTitle>
+            <DialogDescription>
+              Select a field to update for all selected materials.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label>Field to Update</Label>
+              <Select
+                value={bulkEditField || ''}
+                onValueChange={(val: any) => {
+                  setBulkEditField(val);
+                  setBulkEditValue('');
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select field..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="category">Category</SelectItem>
+                  <SelectItem value="reorder_point">Re-order Point</SelectItem>
+                  <SelectItem value="unit">Unit</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {bulkEditField && (
+              <div className="grid gap-2">
+                <Label>New Value</Label>
+                {bulkEditField === 'category' ? (
+                  <div className="flex w-full max-w-sm items-center space-x-2">
+                    <Input
+                      type="text"
+                      placeholder="Category name"
+                      value={bulkEditValue as string}
+                      onChange={(e) => setBulkEditValue(e.target.value)}
+                      list="categories-datalist-bulk"
+                    />
+                    <datalist id="categories-datalist-bulk">
+                      {getCategories().map(cat => (
+                        <option key={cat} value={cat} />
+                      ))}
+                    </datalist>
+                  </div>
+                ) : bulkEditField === 'unit' ? (
+                  <Select
+                    value={bulkEditValue as string}
+                    onValueChange={(val) => setBulkEditValue(val)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select unit..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableUnits.map(u => (
+                        <SelectItem key={u} value={u}>{u}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    type="number"
+                    placeholder="Value"
+                    value={bulkEditValue}
+                    onChange={(e) => setBulkEditValue(Number(e.target.value))}
+                  />
+                )}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkEditOpen(false)}>Cancel</Button>
+            <Button
+              disabled={!bulkEditField || (bulkEditValue === '' && bulkEditField !== 'category')}
+              onClick={async () => {
+                try {
+                  const ids = table.getSelectedRowModel().flatRows.map(row => row.original.id);
+                  const data: any = {};
+                  if (bulkEditField) data[bulkEditField] = bulkEditValue;
+
+                  await bulkUpdateMaterials({ ids, data });
+
+                  setRowSelection({});
+                  setBulkEditOpen(false);
+                  toast({ title: 'Success', description: 'Materials updated successfully' });
+                } catch (e: any) {
+                  toast({ variant: 'destructive', title: 'Error', description: e.message });
+                }
+              }}
+            >
+              Update
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Delete Confirmation Dialog */}
+      <Dialog open={bulkDeleteDialogOpen} onOpenChange={setBulkDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              Delete {Object.keys(rowSelection).length} Materials
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete {Object.keys(rowSelection).length} materials? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setBulkDeleteDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={async () => {
+                try {
+                  const ids = table.getSelectedRowModel().flatRows.map(row => row.original.id);
+                  await bulkDeleteMaterials(ids);
+                  setRowSelection({});
+                  setBulkDeleteDialogOpen(false);
+                  toast({ title: 'Success', description: 'Materials deleted successfully' });
+                } catch (e: any) {
+                  toast({ variant: 'destructive', title: 'Error', description: e.message });
+                }
+              }}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

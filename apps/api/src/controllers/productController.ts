@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import { db } from '../utils/db.js';
-import { createProductSchema } from '@priceme/shared';
+import { createProductSchema, bulkDeleteSchema, bulkUpdateStatusSchema } from '@priceme/shared';
 import { AuthRequest } from '../middleware/auth.js';
 
 export const createProduct = async (req: AuthRequest, res: Response) => {
@@ -643,5 +643,69 @@ export const deleteProduct = async (req: AuthRequest, res: Response) => {
   } catch (error: any) {
     console.error('Delete product error:', error);
     return res.status(500).json({ status: 'error', message: 'Failed to delete product' });
+  }
+};
+
+export const bulkDeleteProducts = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.userId) return res.status(401).json({ status: 'error', message: 'Unauthorized' });
+
+    const validatedData = bulkDeleteSchema.parse(req.body);
+    const { ids } = validatedData;
+
+    // Use Postgres ANY operator for array matching
+    // Cast to int[] to ensure postgres treats parameter as array
+    const result = await db`
+      DELETE FROM products 
+      WHERE id = ANY(${ids as any}::int[]) AND user_id = ${req.userId}
+      RETURNING id
+    `;
+
+    const deletedCount = Array.isArray(result) ? result.length : (result as any).rowCount;
+
+    return res.json({
+      status: 'success',
+      message: `${deletedCount} products deleted successfully`,
+      data: { deletedCount }
+    });
+
+  } catch (error: any) {
+    if (error.name === 'ZodError') {
+      return res.status(400).json({ status: 'error', message: 'Validation failed', issues: error.issues });
+    }
+    console.error('Bulk delete product error:', error);
+    return res.status(500).json({ status: 'error', message: 'Failed to bulk delete products' });
+  }
+};
+
+export const bulkUpdateProductStatus = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.userId) return res.status(401).json({ status: 'error', message: 'Unauthorized' });
+
+    const validatedData = bulkUpdateStatusSchema.parse(req.body);
+    const { ids, status } = validatedData;
+
+    // Update status
+    const result = await db`
+      UPDATE products
+      SET status = ${status}, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ANY(${ids as any}::int[]) AND user_id = ${req.userId}
+      RETURNING id
+    `;
+
+    const updatedCount = Array.isArray(result) ? result.length : (result as any).rowCount;
+
+    return res.json({
+      status: 'success',
+      message: `${updatedCount} products updated successfully`,
+      data: { updatedCount }
+    });
+
+  } catch (error: any) {
+    if (error.name === 'ZodError') {
+      return res.status(400).json({ status: 'error', message: 'Validation failed', issues: error.issues });
+    }
+    console.error('Bulk update product status error:', error);
+    return res.status(500).json({ status: 'error', message: 'Failed to bulk update product status' });
   }
 };

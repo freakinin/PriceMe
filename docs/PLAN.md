@@ -105,6 +105,18 @@
    - Shopify integration
    - CSV import/export
 
+2. **Bulk Operations**
+   - Bulk edit products (status, category, etc.)
+   - Bulk delete products
+   - Bulk update pricing
+   - Bulk operations for Materials
+
+3. **Home Dashboard UI Overhaul**
+   - Update Home screen design
+   - Improve UI/UX
+   - Add more relevant widgets
+
+
 3. **Export Functionality**
    - Export products to CSV/Excel
    - Export cost breakdowns as PDF

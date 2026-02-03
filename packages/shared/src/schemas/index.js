@@ -110,5 +110,13 @@ export const createPricingDataSchema = z.object({
     calculation_data: z.record(z.unknown()).optional(),
 });
 export const updatePricingDataSchema = createPricingDataSchema.partial();
+// Bulk Operations schemas
+export const bulkDeleteSchema = z.object({
+    ids: z.array(z.number().int().positive()).min(1),
+});
+export const bulkUpdateStatusSchema = z.object({
+    ids: z.array(z.number().int().positive()).min(1),
+    status: z.enum(['draft', 'in_progress', 'on_sale', 'inactive']),
+});
 export * from './template';
 export * from './sales';

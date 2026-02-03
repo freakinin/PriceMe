@@ -787,6 +787,23 @@ export declare const updatePricingDataSchema: z.ZodObject<{
     calculation_method?: string | undefined;
     calculation_data?: Record<string, unknown> | undefined;
 }>;
+export declare const bulkDeleteSchema: z.ZodObject<{
+    ids: z.ZodArray<z.ZodNumber, "many">;
+}, "strip", z.ZodTypeAny, {
+    ids: number[];
+}, {
+    ids: number[];
+}>;
+export declare const bulkUpdateStatusSchema: z.ZodObject<{
+    ids: z.ZodArray<z.ZodNumber, "many">;
+    status: z.ZodEnum<["draft", "in_progress", "on_sale", "inactive"]>;
+}, "strip", z.ZodTypeAny, {
+    status: "draft" | "in_progress" | "on_sale" | "inactive";
+    ids: number[];
+}, {
+    status: "draft" | "in_progress" | "on_sale" | "inactive";
+    ids: number[];
+}>;
 export * from './template';
 export * from './sales';
 //# sourceMappingURL=index.d.ts.map
