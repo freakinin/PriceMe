@@ -29,7 +29,7 @@ export function GrowthChart({ products }: GrowthChartProps) {
 
         if (sortedProducts.length === 0) return [];
 
-        let runningTotal = 0;
+
 
         sortedProducts.forEach(product => {
             const date = new Date(product.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
