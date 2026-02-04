@@ -1,7 +1,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 
-import { Plus, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown, Edit, Trash2, ExternalLink, Package, Columns, X, Info, PackagePlus, AlertTriangle } from 'lucide-react';
+import { Plus, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown, Edit, Trash2, ExternalLink, Package, Columns, X, Info, PackagePlus, AlertTriangle, Download } from 'lucide-react';
 import { useSidebar } from '@/components/ui/sidebar';
 import {
   useReactTable,
@@ -596,6 +596,34 @@ export default function Materials() {
               </DropdownMenu>
             </>
           )}
+
+          <Button variant="outline" onClick={async () => {
+            try {
+              // Using relative path that will be intercepted by api instance if we used it directly, 
+              // BUT here we need 'blob' response type. 
+              // Let's use the 'api' instance we should import or passed from context?
+              // Materials page uses useMaterials hook, doesn't import api directly?
+              // Let's import api at the top.
+              // Wait, previous file imported api. Let's check imports. 
+              // Materials.tsx does NOT import api. I need to add import first.
+              await import('@/lib/api').then(async ({ default: api }) => {
+                const response = await api.get('/export/materials', { responseType: 'blob' });
+                const url = window.URL.createObjectURL(new Blob([response.data]));
+                const link = document.createElement('a');
+                link.href = url;
+                const date = new Date().toISOString().split('T')[0];
+                link.setAttribute('download', `Material_${date}.csv`);
+                document.body.appendChild(link);
+                link.click();
+                link.parentNode?.removeChild(link);
+                window.URL.revokeObjectURL(url);
+              });
+            } catch (error) {
+              toast({ variant: 'destructive', title: 'Error', description: 'Failed to export materials' });
+            }
+          }}>
+            <Download className="mr-2 h-4 w-4" /> Export CSV
+          </Button>
           <Button onClick={() => setIsAddDialogOpen(true)}><Plus className="h-4 w-4 mr-1" /> New</Button>
         </div>
       </div>

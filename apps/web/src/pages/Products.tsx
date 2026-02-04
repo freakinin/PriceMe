@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Package, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Columns, Filter, X, Search, AlertTriangle, Loader2 } from 'lucide-react';
+import { Plus, Package, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Columns, Filter, X, Search, AlertTriangle, Loader2, Download } from 'lucide-react';
 import { ProductVariationsModal } from '@/components/products/ProductVariationsModal';
 import {
   useReactTable,
@@ -904,6 +904,24 @@ export default function Products() {
     );
   }
 
+  const handleExport = async () => {
+    try {
+      const response = await api.get('/export/products', { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      const date = new Date().toISOString().split('T')[0];
+      link.setAttribute('download', `Products_${date}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Export error:', error);
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to export products' });
+    }
+  };
+
   return (
     <div className="p-6">
       <div className="mb-6 flex items-center justify-between">
@@ -1121,6 +1139,10 @@ export default function Products() {
               </DropdownMenu>
             </>
           )}
+          <Button variant="outline" onClick={handleExport} className="mr-2">
+            <Download className="mr-2 h-4 w-4" />
+            Export CSV
+          </Button>
           <Button onClick={() => navigate('/products/add')}>
             <Plus className="h-4 w-4 mr-1" />
             New

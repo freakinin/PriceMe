@@ -194,7 +194,7 @@ export const createProduct = async (req: AuthRequest, res: Response) => {
 };
 
 // Helper to calculate product metrics
-const calculateProductMetrics = async (product: any) => {
+export const calculateProductMetrics = async (product: any) => {
   // Get materials
   const materialsResult = await db`
     SELECT id, name, quantity, unit, price_per_unit, units_made, total_cost, user_material_id

@@ -38,6 +38,7 @@ import materialsRoutes from './routes/materials.js';
 import roadmapRoutes from './routes/roadmap.js';
 import templateRoutes from './routes/templates.js';
 import salesRoutes from './routes/sales.js';
+import exportRoutes from './routes/export.js';
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/settings', settingsRoutes);
@@ -45,6 +46,7 @@ app.use('/api/materials', materialsRoutes);
 app.use('/api/roadmap', roadmapRoutes);
 app.use('/api/templates', templateRoutes);
 app.use('/api/sales', salesRoutes);
+app.use('/api/export', exportRoutes);
 
 // API info route
 app.get('/api', (_req, res) => {
