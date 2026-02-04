@@ -553,6 +553,24 @@ export async function initializeDatabase() {
     }
 
     console.log('✅ Database tables initialized successfully');
+
+    // Create integrations table
+    await sql`
+      CREATE TABLE IF NOT EXISTS integrations (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        platform VARCHAR(50) NOT NULL, -- 'etsy'
+        access_token TEXT NOT NULL,
+        refresh_token TEXT NOT NULL,
+        shop_id VARCHAR(100), -- Etsy Shop ID
+        token_expires_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, platform)
+      );
+    `;
+
+    console.log('✅ Added integrations table');
   } catch (error) {
     console.error('❌ Error initializing database:', error);
     throw error;
