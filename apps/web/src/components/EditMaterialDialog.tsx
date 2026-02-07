@@ -28,11 +28,12 @@ import {
 } from '@/components/ui/select';
 import { useSettings } from '@/hooks/useSettings';
 import { getCurrencySymbol } from '@/utils/currency';
-import api from '@/lib/api';
+// import api from '@/lib/api'; // api is no longer used directly
 import { useToast } from '@/components/ui/use-toast';
 import { Info } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { CategoryCombobox } from '@/components/CategoryCombobox';
+import { useMaterials } from '@/hooks/useMaterials';
 
 // Helper function to format numbers for display (remove trailing zeros)
 const formatNumberForInput = (val: number | null | undefined): string => {
@@ -154,7 +155,7 @@ export default function EditMaterialDialog({
       const pricePerUnit = material.price_per_unit || 0;
       const quantity = material.quantity || 0;
       const calculatedPrice = pricePerUnit * quantity;
-      
+
       form.reset({
         name: material.name || '',
         price: calculatedPrice,
@@ -193,15 +194,17 @@ export default function EditMaterialDialog({
     }
   }, [material, open, form]);
 
+  const { createMaterial, updateMaterial } = useMaterials();
+
   const onSubmit = async (data: MaterialFormValues) => {
     try {
       setSaving(true);
-      
+
       // Calculate price from price_per_unit * quantity
       const pricePerUnit = data.price_per_unit || 0;
       const quantity = data.quantity || 0;
       const calculatedPrice = pricePerUnit * quantity;
-      
+
       if (material) {
         // Update existing material - don't send quantity (it's the original purchase amount)
         const submitData = {
@@ -220,7 +223,7 @@ export default function EditMaterialDialog({
           category: data.category,
           is_percentage_type: data.is_percentage_type,
         };
-        await api.put(`/materials/${material.id}`, submitData);
+        await updateMaterial({ id: material.id, data: submitData });
         toast({
           variant: 'success',
           title: 'Success',
@@ -234,14 +237,14 @@ export default function EditMaterialDialog({
           price_per_unit: pricePerUnit,
           stock_level: quantity, // Initial stock = quantity purchased
         };
-        await api.post('/materials', submitData);
+        await createMaterial(submitData);
         toast({
           variant: 'success',
           title: 'Success',
           description: 'Material created successfully',
         });
       }
-      
+
       onSuccess();
     } catch (error: any) {
       console.error('Error saving material:', error);
@@ -257,10 +260,10 @@ export default function EditMaterialDialog({
 
   // Use units from settings, fallback to defaults if not available
   const defaultUnits = ['ml', 'L', 'g', 'kg', 'mm', 'cm', 'm', 'm²', 'pcs', 'units', 'sheets', 'rolls'];
-  const baseUnits = settings.units && settings.units.length > 0 
-    ? [...settings.units] 
+  const baseUnits = settings.units && settings.units.length > 0
+    ? [...settings.units]
     : defaultUnits;
-  
+
   // Ensure the material's current unit is always in the list
   const materialUnit = material?.unit;
   const units = materialUnit && !baseUnits.includes(materialUnit)
@@ -276,125 +279,353 @@ export default function EditMaterialDialog({
           </DialogTitle>
         </DialogHeader>
         <Form {...form}>
-          <form 
-            onSubmit={form.handleSubmit(onSubmit)} 
+          <form
+            onSubmit={form.handleSubmit(onSubmit)}
             className="flex flex-col flex-1 overflow-hidden mt-6"
           >
-          <div className="flex-1 overflow-y-auto space-y-5 px-1">
-            {/* Row 1: Name, Category, Consumable */}
-            <div className="grid grid-cols-3 gap-4 items-end">
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Name *</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="category"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Category</FormLabel>
-                    <FormControl>
-                      <CategoryCombobox
-                        value={field.value || ''}
-                        onChange={field.onChange}
-                        existingCategories={existingCategories}
-                        onCreateCategory={(newCategory) => {
-                          field.onChange(newCategory);
-                        }}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="is_percentage_type"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="inline-flex items-center gap-1">
-                      Consumable
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Info className="h-3 w-3 text-muted-foreground cursor-help" />
-                          </TooltipTrigger>
-                          <TooltipContent className="max-w-xs">
-                            <p>For materials used by percentage (oils, finishes, glue).</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </FormLabel>
-                    <FormControl>
-                      <div className="flex items-center h-10 px-3 border rounded-md bg-background">
-                        <input
-                          type="checkbox"
-                          checked={field.value || false}
-                          onChange={(e) => field.onChange(e.target.checked)}
-                          className="h-4 w-4 rounded border-gray-300"
-                        />
-                        <span className="ml-2 text-sm text-muted-foreground">Yes</span>
-                      </div>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            {/* Row 2: Price per Unit, Quantity (when adding), Unit */}
-            <div className={`grid gap-4 items-end ${isEditing ? 'grid-cols-2' : 'grid-cols-3'}`}>
-              <FormField
-                control={form.control}
-                name="price_per_unit"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Price per Unit ({getCurrencySymbol(settings.currency)}) *</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        placeholder="0.00"
-                        {...field}
-                        value={formatNumberForInput(field.value)}
-                        onChange={(e) => {
-                          const pricePerUnit = e.target.value ? parseFloat(e.target.value) : 0;
-                          field.onChange(pricePerUnit);
-                          if (!isEditing) {
-                            const quantity = form.getValues('quantity') || 0;
-                            form.setValue('price', parseFloat((pricePerUnit * quantity).toFixed(2)));
-                          }
-                        }}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              {!isEditing && (
+            <div className="flex-1 overflow-y-auto space-y-5 px-1">
+              {/* Row 1: Name, Category, Consumable */}
+              <div className="grid grid-cols-3 gap-4 items-end">
                 <FormField
                   control={form.control}
-                  name="quantity"
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Name *</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="category"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Category</FormLabel>
+                      <FormControl>
+                        <CategoryCombobox
+                          value={field.value || ''}
+                          onChange={field.onChange}
+                          existingCategories={existingCategories}
+                          onCreateCategory={(newCategory) => {
+                            field.onChange(newCategory);
+                          }}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="is_percentage_type"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel className="inline-flex items-center gap-1">
-                        Quantity *
+                        Consumable
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Info className="h-3 w-3 text-muted-foreground cursor-help" />
                             </TooltipTrigger>
                             <TooltipContent className="max-w-xs">
-                              <p>How much you're buying (becomes initial stock).</p>
+                              <p>For materials used by percentage (oils, finishes, glue).</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </FormLabel>
+                      <FormControl>
+                        <div className="flex items-center h-10 px-3 border rounded-md bg-background">
+                          <input
+                            type="checkbox"
+                            checked={field.value || false}
+                            onChange={(e) => field.onChange(e.target.checked)}
+                            className="h-4 w-4 rounded border-gray-300"
+                          />
+                          <span className="ml-2 text-sm text-muted-foreground">Yes</span>
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              {/* Row 2: Price per Unit, Quantity (when adding), Unit */}
+              <div className={`grid gap-4 items-end ${isEditing ? 'grid-cols-2' : 'grid-cols-3'}`}>
+                <FormField
+                  control={form.control}
+                  name="price_per_unit"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Price per Unit ({getCurrencySymbol(settings.currency)}) *</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          placeholder="0.00"
+                          {...field}
+                          value={formatNumberForInput(field.value)}
+                          onChange={(e) => {
+                            const pricePerUnit = e.target.value ? parseFloat(e.target.value) : 0;
+                            field.onChange(pricePerUnit);
+                            if (!isEditing) {
+                              const quantity = form.getValues('quantity') || 0;
+                              form.setValue('price', parseFloat((pricePerUnit * quantity).toFixed(2)));
+                            }
+                          }}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                {!isEditing && (
+                  <FormField
+                    control={form.control}
+                    name="quantity"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="inline-flex items-center gap-1">
+                          Quantity *
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-xs">
+                                <p>How much you're buying (becomes initial stock).</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            placeholder="0"
+                            {...field}
+                            value={formatNumberForInput(field.value)}
+                            onChange={(e) => {
+                              const quantity = e.target.value ? parseFloat(e.target.value) : 0;
+                              field.onChange(quantity);
+                              const pricePerUnit = form.getValues('price_per_unit') || 0;
+                              form.setValue('price', parseFloat((pricePerUnit * quantity).toFixed(2)));
+                            }}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+                <FormField
+                  control={form.control}
+                  name="unit"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Unit *</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value || ''}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select unit">
+                              {field.value || "Select unit"}
+                            </SelectValue>
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {units.map((unit) => (
+                            <SelectItem key={unit} value={unit}>
+                              {unit}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              {/* Row 3: Width, Length (conditional) */}
+              {shouldShowDimensions(form.watch('unit')) && !form.watch('is_percentage_type') && (
+                <div className="grid grid-cols-2 gap-4 items-end">
+                  <FormField
+                    control={form.control}
+                    name="width"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Width ({form.watch('unit') === 'm²' || form.watch('unit') === 'ft²' ? form.watch('unit').replace('²', '') : form.watch('unit') || 'mm'})</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            placeholder="0"
+                            {...field}
+                            value={formatNumberForInput(field.value)}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              if (value === '') {
+                                field.onChange(undefined);
+                              } else {
+                                const num = parseFloat(value);
+                                field.onChange(isNaN(num) ? undefined : num);
+                              }
+                            }}
+                            onBlur={(e) => {
+                              const value = e.target.value;
+                              if (value === '') {
+                                field.onChange(undefined);
+                              }
+                              field.onBlur();
+                            }}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="length"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Length ({form.watch('unit') === 'm²' || form.watch('unit') === 'ft²' ? form.watch('unit').replace('²', '') : form.watch('unit') || 'mm'})</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            placeholder="0"
+                            {...field}
+                            value={formatNumberForInput(field.value)}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              if (value === '') {
+                                field.onChange(undefined);
+                              } else {
+                                const num = parseFloat(value);
+                                field.onChange(isNaN(num) ? undefined : num);
+                              }
+                            }}
+                            onBlur={(e) => {
+                              const value = e.target.value;
+                              if (value === '') {
+                                field.onChange(undefined);
+                              }
+                              field.onBlur();
+                            }}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              )}
+
+              {/* Row 4: Total Price (when adding) */}
+              {!isEditing && (
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="price"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Total Investment ({getCurrencySymbol(settings.currency)})</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            placeholder="0.00"
+                            {...field}
+                            value={formatNumberForInput(field.value)}
+                            readOnly
+                            className="bg-muted"
+                          />
+                        </FormControl>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Price × Quantity
+                        </p>
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              )}
+
+              {/* Row 5: Details */}
+              <FormField
+                control={form.control}
+                name="details"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Notes</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="Additional notes or details" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Row 6: Last Purchased, Price, Reorder */}
+              <div className="grid grid-cols-3 gap-4 items-end">
+                <FormField
+                  control={form.control}
+                  name="last_purchased_date"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Last Purchased</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="date"
+                          {...field}
+                          value={field.value ? (typeof field.value === 'string' ? field.value.split('T')[0] : new Date(field.value).toISOString().split('T')[0]) : ''}
+                          onChange={(e) => {
+                            field.onChange(e.target.value || undefined);
+                          }}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="last_purchased_price"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Last Price ({getCurrencySymbol(settings.currency)})</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          placeholder="0.00"
+                          {...field}
+                          value={formatNumberForInput(field.value)}
+                          onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : undefined)}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="reorder_point"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="inline-flex items-center gap-1">
+                        Reorder Point
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-xs">
+                              <p>Alert when stock falls below this.</p>
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
@@ -406,114 +637,7 @@ export default function EditMaterialDialog({
                           placeholder="0"
                           {...field}
                           value={formatNumberForInput(field.value)}
-                          onChange={(e) => {
-                            const quantity = e.target.value ? parseFloat(e.target.value) : 0;
-                            field.onChange(quantity);
-                            const pricePerUnit = form.getValues('price_per_unit') || 0;
-                            form.setValue('price', parseFloat((pricePerUnit * quantity).toFixed(2)));
-                          }}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              )}
-              <FormField
-                control={form.control}
-                name="unit"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Unit *</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value || ''}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select unit">
-                            {field.value || "Select unit"}
-                          </SelectValue>
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {units.map((unit) => (
-                          <SelectItem key={unit} value={unit}>
-                            {unit}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            {/* Row 3: Width, Length (conditional) */}
-            {shouldShowDimensions(form.watch('unit')) && !form.watch('is_percentage_type') && (
-              <div className="grid grid-cols-2 gap-4 items-end">
-                <FormField
-                  control={form.control}
-                  name="width"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Width ({form.watch('unit') === 'm²' || form.watch('unit') === 'ft²' ? form.watch('unit').replace('²', '') : form.watch('unit') || 'mm'})</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          placeholder="0"
-                          {...field}
-                          value={formatNumberForInput(field.value)}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            if (value === '') {
-                              field.onChange(undefined);
-                            } else {
-                              const num = parseFloat(value);
-                              field.onChange(isNaN(num) ? undefined : num);
-                            }
-                          }}
-                          onBlur={(e) => {
-                            const value = e.target.value;
-                            if (value === '') {
-                              field.onChange(undefined);
-                            }
-                            field.onBlur();
-                          }}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="length"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Length ({form.watch('unit') === 'm²' || form.watch('unit') === 'ft²' ? form.watch('unit').replace('²', '') : form.watch('unit') || 'mm'})</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          placeholder="0"
-                          {...field}
-                          value={formatNumberForInput(field.value)}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            if (value === '') {
-                              field.onChange(undefined);
-                            } else {
-                              const num = parseFloat(value);
-                              field.onChange(isNaN(num) ? undefined : num);
-                            }
-                          }}
-                          onBlur={(e) => {
-                            const value = e.target.value;
-                            if (value === '') {
-                              field.onChange(undefined);
-                            }
-                            field.onBlur();
-                          }}
+                          onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : 0)}
                         />
                       </FormControl>
                       <FormMessage />
@@ -521,160 +645,39 @@ export default function EditMaterialDialog({
                   )}
                 />
               </div>
-            )}
 
-            {/* Row 4: Total Price (when adding) */}
-            {!isEditing && (
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="price"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Total Investment ({getCurrencySymbol(settings.currency)})</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          placeholder="0.00"
-                          {...field}
-                          value={formatNumberForInput(field.value)}
-                          readOnly
-                          className="bg-muted"
-                        />
-                      </FormControl>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Price × Quantity
-                      </p>
-                    </FormItem>
-                  )}
-                />
+              {/* Supplier Section */}
+              <div className="mt-4 p-4 border rounded-lg bg-muted/30">
+                <h4 className="text-sm font-medium mb-3 text-muted-foreground">Supplier</h4>
+                <div className="grid grid-cols-2 gap-4 items-end">
+                  <FormField
+                    control={form.control}
+                    name="supplier"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Supplier Name</FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="Supplier name" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="supplier_link"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Supplier Link</FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="https://..." type="url" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
               </div>
-            )}
-
-            {/* Row 5: Details */}
-            <FormField
-              control={form.control}
-              name="details"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Notes</FormLabel>
-                  <FormControl>
-                    <Input {...field} placeholder="Additional notes or details" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* Row 6: Last Purchased, Price, Reorder */}
-            <div className="grid grid-cols-3 gap-4 items-end">
-              <FormField
-                control={form.control}
-                name="last_purchased_date"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Last Purchased</FormLabel>
-                    <FormControl>
-                      <Input 
-                        type="date" 
-                        {...field}
-                        value={field.value ? (typeof field.value === 'string' ? field.value.split('T')[0] : new Date(field.value).toISOString().split('T')[0]) : ''}
-                        onChange={(e) => {
-                          field.onChange(e.target.value || undefined);
-                        }}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="last_purchased_price"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Last Price ({getCurrencySymbol(settings.currency)})</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        placeholder="0.00"
-                        {...field}
-                        value={formatNumberForInput(field.value)}
-                        onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : undefined)}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="reorder_point"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="inline-flex items-center gap-1">
-                      Reorder Point
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Info className="h-3 w-3 text-muted-foreground cursor-help" />
-                          </TooltipTrigger>
-                          <TooltipContent className="max-w-xs">
-                            <p>Alert when stock falls below this.</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        placeholder="0"
-                        {...field}
-                        value={formatNumberForInput(field.value)}
-                        onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : 0)}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            {/* Supplier Section */}
-            <div className="mt-4 p-4 border rounded-lg bg-muted/30">
-              <h4 className="text-sm font-medium mb-3 text-muted-foreground">Supplier</h4>
-              <div className="grid grid-cols-2 gap-4 items-end">
-                <FormField
-                  control={form.control}
-                  name="supplier"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Supplier Name</FormLabel>
-                      <FormControl>
-                        <Input {...field} placeholder="Supplier name" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="supplier_link"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Supplier Link</FormLabel>
-                      <FormControl>
-                        <Input {...field} placeholder="https://..." type="url" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-            </div>
             </div>
 
             <DialogFooter className="mt-4 pt-4 border-t bg-background sticky bottom-0">
@@ -685,8 +688,8 @@ export default function EditMaterialDialog({
               >
                 Cancel
               </Button>
-              <Button 
-                type="submit" 
+              <Button
+                type="submit"
                 disabled={saving}
               >
                 {saving ? 'Saving...' : material ? 'Update' : 'Create'}

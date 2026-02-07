@@ -82,7 +82,8 @@ export function MaterialNameInput({
   };
 
   const filteredMaterials = materials.filter((material) =>
-    material.name.toLowerCase().includes(searchQuery.toLowerCase())
+    material.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (material.category && material.category.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   // Check if search query matches an existing material exactly
@@ -118,7 +119,7 @@ export function MaterialNameInput({
     const newValue = e.target.value;
     setSearchQuery(newValue);
     onChange(newValue);
-    
+
     // Open popover when user types
     if (newValue.length > 0) {
       setOpen(true);
@@ -140,12 +141,12 @@ export function MaterialNameInput({
       // Check if the newly focused element is inside the popover
       const activeElement = document.activeElement;
       const popoverContent = document.querySelector('[data-radix-popover-content]');
-      
+
       // If focus moved to popover content, don't close (user is clicking on a suggestion)
       if (popoverContent && activeElement && popoverContent.contains(activeElement)) {
         return;
       }
-      
+
       // Otherwise, close the popover (user clicked outside or tabbed away)
       setOpen(false);
     }, 200);
@@ -190,8 +191,8 @@ export function MaterialNameInput({
           <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
         </div>
       </PopoverTrigger>
-      <PopoverContent 
-        className="w-[var(--radix-popover-trigger-width)] p-0" 
+      <PopoverContent
+        className="w-[var(--radix-popover-trigger-width)] p-0"
         align="start"
         onOpenAutoFocus={(e) => e.preventDefault()}
         onEscapeKeyDown={() => {
@@ -242,7 +243,7 @@ export function MaterialNameInput({
                         )}
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        {formatCurrency(material.price_per_unit, settings.currency)} / {material.unit}
+                        {formatCurrency(material.price_per_unit || 0, settings.currency)} • Stock: {Math.round(Number(material.stock_level || 0))}
                       </div>
                     </div>
                   </button>
@@ -256,7 +257,7 @@ export function MaterialNameInput({
                     >
                       <Plus className="h-4 w-4 text-primary" />
                       <span>
-                        {onAddToLibrary 
+                        {onAddToLibrary
                           ? `Add "${searchQuery}" to library`
                           : `Use "${searchQuery}" (not in library)`
                         }

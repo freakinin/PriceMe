@@ -186,7 +186,7 @@ function AddMaterialForm({ onAdd, settings }: { onAdd: (data: z.infer<typeof mat
           <label className="text-xs text-muted-foreground">Price/Unit ({getCurrencySymbol(settings.currency)})</label>
           <Input type="number" step="0.01" placeholder="0.00" value={price} onChange={e => setPrice(e.target.value)} disabled={!!selectedMaterial} className="h-9" />
         </div>
-        {!(qtyType === 'percentage' && perBatch) && (
+        {!(qtyType === 'percentage' && perBatch) && !perBatch && (
           <div>
             <label className="text-xs text-muted-foreground">Items Made</label>
             <Input type="number" min="1" value={unitsMade} onChange={e => setUnitsMade(e.target.value)} className="h-9" />
@@ -375,19 +375,36 @@ export default function CreateProduct() {
       // Optionally reset form to default values if 'none' is selected
       reset();
       setVariants([]); // Clear variants if template is removed
-      setVariants([]); // Clear variants if template is removed
       return;
     }
 
     try {
-      const res = await api.get(`/templates/${templateId}`);
-      if (res.data.status === 'success') {
-        const tmpl = res.data.data;
+      const [templateRes, materialsRes] = await Promise.all([
+        api.get(`/templates/${templateId}`),
+        api.get('/materials')
+      ]);
+
+      if (templateRes.data.status === 'success') {
+        const tmpl = templateRes.data.data;
+        const existingMaterials = materialsRes.data.status === 'success' ? materialsRes.data.data : [];
 
         // Parse JSON fields
-        const materials = Array.isArray(tmpl.materials_json)
+        let materials = Array.isArray(tmpl.materials_json)
           ? tmpl.materials_json
           : (typeof tmpl.materials_json === 'string' ? JSON.parse(tmpl.materials_json) : []);
+
+        // Link template materials to existing library materials
+        materials = materials.map((m: any) => {
+          const existing = existingMaterials.find((em: any) => em.name.toLowerCase() === m.name.toLowerCase());
+          if (existing) {
+            return {
+              ...m,
+              user_material_id: existing.id,
+              stock_level: existing.stock_level
+            };
+          }
+          return m;
+        });
 
         const laborCosts = Array.isArray(tmpl.labor_costs_json)
           ? tmpl.labor_costs_json
@@ -455,7 +472,6 @@ export default function CreateProduct() {
   // --- Calculations ---
 
   const calculateMaterialCost = (m: z.infer<typeof materialItemSchema>) => {
-    const unitsMade = m.units_made || 1;
     let costPerProduct = 0;
     if (m.quantity_type === 'percentage' && m.quantity_percentage) {
       const percentage = m.quantity_percentage / 100;
@@ -465,7 +481,10 @@ export default function CreateProduct() {
         costPerProduct = m.price_per_unit * percentage;
       }
     } else {
-      costPerProduct = (m.quantity * m.price_per_unit) / unitsMade;
+      // If per_batch is true, the quantity is for the whole batch, so divide by batchSize.
+      // Otherwise, use units_made (default 1) to determine cost per single unit.
+      const divisor = m.per_batch ? batchSize : (m.units_made || 1);
+      costPerProduct = (m.quantity * m.price_per_unit) / divisor;
     }
     return costPerProduct;
   };

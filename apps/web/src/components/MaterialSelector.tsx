@@ -23,17 +23,10 @@ interface UserMaterial {
   width?: number;
   length?: number;
   category?: string;
+  stock_level: number;
 }
 
-const formatMaterialSize = (material: UserMaterial): string => {
-  if (material.width && material.length) {
-    const unit = material.unit === 'm²' || material.unit === 'ft²' 
-      ? material.unit.replace('²', '') 
-      : material.unit;
-    return `${material.width} × ${material.length} ${unit}`;
-  }
-  return '';
-};
+
 
 interface MaterialSelectorProps {
   onSelect: (material: UserMaterial, quantity: number) => void;
@@ -139,16 +132,10 @@ export function MaterialSelector({ onSelect, disabled }: MaterialSelectorProps) 
                           </Badge>
                         )}
                       </div>
-                      <div className="text-sm text-muted-foreground mt-1">
-                        {formatMaterialSize(material) && (
-                          <span className="mr-2">{formatMaterialSize(material)}</span>
-                        )}
-                        {formatCurrency(material.price_per_unit, settings.currency)} / {material.unit}
-                        {material.quantity > 0 && (
-                          <span className="ml-2">
-                            • Stock: {material.quantity} {material.unit}
-                          </span>
-                        )}
+                      <div className="text-sm text-muted-foreground mt-1 flex items-center gap-2">
+                        <span>{formatCurrency(material.price_per_unit, settings.currency)}</span>
+                        <span>•</span>
+                        <span>Stock: {Math.round(Number(material.stock_level || 0))}</span>
                       </div>
                     </div>
                     <div className="ml-4 flex items-center gap-2">
