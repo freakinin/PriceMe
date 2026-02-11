@@ -5,12 +5,15 @@ import {
     createCategory,
     updateCategory,
     deleteCategory,
+    bulkDeleteCategories,
 } from '../controllers/categoryController.js';
 
 const router = express.Router();
 
 // Apply authentication middleware to all routes
 router.use(authenticate);
+
+router.post('/bulk-delete', bulkDeleteCategories);
 
 // Category routes
 router.get('/', getCategories);

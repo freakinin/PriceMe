@@ -34,6 +34,8 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useCategories, type Category } from '@/hooks/useCategories';
+import { Checkbox } from '@/components/ui/checkbox';
+import { BulkActionToolbar } from '@/components/BulkActionToolbar';
 
 
 // Assuming Textarea component might not exist in ui folder based on list_dir, will use standard textarea with Tailwind classes
@@ -41,17 +43,19 @@ import { useCategories, type Category } from '@/hooks/useCategories';
 // I'll use standard textarea or Input for description.
 
 export default function Categories() {
-    const { categories, isLoading, createCategory, updateCategory, deleteCategory } = useCategories();
+    const { categories, isLoading, createCategory, updateCategory, deleteCategory, bulkDeleteCategory } = useCategories();
     const { toast } = useToast();
 
     const [globalFilter, setGlobalFilter] = useState('');
     const [sorting, setSorting] = useState<SortingState>([]);
     const [columnFilters] = useState<ColumnFiltersState>([]);
     const [columnVisibility] = useState<VisibilityState>({});
+    const [rowSelection, setRowSelection] = useState({});
 
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
     const [editingCategory, setEditingCategory] = useState<Category | null>(null);
     const [deleteConfirmCategory, setDeleteConfirmCategory] = useState<Category | null>(null);
+    const [isBulkDeleteDialogOpen, setIsBulkDeleteDialogOpen] = useState(false);
 
     // Form state
     const [formData, setFormData] = useState({ name: '', description: '' });
@@ -135,6 +139,25 @@ export default function Categories() {
     const columns = useMemo<ColumnDef<Category>[]>(
         () => [
             {
+                id: "select",
+                header: ({ table }) => (
+                    <Checkbox
+                        checked={table.getIsAllPageRowsSelected() || (table.getIsSomePageRowsSelected() && "indeterminate")}
+                        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+                        aria-label="Select all"
+                    />
+                ),
+                cell: ({ row }) => (
+                    <Checkbox
+                        checked={row.getIsSelected()}
+                        onCheckedChange={(value) => row.toggleSelected(!!value)}
+                        aria-label="Select row"
+                    />
+                ),
+                enableSorting: false,
+                enableHiding: false,
+            },
+            {
                 accessorKey: 'name',
                 header: ({ column }) => {
                     return (
@@ -205,7 +228,10 @@ export default function Categories() {
             globalFilter,
             columnFilters,
             columnVisibility,
+            rowSelection,
         },
+        enableRowSelection: true,
+        onRowSelectionChange: setRowSelection,
     });
 
     return (
@@ -280,6 +306,13 @@ export default function Categories() {
                 </Table>
             </div>
 
+            <BulkActionToolbar
+                selectedCount={Object.keys(rowSelection).length}
+                onClearSelection={() => setRowSelection({})}
+                onDelete={() => setIsBulkDeleteDialogOpen(true)}
+                entityName="categories"
+            />
+
             {/* Add/Edit Dialog */}
             <Dialog open={isAddDialogOpen} onOpenChange={(open) => { if (!open) resetForm(); else setIsAddDialogOpen(true); }}>
                 <DialogContent className="sm:max-w-[425px]">
@@ -334,6 +367,38 @@ export default function Categories() {
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setDeleteConfirmCategory(null)}>Cancel</Button>
                         <Button variant="destructive" onClick={confirmDelete}>Delete</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Bulk Delete Confirmation Dialog */}
+            <Dialog open={isBulkDeleteDialogOpen} onOpenChange={setIsBulkDeleteDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Delete {Object.keys(rowSelection).length} Categories</DialogTitle>
+                        <DialogDescription>
+                            Are you sure you want to delete these categories? This action cannot be undone.
+                            Products assigned to these categories will have their category set to none.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsBulkDeleteDialogOpen(false)}>Cancel</Button>
+                        <Button
+                            variant="destructive"
+                            onClick={async () => {
+                                try {
+                                    const ids = table.getSelectedRowModel().flatRows.map(row => row.original.id);
+                                    await bulkDeleteCategory(ids);
+                                    setRowSelection({});
+                                    setIsBulkDeleteDialogOpen(false);
+                                    toast({ title: 'Success', description: 'Categories deleted successfully' });
+                                } catch (e: any) {
+                                    toast({ variant: 'destructive', title: 'Error', description: e.response?.data?.message || e.message });
+                                }
+                            }}
+                        >
+                            Delete
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

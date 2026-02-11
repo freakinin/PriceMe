@@ -53,6 +53,16 @@ export function useCategories() {
         },
     });
 
+    const bulkDeleteMutation = useMutation({
+        mutationFn: async (ids: number[]) => {
+            const response = await api.post('/categories/bulk-delete', { ids });
+            return response.data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['categories'] });
+        },
+    });
+
     return {
         categories: query.data || [],
         isLoading: query.isLoading,
@@ -60,9 +70,10 @@ export function useCategories() {
         createCategory: createMutation.mutateAsync,
         updateCategory: updateMutation.mutateAsync,
         deleteCategory: deleteMutation.mutateAsync,
+        bulkDeleteCategory: bulkDeleteMutation.mutateAsync,
         isCreating: createMutation.isPending,
         isUpdating: updateMutation.isPending,
-        isDeleting: deleteMutation.isPending,
+        isDeleting: deleteMutation.isPending || bulkDeleteMutation.isPending,
         refetch: query.refetch
     };
 }

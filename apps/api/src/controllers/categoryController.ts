@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import { db } from '../utils/db.js';
-import { createCategorySchema, updateCategorySchema } from '@priceme/shared';
+import { createCategorySchema, updateCategorySchema, bulkDeleteSchema } from '@priceme/shared';
 import { AuthRequest } from '../middleware/auth.js';
 
 export const getCategories = async (req: AuthRequest, res: Response) => {
@@ -13,11 +13,13 @@ export const getCategories = async (req: AuthRequest, res: Response) => {
         }
 
         const categories = await db`
-      SELECT id, name, description, created_at, updated_at
-      FROM categories
-      WHERE user_id = ${req.userId}
-      ORDER BY name ASC
-    `;
+            SELECT c.id, c.name, c.description, c.created_at, c.updated_at, COUNT(p.id) as product_count
+            FROM categories c
+            LEFT JOIN products p ON c.id = p.category_id
+            WHERE c.user_id = ${req.userId}
+            GROUP BY c.id
+            ORDER BY c.name ASC
+        `;
 
         return res.json({
             status: 'success',
@@ -210,24 +212,17 @@ export const deleteCategory = async (req: AuthRequest, res: Response) => {
             });
         }
 
-        // Check if products are using this category (by ID)
-        // We added category_id to products table
-        const productCheck = await db`
-        SELECT id FROM products WHERE category_id = ${categoryId} AND user_id = ${req.userId} LIMIT 1
-    `;
-        const productRows = Array.isArray(productCheck) ? productCheck : productCheck.rows || [];
-
-        if (productRows.length > 0) {
-            return res.status(400).json({
-                status: 'error',
-                message: 'Cannot delete category because it is assigned to one or more products. Please reassign those products first.',
-            });
-        }
+        // Unassign products from this category first
+        await db`
+            UPDATE products 
+            SET category_id = NULL, category = NULL
+            WHERE category_id = ${categoryId} AND user_id = ${req.userId}
+        `;
 
         await db`
-      DELETE FROM categories
-      WHERE id = ${categoryId} AND user_id = ${req.userId}
-    `;
+            DELETE FROM categories
+            WHERE id = ${categoryId} AND user_id = ${req.userId}
+        `;
 
         return res.json({
             status: 'success',
@@ -243,5 +238,42 @@ export const deleteCategory = async (req: AuthRequest, res: Response) => {
                 stack: error.stack,
             }),
         });
+    }
+};
+
+export const bulkDeleteCategories = async (req: AuthRequest, res: Response) => {
+    try {
+        if (!req.userId) return res.status(401).json({ status: 'error', message: 'Unauthorized' });
+
+        const validatedData = bulkDeleteSchema.parse(req.body);
+        const { ids } = validatedData;
+
+        // Unassign products from these categories first
+        await db`
+            UPDATE products 
+            SET category_id = NULL, category = NULL
+            WHERE category_id = ANY(${ids as any}::int[]) AND user_id = ${req.userId}
+        `;
+
+        const result = await db`
+            DELETE FROM categories 
+            WHERE id = ANY(${ids as any}::int[]) AND user_id = ${req.userId}
+            RETURNING id
+        `;
+
+        const deletedCount = Array.isArray(result) ? result.length : (result as any).rowCount;
+
+        return res.json({
+            status: 'success',
+            message: `${deletedCount} categories deleted successfully`,
+            data: { deletedCount }
+        });
+
+    } catch (error: any) {
+        if (error.name === 'ZodError') {
+            return res.status(400).json({ status: 'error', message: 'Validation failed', issues: error.issues });
+        }
+        console.error('Bulk delete categories error:', error);
+        return res.status(500).json({ status: 'error', message: 'Failed to bulk delete categories' });
     }
 };
