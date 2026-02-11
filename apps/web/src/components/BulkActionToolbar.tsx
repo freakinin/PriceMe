@@ -1,5 +1,5 @@
 import { Button } from '@/components/ui/button';
-import { X, Trash2, Edit } from 'lucide-react';
+import { X, Trash2, Edit, Folder } from 'lucide-react';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -12,6 +12,8 @@ interface BulkActionToolbarProps {
     onClearSelection: () => void;
     onDelete: () => void;
     onUpdateStatus?: (status: string) => void;
+    onUpdateCategory?: (categoryId: number) => void;
+    categories?: { id: number; name: string }[];
     onEdit?: () => void;
     entityName?: string; // e.g. "Products" or "Materials"
 }
@@ -21,6 +23,8 @@ export function BulkActionToolbar({
     onClearSelection,
     onDelete,
     onUpdateStatus,
+    onUpdateCategory,
+    categories,
     onEdit,
     entityName = 'items',
 }: BulkActionToolbarProps) {
@@ -43,7 +47,7 @@ export function BulkActionToolbar({
                         <DropdownMenuTrigger asChild>
                             <Button variant="outline" size="sm" className="h-8">
                                 <Edit className="h-3.5 w-3.5 mr-2" />
-                                Change Status
+                                Status
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="center">
@@ -51,6 +55,24 @@ export function BulkActionToolbar({
                             <DropdownMenuItem onClick={() => onUpdateStatus('in_progress')}>In Progress</DropdownMenuItem>
                             <DropdownMenuItem onClick={() => onUpdateStatus('on_sale')}>On Sale</DropdownMenuItem>
                             <DropdownMenuItem onClick={() => onUpdateStatus('inactive')}>Inactive</DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                )}
+
+                {onUpdateCategory && categories && (
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="sm" className="h-8">
+                                <Folder className="h-3.5 w-3.5 mr-2" />
+                                Category
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="center" className="max-h-[300px] overflow-y-auto">
+                            {categories.map((category) => (
+                                <DropdownMenuItem key={category.id} onClick={() => onUpdateCategory(category.id)}>
+                                    {category.name}
+                                </DropdownMenuItem>
+                            ))}
                         </DropdownMenuContent>
                     </DropdownMenu>
                 )}

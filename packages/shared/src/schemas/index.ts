@@ -144,6 +144,11 @@ export const bulkUpdateStatusSchema = z.object({
   status: z.enum(['draft', 'in_progress', 'on_sale', 'inactive']),
 });
 
+export const bulkUpdateCategorySchema = z.object({
+  ids: z.array(z.number().int().positive()).min(1),
+  category_id: z.number().int().positive().nullable(),
+});
+
 export * from './template';
 export * from './sales';
 export * from './category';

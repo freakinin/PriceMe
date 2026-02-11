@@ -113,7 +113,13 @@ export default function Products() {
   const { settings } = useSettings();
   const { toast } = useToast();
 
-  const { products, isLoading: loading, error, updateProduct, deleteProduct, bulkDeleteProducts, bulkUpdateStatus, checkStockLevels, refetch: productsQueryRefetch } = useProducts();
+  const { products, isLoading: loading, error, updateProduct,
+    deleteProduct,
+    bulkDeleteProducts,
+    bulkUpdateStatus,
+    bulkUpdateCategory,
+    checkStockLevels,
+    refetch: productsQueryRefetch } = useProducts();
   const { categories } = useCategories();
   const { calculatePriceFromMethod, calculateProfitFromPrice, calculateValueFromMethod, getCalculationTypeDescription } = useProductPricing();
 
@@ -1520,6 +1526,24 @@ export default function Products() {
             toast({ variant: 'destructive', title: 'Error', description: e.message });
           }
         }}
+        onUpdateCategory={async (categoryId) => {
+          try {
+            const ids = table.getSelectedRowModel().flatRows.map(row => row.original.id);
+            // Optimistic update
+            setProductCategoryIds(prev => {
+              const updated = { ...prev };
+              ids.forEach(id => { updated[id] = categoryId; });
+              return updated;
+            });
+
+            await bulkUpdateCategory({ ids, category_id: categoryId });
+            setRowSelection({});
+            toast({ title: 'Success', description: 'Products category updated' });
+          } catch (e: any) {
+            toast({ variant: 'destructive', title: 'Error', description: e.message });
+          }
+        }}
+        categories={categories}
       />
 
       {/* Bulk Delete Confirmation Dialog */}

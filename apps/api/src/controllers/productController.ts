@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import { db } from '../utils/db.js';
-import { createProductSchema, bulkDeleteSchema, bulkUpdateStatusSchema } from '@priceme/shared';
+import { createProductSchema, bulkDeleteSchema, bulkUpdateStatusSchema, bulkUpdateCategorySchema } from '@priceme/shared';
 import { AuthRequest } from '../middleware/auth.js';
 
 export const createProduct = async (req: AuthRequest, res: Response) => {
@@ -712,5 +712,54 @@ export const bulkUpdateProductStatus = async (req: AuthRequest, res: Response) =
     }
     console.error('Bulk update product status error:', error);
     return res.status(500).json({ status: 'error', message: 'Failed to bulk update product status' });
+  }
+};
+
+export const bulkUpdateProductCategory = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.userId) return res.status(401).json({ status: 'error', message: 'Unauthorized' });
+
+    const validatedData = bulkUpdateCategorySchema.parse(req.body);
+    const { ids, category_id } = validatedData;
+
+    // Get category name if category_id is provided
+    let categoryName = null;
+    if (category_id) {
+      const categoryResult = await db`
+        SELECT name FROM categories WHERE id = ${category_id} AND user_id = ${req.userId}
+      `;
+      if (Array.isArray(categoryResult) && categoryResult.length > 0) {
+        categoryName = categoryResult[0].name;
+      } else if ((categoryResult as any).rows && (categoryResult as any).rows.length > 0) {
+        // Vercel Postgres structure
+        categoryName = (categoryResult as any).rows[0].name;
+      }
+    }
+
+    // Update category and category_id
+    const result = await db`
+      UPDATE products
+      SET 
+        category_id = ${category_id},
+        category = ${categoryName}, 
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = ANY(${ids as any}::int[]) AND user_id = ${req.userId}
+      RETURNING id
+    `;
+
+    const updatedCount = Array.isArray(result) ? result.length : (result as any).rowCount;
+
+    return res.json({
+      status: 'success',
+      message: `${updatedCount} products updated successfully`,
+      data: { updatedCount }
+    });
+
+  } catch (error: any) {
+    if (error.name === 'ZodError') {
+      return res.status(400).json({ status: 'error', message: 'Validation failed', issues: error.issues });
+    }
+    console.error('Bulk update product category error:', error);
+    return res.status(500).json({ status: 'error', message: 'Failed to bulk update product category' });
   }
 };

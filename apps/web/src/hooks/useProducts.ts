@@ -95,6 +95,16 @@ export function useProducts() {
         },
     });
 
+    const bulkUpdateCategoryMutation = useMutation({
+        mutationFn: async ({ ids, category_id }: { ids: number[], category_id: number | null }) => {
+            const response = await api.post('/products/bulk-category', { ids, category_id });
+            return response.data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['products'] });
+        },
+    });
+
     // Helper to calculate stock issues - potentially could be its own hook
     const checkStockLevels = async (productId: number, batchSize: number) => {
         try {
@@ -153,8 +163,9 @@ export function useProducts() {
         deleteProduct: deleteProductMutation.mutateAsync,
         bulkDeleteProducts: bulkDeleteProductMutation.mutateAsync,
         bulkUpdateStatus: bulkUpdateStatusMutation.mutateAsync,
+        bulkUpdateCategory: bulkUpdateCategoryMutation.mutateAsync,
         checkStockLevels,
-        isUpdating: updateProductMutation.isPending || bulkUpdateStatusMutation.isPending,
+        isUpdating: updateProductMutation.isPending || bulkUpdateStatusMutation.isPending || bulkUpdateCategoryMutation.isPending,
         isDeleting: deleteProductMutation.isPending || bulkDeleteProductMutation.isPending,
         isCreating: createProductMutation.isPending
     };
