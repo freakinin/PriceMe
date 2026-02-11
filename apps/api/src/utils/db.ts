@@ -90,6 +90,20 @@ export async function initializeDatabase() {
       console.error('Error stack:', error.stack);
     }
 
+
+    // Create categories table
+    await sql`
+      CREATE TABLE IF NOT EXISTS categories (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, name)
+      );
+    `;
+
     // Create products table
     await sql`
       CREATE TABLE IF NOT EXISTS products (
@@ -217,6 +231,24 @@ export async function initializeDatabase() {
       // Columns might already exist or table might not exist yet
       console.log('Note: Migration check for products table columns:', error.message);
     }
+
+    // Check and add category_id column to products
+    try {
+      const categoryIdExists = await sql`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name='products' AND column_name='category_id'
+      `;
+      const categoryIdRows = Array.isArray(categoryIdExists) ? categoryIdExists : categoryIdExists.rows || [];
+      if (categoryIdRows.length === 0) {
+        console.log('Adding category_id column to products table...');
+        await sql`ALTER TABLE products ADD COLUMN category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL`;
+        console.log('✅ Added category_id column');
+      }
+    } catch (error: any) {
+      console.log('Note: Migration check for category_id column:', error.message);
+    }
+
 
     // Create materials table
     await sql`

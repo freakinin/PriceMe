@@ -106,7 +106,9 @@ export const createProductSchema = z.object({
   sku: z.string().optional(),
   status: z.enum(['draft', 'in_progress', 'on_sale', 'inactive']).optional(),
   description: z.string().optional(),
-  category: z.string().optional(),
+
+  category: z.string().optional(), // Legacy string category
+  category_id: z.number().int().positive().optional(),
   batch_size: z.preprocess(
     (val) => val === undefined ? 1 : numericPreprocess(val),
     z.number().int().positive()
@@ -144,3 +146,4 @@ export const bulkUpdateStatusSchema = z.object({
 
 export * from './template';
 export * from './sales';
+export * from './category';

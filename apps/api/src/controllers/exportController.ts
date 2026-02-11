@@ -56,11 +56,11 @@ export const exportProducts = async (req: AuthRequest, res: Response) => {
         const date = new Date().toISOString().split('T')[0];
         res.setHeader('Content-Type', 'text/csv');
         res.setHeader('Content-Disposition', `attachment; filename=Products_${date}.csv`);
-        res.status(200).send(csv);
+        return res.status(200).send(csv);
 
     } catch (error: any) {
         console.error('Export products error:', error);
-        res.status(500).json({ status: 'error', message: 'Failed to export products' });
+        return res.status(500).json({ status: 'error', message: 'Failed to export products' });
     }
 };
 
@@ -96,10 +96,10 @@ export const exportMaterials = async (req: AuthRequest, res: Response) => {
         const date = new Date().toISOString().split('T')[0];
         res.setHeader('Content-Type', 'text/csv');
         res.setHeader('Content-Disposition', `attachment; filename=Material_${date}.csv`);
-        res.status(200).send(csv);
+        return res.status(200).send(csv);
 
     } catch (error: any) {
         console.error('Export materials error:', error);
-        res.status(500).json({ status: 'error', message: 'Failed to export materials' });
+        return res.status(500).json({ status: 'error', message: 'Failed to export materials' });
     }
 };

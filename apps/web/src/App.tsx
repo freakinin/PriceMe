@@ -4,6 +4,7 @@ import { Toaster } from './components/ui/toaster';
 import Home from './pages/Home';
 import CreateProduct from './pages/CreateProduct';
 import Products from './pages/Products';
+import Categories from './pages/Categories';
 import Materials from './pages/Materials';
 import Settings from './pages/Settings';
 import Roadmap from './pages/Roadmap';
@@ -15,29 +16,29 @@ import './index.css';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth();
-  
+
   if (loading) {
     return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
   }
-  
+
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
-  
+
   return <>{children}</>;
 }
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth();
-  
+
   if (loading) {
     return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
   }
-  
+
   if (isAuthenticated) {
     return <Navigate to="/" replace />;
   }
-  
+
   return <>{children}</>;
 }
 
@@ -47,23 +48,23 @@ function App() {
       <Toaster />
       <Routes>
         {/* Public routes */}
-        <Route 
-          path="/login" 
+        <Route
+          path="/login"
           element={
             <PublicRoute>
               <Login />
             </PublicRoute>
-          } 
+          }
         />
-        <Route 
-          path="/signup" 
+        <Route
+          path="/signup"
           element={
             <PublicRoute>
               <Signup />
             </PublicRoute>
-          } 
+          }
         />
-        
+
         {/* Protected routes with sidebar */}
         <Route
           path="/"
@@ -81,6 +82,16 @@ function App() {
             <ProtectedRoute>
               <AppLayout>
                 <Products />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/categories"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <Categories />
               </AppLayout>
             </ProtectedRoute>
           }
@@ -135,7 +146,7 @@ function App() {
             </ProtectedRoute>
           }
         />
-        
+
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

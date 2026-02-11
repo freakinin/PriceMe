@@ -23,6 +23,8 @@ import { LowStockAlerts } from '@/components/dashboard/LowStockAlerts';
 import { RecentActivity } from '@/components/dashboard/RecentActivity';
 import { GrowthChart } from '@/components/dashboard/GrowthChart';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useCategories } from '@/hooks/useCategories';
+import { Tag } from 'lucide-react';
 
 type ProductStatus = 'draft' | 'in_progress' | 'on_sale' | 'inactive';
 
@@ -36,6 +38,7 @@ interface Product {
   product_cost: number;
   profit: number | null;
   profit_margin: number | null;
+  category_id?: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -46,6 +49,7 @@ export default function Home() {
   const navigate = useNavigate();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const { categories } = useCategories();
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -96,6 +100,18 @@ export default function Home() {
       ? productsWithMargin.reduce((sum, p) => sum + (p.profit_margin || 0), 0) / productsWithMargin.length
       : 0;
 
+    // Category distribution
+    const categoryStats = products.reduce((acc, product) => {
+      const catId = product.category_id;
+      const catName = categories.find(c => c.id === catId)?.name || 'Uncategorized';
+      acc[catName] = (acc[catName] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    const sortedCategories = Object.entries(categoryStats)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 5);
+
     return {
       totalProducts,
       onSaleProducts: onSaleProducts.length,
@@ -105,8 +121,9 @@ export default function Home() {
       totalCost,
       totalPotentialProfit,
       averageMargin,
+      sortedCategories,
     };
-  }, [products]);
+  }, [products, categories]);
 
   const formatCurrencyValue = (value: number | null | undefined): string => {
     if (value === null || value === undefined) return '-';
@@ -242,6 +259,39 @@ export default function Home() {
                   </div>
                   <span className="font-bold">{analytics.onSaleProducts}</span>
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base font-medium">Category Overview</CardTitle>
+              <CardDescription>Top categories by volume</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {analytics.sortedCategories.length > 0 ? (
+                  analytics.sortedCategories.map(([name, count], index) => (
+                    <div key={name} className="flex items-center justify-between p-3 rounded-lg bg-gray-50 dark:bg-gray-900/50 hover:bg-gray-100 transition-colors cursor-default">
+                      <div className="flex items-center gap-3">
+                        <div className={`h-8 w-8 rounded-full flex items-center justify-center ${index === 0 ? 'bg-purple-100 text-purple-600 dark:bg-purple-900/20 dark:text-purple-400' :
+                            index === 1 ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400' :
+                              'bg-gray-200 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
+                          }`}>
+                          <Tag className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-sm">{name}</p>
+                        </div>
+                      </div>
+                      <span className="font-bold">{count}</span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-4 text-muted-foreground text-sm">
+                    No categories data available
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

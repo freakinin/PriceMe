@@ -1,12 +1,8 @@
+import './loadEnv.js';
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import { errorHandler } from './middleware/errorHandler.js';
 import { initializeDatabase } from './utils/db.js';
-
-// Load .env.local first, then .env
-dotenv.config({ path: '.env.local' });
-dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -39,6 +35,7 @@ import roadmapRoutes from './routes/roadmap.js';
 import templateRoutes from './routes/templates.js';
 import salesRoutes from './routes/sales.js';
 import exportRoutes from './routes/export.js';
+import categoryRoutes from './routes/categories.js';
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/settings', settingsRoutes);
@@ -46,6 +43,7 @@ app.use('/api/materials', materialsRoutes);
 app.use('/api/roadmap', roadmapRoutes);
 app.use('/api/templates', templateRoutes);
 app.use('/api/sales', salesRoutes);
+app.use('/api/categories', categoryRoutes);
 app.use('/api/export', exportRoutes);
 
 // API info route

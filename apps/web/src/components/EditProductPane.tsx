@@ -21,6 +21,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { useProducts } from '@/hooks/useProducts';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
+import { CategorySelect } from '@/components/CategorySelect';
 
 // --- Validation Schemas ---
 
@@ -52,6 +53,7 @@ const productSchema = z.object({
   sku: z.string().optional(),
   description: z.string().optional(),
   category: z.string().optional(),
+  category_id: z.number().nullable().optional(),
   batch_size: z.number().int().min(1, 'Batch size must be at least 1'),
   target_price: z.number().optional(),
   pricing_method: z.enum(['markup', 'price', 'profit', 'margin']).optional(),
@@ -244,6 +246,8 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
     defaultValues: {
       name: '',
       sku: '',
+      category: '',
+      category_id: null,
       batch_size: 1,
       target_price: 0,
       materials: [],
@@ -300,6 +304,7 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
         sku: product.sku || '',
         description: product.description || '',
         category: product.category || '',
+        category_id: product.category_id || null,
         batch_size: product.batch_size || 1,
         target_price: product.target_price || 0,
         pricing_method: product.pricing_method || 'price',
@@ -325,6 +330,7 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
           per_unit: Boolean(o.per_unit ?? true)
         })) || []
       });
+      console.log('Reset form with product:', product);
       setActiveTab('basic');
     }
   }, [open, product, reset]);
@@ -388,6 +394,17 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
                     <TabsContent value="basic" className="space-y-4 mt-0">
                       <FormField control={control} name="name" render={({ field }) => (
                         <FormItem><FormLabel>Product Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                      )} />
+                      <FormField control={control} name="category_id" render={({ field }) => (
+                        <FormItem><FormLabel>Category</FormLabel><FormControl>
+                          <CategorySelect
+                            value={field.value}
+                            onChange={(val) => {
+                              field.onChange(val);
+                              // Also update name if needed, but backend handles id primarily now
+                            }}
+                          />
+                        </FormControl><FormMessage /></FormItem>
                       )} />
                       <div className="grid grid-cols-2 gap-4">
                         <FormField control={control} name="sku" render={({ field }) => (

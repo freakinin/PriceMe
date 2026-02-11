@@ -28,6 +28,7 @@ import { ProductVariationsModal, type Variant } from '@/components/products/Prod
 import { useProducts } from '@/hooks/useProducts';
 import { useProductPricing } from '@/hooks/useProductPricing';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { CategorySelect } from '@/components/CategorySelect';
 
 // --- Types & Schemas ---
 
@@ -61,6 +62,7 @@ const otherCostItemSchema = z.object({
 const productSchema = z.object({
   name: z.string().min(1, 'Product name is required'),
   sku: z.string().optional(),
+  category_id: z.number().nullable().optional(),
   batch_size: z.number().int().positive().min(1).default(1),
   target_price: z.number().nonnegative().optional(),
   materials: z.array(materialItemSchema),
@@ -324,6 +326,7 @@ export default function CreateProduct() {
   const { settings } = useSettings();
   const { toast } = useToast();
   const { createProduct } = useProducts();
+
   // Helper used for display calculations, similar to Products page, but here we calculate on the fly
   const { calculateProfitFromPrice } = useProductPricing();
 
@@ -359,6 +362,7 @@ export default function CreateProduct() {
     defaultValues: {
       name: '',
       sku: '',
+      category_id: null,
       batch_size: 1,
       target_price: 0,
       materials: [],
@@ -550,6 +554,7 @@ export default function CreateProduct() {
       const productData = {
         name: data.name,
         sku: data.sku || undefined,
+        category_id: data.category_id || undefined,
         batch_size: data.batch_size,
         target_price: data.target_price,
         pricing_method,
@@ -641,11 +646,23 @@ export default function CreateProduct() {
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
 
             {/* Top Section */}
-            <div className="grid grid-cols-4 gap-4 items-end">
+            <div className="grid grid-cols-5 gap-4 items-end">
               <FormField control={control} name="name" render={({ field }) => (
                 <FormItem className="col-span-2">
                   <FormLabel>Product Name *</FormLabel>
                   <FormControl><Input placeholder="My Product" {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={control} name="category_id" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Category</FormLabel>
+                  <FormControl>
+                    <CategorySelect
+                      value={field.value}
+                      onChange={field.onChange}
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )} />

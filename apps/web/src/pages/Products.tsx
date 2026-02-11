@@ -44,6 +44,7 @@ import { useSidebar } from '@/components/ui/sidebar';
 import { useSettings } from '@/hooks/useSettings';
 import { formatCurrency } from '@/utils/currency';
 import EditProductPane from '@/components/EditProductPane';
+import { CategorySelect } from '@/components/CategorySelect';
 import { useToast } from '@/components/ui/use-toast';
 import {
   Dialog,
@@ -55,6 +56,7 @@ import {
 } from '@/components/ui/dialog';
 import { useProducts, type Product, type PricingMethod, type ProductStatus } from '@/hooks/useProducts';
 import { useProductPricing } from '@/hooks/useProductPricing';
+import { useCategories } from '@/hooks/useCategories';
 import { EditableCell } from '@/components/EditableCell';
 import { getCurrencySymbol } from '@/utils/currency'; // Assuming this utility is available
 import api from '@/lib/api';
@@ -79,10 +81,40 @@ const formatNumberDisplay = (val: string | number | null | undefined): string =>
 
 
 
+
+const customFilterFunctions = {
+  contains: (row: any, columnId: string, filterValue: string) => {
+    const value = row.getValue(columnId);
+    if (value === null || value === undefined) return false;
+    return String(value).toLowerCase().includes(String(filterValue).toLowerCase());
+  },
+  equals: (row: any, columnId: string, filterValue: string) => {
+    const value = row.getValue(columnId);
+    return String(value).toLowerCase() === String(filterValue).toLowerCase();
+  },
+  notContains: (row: any, columnId: string, filterValue: string) => {
+    const value = row.getValue(columnId);
+    if (value === null || value === undefined) return true;
+    return !String(value).toLowerCase().includes(String(filterValue).toLowerCase());
+  },
+  startsWith: (row: any, columnId: string, filterValue: string) => {
+    const value = row.getValue(columnId);
+    if (value === null || value === undefined) return false;
+    return String(value).toLowerCase().startsWith(String(filterValue).toLowerCase());
+  },
+  endsWith: (row: any, columnId: string, filterValue: string) => {
+    const value = row.getValue(columnId);
+    if (value === null || value === undefined) return false;
+    return String(value).toLowerCase().endsWith(String(filterValue).toLowerCase());
+  },
+};
+
 export default function Products() {
   const { settings } = useSettings();
   const { toast } = useToast();
+
   const { products, isLoading: loading, error, updateProduct, deleteProduct, bulkDeleteProducts, bulkUpdateStatus, checkStockLevels, refetch: productsQueryRefetch } = useProducts();
+  const { categories } = useCategories();
   const { calculatePriceFromMethod, calculateProfitFromPrice, calculateValueFromMethod, getCalculationTypeDescription } = useProductPricing();
 
   const [editingProductId, setEditingProductId] = useState<number | null>(null);
@@ -91,6 +123,7 @@ export default function Products() {
   // Local state for pricing calculations while editing/viewing
   const [productPricingMethods, setProductPricingMethods] = useState<Record<number, PricingMethod>>({});
   const [productPricingValues, setProductPricingValues] = useState<Record<number, number>>({});
+  const [productCategoryIds, setProductCategoryIds] = useState<Record<number, number | null>>({});
   const [globalPricingMethod, setGlobalPricingMethod] = useState<PricingMethod>('price');
 
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -112,6 +145,7 @@ export default function Products() {
   const [variationsModalOpen, setVariationsModalOpen] = useState(false);
   const [selectedProductForVariations, setSelectedProductForVariations] = useState<Product | null>(null);
   const [updatingProductId, setUpdatingProductId] = useState<number | null>(null);
+  const [updatingCategoryProductId, setUpdatingCategoryProductId] = useState<number | null>(null);
 
   const navigate = useNavigate();
   const { setOpen: setSidebarOpen } = useSidebar();
@@ -150,6 +184,16 @@ export default function Products() {
           } else if (!(product.id in updated) && product.target_price && product.product_cost > 0) {
             const method = product.pricing_method || 'price';
             updated[product.id] = calculateValueFromMethod(method, product.target_price, product.product_cost);
+          }
+        });
+        return updated;
+      });
+
+      setProductCategoryIds(prev => {
+        const updated = { ...prev };
+        products.forEach(product => {
+          if (!(product.id in updated)) {
+            updated[product.id] = product.category_id;
           }
         });
         return updated;
@@ -338,32 +382,7 @@ export default function Products() {
     return metrics.profit * qty;
   };
 
-  const customFilterFunctions = {
-    contains: (row: any, columnId: string, filterValue: string) => {
-      const value = row.getValue(columnId);
-      if (value === null || value === undefined) return false;
-      return String(value).toLowerCase().includes(String(filterValue).toLowerCase());
-    },
-    equals: (row: any, columnId: string, filterValue: string) => {
-      const value = row.getValue(columnId);
-      return String(value).toLowerCase() === String(filterValue).toLowerCase();
-    },
-    notContains: (row: any, columnId: string, filterValue: string) => {
-      const value = row.getValue(columnId);
-      if (value === null || value === undefined) return true;
-      return !String(value).toLowerCase().includes(String(filterValue).toLowerCase());
-    },
-    startsWith: (row: any, columnId: string, filterValue: string) => {
-      const value = row.getValue(columnId);
-      if (value === null || value === undefined) return false;
-      return String(value).toLowerCase().startsWith(String(filterValue).toLowerCase());
-    },
-    endsWith: (row: any, columnId: string, filterValue: string) => {
-      const value = row.getValue(columnId);
-      if (value === null || value === undefined) return false;
-      return String(value).toLowerCase().endsWith(String(filterValue).toLowerCase());
-    },
-  };
+
 
   // Column definitions for TanStack Table
   const columns = useMemo<ColumnDef<Product>[]>(() => [
@@ -426,6 +445,45 @@ export default function Products() {
               <Edit className="h-3.5 w-3.5" />
             </Button>
           </div>
+        );
+      },
+    },
+
+    {
+      id: 'category',
+      accessorFn: (row) => categories.find(c => c.id === row.category_id)?.name || row.category || '',
+      header: 'Category',
+      size: 140,
+      minSize: 120,
+      maxSize: 200,
+      enableColumnFilter: true,
+      filterFn: (row, columnId, filterValue: any) => {
+        if (!filterValue || !filterValue.value) return true;
+        const operator = filterValue.operator || 'equals';
+        return customFilterFunctions[operator as keyof typeof customFilterFunctions]?.(row, columnId, filterValue.value) ?? true;
+      },
+      cell: ({ row }) => {
+        const id = row.original.id;
+        // Prefer local state update if available, otherwise fallback to row data
+        const currentCategoryId = productCategoryIds[id] !== undefined ? productCategoryIds[id] : row.original.category_id;
+
+        return (
+          <CategorySelect
+            value={currentCategoryId}
+            isLoading={updatingCategoryProductId === id}
+            onChange={async (newId) => {
+              try {
+                // Update local state immediately to prevent flash
+                setProductCategoryIds(prev => ({ ...prev, [id]: newId }));
+                setUpdatingCategoryProductId(id);
+                await updateProduct({ id, data: { category_id: newId } });
+              } finally {
+                setUpdatingCategoryProductId(null);
+              }
+            }}
+            className="h-8 w-full justify-start border-none px-2 hover:bg-muted/50 font-normal"
+            placeholder="-"
+          />
         );
       },
     },
@@ -833,6 +891,7 @@ export default function Products() {
     },
   ], [
     products,
+    categories,
     productPricingMethods,
     productPricingValues,
     globalPricingMethod,
@@ -983,7 +1042,7 @@ export default function Products() {
                         onValueChange={(value) => {
                           setSelectedFilterColumn(value);
                           setFilterValue('');
-                          setFilterOperator(value === 'status' ? 'equals' : 'contains');
+                          setFilterOperator((value === 'status' || value === 'category') ? 'equals' : 'contains');
                         }}
                       >
                         <SelectTrigger className="h-8">
@@ -991,6 +1050,7 @@ export default function Products() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="name">Name</SelectItem>
+                          <SelectItem value="category">Category</SelectItem>
                           <SelectItem value="status">Status</SelectItem>
                           <SelectItem value="sku">SKU</SelectItem>
                         </SelectContent>
@@ -1033,8 +1093,9 @@ export default function Products() {
                       <div className="space-y-1">
                         <label className="text-xs font-medium text-muted-foreground">
                           {selectedFilterColumn === 'name' ? 'Name' :
-                            selectedFilterColumn === 'status' ? 'Status' :
-                              selectedFilterColumn === 'sku' ? 'SKU' : ''}
+                            selectedFilterColumn === 'category' ? 'Category' :
+                              selectedFilterColumn === 'status' ? 'Status' :
+                                selectedFilterColumn === 'sku' ? 'SKU' : ''}
                         </label>
                         {selectedFilterColumn === 'status' ? (
                           <Select
@@ -1049,6 +1110,22 @@ export default function Products() {
                               <SelectItem value="in_progress">In Progress</SelectItem>
                               <SelectItem value="on_sale">On Sale</SelectItem>
                               <SelectItem value="inactive">Inactive</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        ) : selectedFilterColumn === 'category' ? (
+                          <Select
+                            value={filterValue}
+                            onValueChange={setFilterValue}
+                          >
+                            <SelectTrigger className="h-8">
+                              <SelectValue placeholder="Select category..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {categories.map((category) => (
+                                <SelectItem key={category.id} value={category.name}>
+                                  {category.name}
+                                </SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
                         ) : (
@@ -1121,17 +1198,18 @@ export default function Products() {
                           }}
                         >
                           {columnId === 'name' ? 'Name' :
-                            columnId === 'status' ? 'Status' :
-                              columnId === 'sku' ? 'SKU' :
-                                columnId === 'product_cost' ? 'Cost' :
-                                  columnId === 'markup' ? 'Markup %' :
-                                    columnId === 'price' ? 'Planned Sales Price $' :
-                                      columnId === 'profit' ? 'Desired Profit $' :
-                                        columnId === 'margin' ? 'Desired Margin %' :
-                                          columnId === 'calculated_profit' ? 'Profit' :
-                                            columnId === 'calculated_margin' ? 'Profit Margin' :
-                                              columnId === 'actions' ? 'Actions' :
-                                                columnId}
+                            columnId === 'category' ? 'Category' :
+                              columnId === 'status' ? 'Status' :
+                                columnId === 'sku' ? 'SKU' :
+                                  columnId === 'product_cost' ? 'Cost' :
+                                    columnId === 'markup' ? 'Markup %' :
+                                      columnId === 'price' ? 'Planned Sales Price $' :
+                                        columnId === 'profit' ? 'Desired Profit $' :
+                                          columnId === 'margin' ? 'Desired Margin %' :
+                                            columnId === 'calculated_profit' ? 'Profit' :
+                                              columnId === 'calculated_margin' ? 'Profit Margin' :
+                                                columnId === 'actions' ? 'Actions' :
+                                                  columnId}
                         </DropdownMenuCheckboxItem>
                       );
                     })}
@@ -1157,13 +1235,14 @@ export default function Products() {
           {table.getState().columnFilters.map((filter) => {
             const columnId = filter.id;
             const columnName = columnId === 'name' ? 'Name' :
-              columnId === 'status' ? 'Status' :
-                columnId === 'sku' ? 'SKU' : columnId;
+              columnId === 'category' ? 'Category' :
+                columnId === 'status' ? 'Status' :
+                  columnId === 'sku' ? 'SKU' : columnId;
 
             // Handle both old format (string) and new format (object with operator and value)
             const filterData = typeof filter.value === 'object' && filter.value !== null
               ? filter.value as { operator: string; value: string }
-              : { operator: columnId === 'status' ? 'equals' : 'contains', value: filter.value as string };
+              : { operator: (columnId === 'status' || columnId === 'category') ? 'equals' : 'contains', value: filter.value as string };
 
             const operatorLabels: Record<string, string> = {
               contains: 'contains',

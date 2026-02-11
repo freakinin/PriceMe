@@ -14,13 +14,13 @@ export const createProduct = async (req: AuthRequest, res: Response) => {
 
     // Validate input
     const validatedData = createProductSchema.parse(req.body);
-    const { name, sku, status, description, category, batch_size, target_price, pricing_method, pricing_value, materials, labor_costs, other_costs, variants } = validatedData;
+    const { name, sku, status, description, category, category_id, batch_size, target_price, pricing_method, pricing_value, materials, labor_costs, other_costs, variants } = validatedData;
 
     // Start transaction: Create product
     console.log('Inserting product with userId:', req.userId, 'and SKU:', sku);
     const productResult = await db`
-      INSERT INTO products (user_id, name, sku, status, description, category, batch_size, target_price, pricing_method, pricing_value)
-      VALUES (${req.userId}, ${name}, ${sku !== undefined ? sku : null}, ${status || 'draft'}, ${description || null}, ${category || null}, ${batch_size || 1}, ${target_price || null}, ${pricing_method || null}, ${pricing_value || null})
+      INSERT INTO products (user_id, name, sku, status, description, category, category_id, batch_size, target_price, pricing_method, pricing_value)
+      VALUES (${req.userId}, ${name}, ${sku !== undefined ? sku : null}, ${status || 'draft'}, ${description || null}, ${category || null}, ${category_id || null}, ${batch_size || 1}, ${target_price || null}, ${pricing_method || null}, ${pricing_value || null})
       RETURNING id
     `;
 
@@ -161,7 +161,10 @@ export const createProduct = async (req: AuthRequest, res: Response) => {
         name,
         sku,
         batch_size,
+
         target_price,
+        category,
+        category_id,
         pricing_method,
         pricing_value,
       },
@@ -268,7 +271,7 @@ export const getProducts = async (req: AuthRequest, res: Response) => {
     }
 
     const products = await db`
-      SELECT id, name, sku, status, batch_size, target_price, pricing_method, pricing_value, created_at, updated_at
+      SELECT id, name, sku, status, batch_size, target_price, pricing_method, pricing_value, created_at, updated_at, category, category_id
       FROM products
       WHERE user_id = ${req.userId}
       ORDER BY created_at DESC
@@ -334,8 +337,8 @@ export const getProduct = async (req: AuthRequest, res: Response) => {
 
     // Get product
     const productResult = await db`
-      SELECT id, name, sku, status, description, category, batch_size, target_price, pricing_method, pricing_value, created_at, updated_at
-      FROM products
+      SELECT id, name, sku, status, description, category, category_id, batch_size, target_price, pricing_method, pricing_value, created_at, updated_at
+
       WHERE id = ${productId} AND user_id = ${req.userId}
     `;
     const productRows = Array.isArray(productResult) ? productResult : productResult.rows || [];
@@ -444,6 +447,7 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
       status: req.body.status !== undefined ? req.body.status : (nullToUndefined(currentProduct.status) || 'draft'),
       description: req.body.description !== undefined ? req.body.description : nullToUndefined(currentProduct.description),
       category: req.body.category !== undefined ? req.body.category : nullToUndefined(currentProduct.category),
+      category_id: req.body.category_id !== undefined ? req.body.category_id : nullToUndefined(currentProduct.category_id),
       batch_size: req.body.batch_size ?? currentProduct.batch_size ?? 1,
       target_price: req.body.target_price !== undefined ? req.body.target_price : nullToUndefined(currentProduct.target_price),
       pricing_method: req.body.pricing_method !== undefined ? req.body.pricing_method : nullToUndefined(currentProduct.pricing_method),
@@ -487,7 +491,7 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
       createProductSchema.partial().parse(validatedData);
     }
 
-    const { name, sku, status, description, category, batch_size, target_price, pricing_method, pricing_value } = validatedData;
+    const { name, sku, status, description, category, category_id, batch_size, target_price, pricing_method, pricing_value } = validatedData;
     const materials = validatedData.materials;
     const labor_costs = validatedData.labor_costs;
     const other_costs = validatedData.other_costs;
@@ -512,6 +516,7 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
               sku = ${sku !== undefined ? sku : null},
               description = ${description || null},
               category = ${category || null},
+              category_id = ${category_id || null},
               status = ${status !== undefined ? status : null},
               batch_size = ${batch_size || 1},
               target_price = ${target_price || null},

@@ -1,4 +1,4 @@
-import { Home, PlusCircle, Package, Settings, LogOut, Box, Map, ShoppingCart } from 'lucide-react';
+import { Home, PlusCircle, Package, Settings, LogOut, Box, Map, ShoppingCart, Tag } from 'lucide-react';
 import {
   Sidebar,
   SidebarContent,
@@ -31,6 +31,11 @@ const menuItems = [
     icon: Package,
   },
   {
+    title: 'Categories',
+    url: '/categories',
+    icon: Tag,
+  },
+  {
     title: 'Materials',
     url: '/materials',
     icon: Box,
@@ -56,9 +61,9 @@ export function AppSidebar() {
       <SidebarHeader className="border-b border-sidebar-border">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton 
-              size="lg" 
-              asChild 
+            <SidebarMenuButton
+              size="lg"
+              asChild
               tooltip="PriceMe"
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
@@ -86,11 +91,11 @@ export function AppSidebar() {
                 const isActive = location.pathname === item.url;
                 return (
                   <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton 
-                      asChild 
-                      isActive={isActive} 
+                    <SidebarMenuButton
+                      asChild
+                      isActive={isActive}
                       tooltip={item.title}
-                      className="text-sidebar-foreground" 
+                      className="text-sidebar-foreground"
                       style={{ color: 'hsl(0 0% 98%)' }}
                     >
                       <Link to={item.url} style={{ color: 'hsl(0 0% 98%)' }}>
@@ -108,11 +113,11 @@ export function AppSidebar() {
       <SidebarFooter className="border-t border-sidebar-border p-4">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton 
-              asChild 
-              isActive={location.pathname === '/roadmap'} 
+            <SidebarMenuButton
+              asChild
+              isActive={location.pathname === '/roadmap'}
               tooltip="Roadmap"
-              className="text-sidebar-foreground" 
+              className="text-sidebar-foreground"
               style={{ color: 'hsl(0 0% 98%)' }}
             >
               <Link to="/roadmap" style={{ color: 'hsl(0 0% 98%)' }}>
@@ -127,10 +132,10 @@ export function AppSidebar() {
             </div>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton 
-              onClick={logout} 
+            <SidebarMenuButton
+              onClick={logout}
               tooltip="Logout"
-              className="text-sidebar-foreground hover:text-sidebar-accent-foreground hover:bg-sidebar-accent" 
+              className="text-sidebar-foreground hover:text-sidebar-accent-foreground hover:bg-sidebar-accent"
               style={{ color: 'hsl(0 0% 98%)' }}
             >
               <LogOut className="h-4 w-4 text-sidebar-foreground" style={{ color: 'hsl(0 0% 98%)' }} />

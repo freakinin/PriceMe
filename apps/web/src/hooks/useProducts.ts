@@ -27,6 +27,7 @@ export interface Product {
     labor_costs?: any[];
     other_costs?: any[];
     description?: string;
+    category_id: number | null;
     category?: string;
 }
 
