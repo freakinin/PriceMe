@@ -338,7 +338,7 @@ export const getProduct = async (req: AuthRequest, res: Response) => {
     // Get product
     const productResult = await db`
       SELECT id, name, sku, status, description, category, category_id, batch_size, target_price, pricing_method, pricing_value, created_at, updated_at
-
+      FROM products
       WHERE id = ${productId} AND user_id = ${req.userId}
     `;
     const productRows = Array.isArray(productResult) ? productResult : productResult.rows || [];

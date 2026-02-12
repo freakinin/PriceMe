@@ -198,9 +198,7 @@ export default function Products() {
       setProductCategoryIds(prev => {
         const updated = { ...prev };
         products.forEach(product => {
-          if (!(product.id in updated)) {
-            updated[product.id] = product.category_id;
-          }
+          updated[product.id] = product.category_id;
         });
         return updated;
       });
@@ -219,6 +217,7 @@ export default function Products() {
     try {
       await deleteProduct(productToDelete.id);
       toast({
+        variant: 'success',
         title: 'Success',
         description: 'Product deleted successfully',
       });
@@ -1521,7 +1520,7 @@ export default function Products() {
             const ids = table.getSelectedRowModel().flatRows.map(row => row.original.id);
             await bulkUpdateStatus({ ids, status: status as ProductStatus });
             setRowSelection({});
-            toast({ title: 'Success', description: `Products status updated to ${status}` });
+            toast({ variant: 'success', title: 'Success', description: `Products status updated to ${status}` });
           } catch (e: any) {
             toast({ variant: 'destructive', title: 'Error', description: e.message });
           }
@@ -1538,7 +1537,7 @@ export default function Products() {
 
             await bulkUpdateCategory({ ids, category_id: categoryId });
             setRowSelection({});
-            toast({ title: 'Success', description: 'Products category updated' });
+            toast({ variant: 'success', title: 'Success', description: 'Products category updated' });
           } catch (e: any) {
             toast({ variant: 'destructive', title: 'Error', description: e.message });
           }
@@ -1573,7 +1572,7 @@ export default function Products() {
                   await bulkDeleteProducts(ids);
                   setRowSelection({});
                   setBulkDeleteDialogOpen(false);
-                  toast({ title: 'Success', description: 'Products deleted successfully' });
+                  toast({ variant: 'success', title: 'Success', description: 'Products deleted successfully' });
                 } catch (e: any) {
                   toast({ variant: 'destructive', title: 'Error', description: e.message });
                 }

@@ -21,10 +21,10 @@ export const updateUserSettingsSchema = z.object({
 // Material schemas
 export const createMaterialSchema = z.object({
   name: z.string().min(1),
-  quantity: z.number().positive(),
+  quantity: z.number().nonnegative(),
   unit: z.string().min(1),
   price_per_unit: z.number().nonnegative(),
-  user_material_id: z.number().int().positive().optional(),
+  user_material_id: z.number().int().positive().nullable().optional(),
   units_made: z.number().positive().default(1),
 });
 
@@ -54,7 +54,7 @@ export const updateUserMaterialSchema = createUserMaterialSchema.partial();
 // Labor schemas
 export const createLaborSchema = z.object({
   activity: z.string().min(1),
-  time_spent_minutes: z.number().int().positive(),
+  time_spent_minutes: z.number().nonnegative(),
   hourly_rate: z.number().nonnegative(),
   per_unit: z.boolean().default(true),
 });
@@ -64,7 +64,7 @@ export const updateLaborSchema = createLaborSchema.partial();
 // Other Cost schemas
 export const createOtherCostSchema = z.object({
   item: z.string().min(1),
-  quantity: z.number().positive(),
+  quantity: z.number().nonnegative(),
   cost: z.number().nonnegative(),
   per_unit: z.boolean().default(true),
 });
@@ -73,7 +73,8 @@ export const updateOtherCostSchema = createOtherCostSchema.partial();
 
 // Helper to preprocess number values (handles strings from form inputs)
 const numericPreprocess = (val: unknown) => {
-  if (typeof val === 'string' && val.trim() !== '') {
+  if (typeof val === 'string') {
+    if (val.trim() === '') return undefined;
     const parsed = parseFloat(val);
     return isNaN(parsed) ? val : parsed;
   }
@@ -108,12 +109,12 @@ export const createProductSchema = z.object({
   description: z.string().optional(),
 
   category: z.string().optional(), // Legacy string category
-  category_id: z.number().int().positive().optional(),
+  category_id: z.number().int().positive().nullable().optional(),
   batch_size: z.preprocess(
     (val) => val === undefined ? 1 : numericPreprocess(val),
     z.number().int().positive()
   ),
-  target_price: z.preprocess(numericPreprocess, z.number().positive()).optional(), // Calculated/resulting price
+  target_price: z.preprocess(numericPreprocess, z.number().nonnegative()).optional(), // Calculated/resulting price
   pricing_method: z.enum(['markup', 'price', 'profit', 'margin']).optional(), // Which method user selected
   pricing_value: z.preprocess(numericPreprocess, z.number().nonnegative()).optional(), // The input value for the selected method
   materials: z.array(createMaterialSchema).optional(),

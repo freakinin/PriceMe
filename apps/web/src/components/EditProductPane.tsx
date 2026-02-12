@@ -27,24 +27,24 @@ import { CategorySelect } from '@/components/CategorySelect';
 
 const materialItemSchema = z.object({
   name: z.string().min(1, 'Name is required'),
-  quantity: z.number().min(0, 'Quantity must be positive'),
+  quantity: z.coerce.number().min(0, 'Quantity must be positive'),
   unit: z.string().min(1, 'Unit is required'),
-  price_per_unit: z.number().min(0),
-  units_made: z.number().min(1).default(1),
-  user_material_id: z.number().optional(),
+  price_per_unit: z.coerce.number().min(0),
+  units_made: z.coerce.number().min(1).default(1),
+  user_material_id: z.number().nullable().optional(),
 });
 
 const laborItemSchema = z.object({
   activity: z.string().min(1, 'Activity is required'),
-  time_spent_minutes: z.number().min(0),
-  hourly_rate: z.number().min(0),
+  time_spent_minutes: z.coerce.number().min(0),
+  hourly_rate: z.coerce.number().min(0),
   per_unit: z.boolean().default(true),
 });
 
 const otherCostItemSchema = z.object({
   item: z.string().min(1, 'Item is required'),
-  quantity: z.number().min(0),
-  cost: z.number().min(0),
+  quantity: z.coerce.number().min(0),
+  cost: z.coerce.number().min(0),
   per_unit: z.boolean().default(true),
 });
 
@@ -54,10 +54,10 @@ const productSchema = z.object({
   description: z.string().optional(),
   category: z.string().optional(),
   category_id: z.number().nullable().optional(),
-  batch_size: z.number().int().min(1, 'Batch size must be at least 1'),
-  target_price: z.number().optional(),
+  batch_size: z.coerce.number().int().min(1, 'Batch size must be at least 1'),
+  target_price: z.coerce.number().optional(),
   pricing_method: z.enum(['markup', 'price', 'profit', 'margin']).optional(),
-  pricing_value: z.number().optional(),
+  pricing_value: z.coerce.number().optional(),
   materials: z.array(materialItemSchema),
   labor_costs: z.array(laborItemSchema),
   other_costs: z.array(otherCostItemSchema),
@@ -305,28 +305,28 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
         description: product.description || '',
         category: product.category || '',
         category_id: product.category_id || null,
-        batch_size: product.batch_size || 1,
-        target_price: product.target_price || 0,
+        batch_size: Number(product.batch_size) || 1,
+        target_price: Number(product.target_price) || 0,
         pricing_method: product.pricing_method || 'price',
-        pricing_value: product.pricing_value || 0,
+        pricing_value: Number(product.pricing_value) || 0,
         materials: product.materials?.map((m: any) => ({
-          name: m.name,
-          quantity: Number(m.quantity),
-          unit: m.unit,
-          price_per_unit: Number(m.price_per_unit),
-          units_made: Number(m.units_made || 1),
+          name: m.name || '',
+          quantity: Number(m.quantity) || 0,
+          unit: m.unit || '',
+          price_per_unit: Number(m.price_per_unit) || 0,
+          units_made: Number(m.units_made) || 1,
           user_material_id: m.user_material_id
         })) || [],
         labor_costs: product.labor_costs?.map((l: any) => ({
-          activity: l.activity,
-          time_spent_minutes: Number(l.time_spent_minutes),
-          hourly_rate: Number(l.hourly_rate),
+          activity: l.activity || '',
+          time_spent_minutes: Number(l.time_spent_minutes) || 0,
+          hourly_rate: Number(l.hourly_rate) || 0,
           per_unit: Boolean(l.per_unit ?? true)
         })) || [],
         other_costs: product.other_costs?.map((o: any) => ({
-          item: o.item,
-          quantity: Number(o.quantity),
-          cost: Number(o.cost),
+          item: o.item || '',
+          quantity: Number(o.quantity) || 0,
+          cost: Number(o.cost) || 0,
           per_unit: Boolean(o.per_unit ?? true)
         })) || []
       });
@@ -343,11 +343,33 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
         sku: data.sku || undefined
       };
       await updateProduct({ id: productId, data: updateData });
-      toast({ title: 'Success', description: 'Product updated successfully' });
+      toast({ variant: 'success', title: 'Success', description: 'Product updated successfully' });
       onSuccess();
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Error', description: error.message || 'Failed to update field' });
     }
+  };
+
+  const getErrorMessage = (error: any): string => {
+    if (typeof error.message === 'string') return error.message;
+    if (Array.isArray(error)) return error.map(getErrorMessage).join(', ');
+    if (typeof error === 'object') return Object.values(error).map(getErrorMessage).join(', ');
+    return 'Invalid field';
+  };
+
+  const onInvalid = (errors: any) => {
+    console.error('Form validation errors:', errors);
+    const messages: string[] = [];
+    Object.keys(errors).forEach(key => {
+      const message = getErrorMessage(errors[key]);
+      messages.push(`${key}: ${message}`);
+    });
+
+    toast({
+      variant: 'destructive',
+      title: 'Validation Error',
+      description: messages.slice(0, 3).join('\n') + (messages.length > 3 ? '\n...' : ''),
+    });
   };
 
   if (!productId) return null;
@@ -381,7 +403,7 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
           ) : (
             <div className="mt-6 space-y-6">
               <Form {...form}>
-                <form onSubmit={handleSubmit(onFinalSubmit)} className="flex flex-col h-full">
+                <form onSubmit={handleSubmit(onFinalSubmit, onInvalid)} className="flex flex-col h-full">
                   <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                     <TabsList className="grid w-full grid-cols-4 mb-6">
                       <TabsTrigger value="basic">Basic</TabsTrigger>
@@ -401,7 +423,8 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
                             value={field.value}
                             onChange={(val) => {
                               field.onChange(val);
-                              // Also update name if needed, but backend handles id primarily now
+                              // Clear the legacy string category to ensure backend uses the ID
+                              form.setValue('category', undefined);
                             }}
                           />
                         </FormControl><FormMessage /></FormItem>

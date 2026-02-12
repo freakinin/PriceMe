@@ -428,6 +428,7 @@ export default function CreateProduct() {
         }
 
         toast({
+          variant: 'success',
           title: "Template Loaded",
           description: `Loaded configuration from ${tmpl.name}`,
         });
@@ -526,6 +527,7 @@ export default function CreateProduct() {
         materialsArray.update(index, updated);
 
         toast({
+          variant: 'success',
           title: 'Material saved',
           description: `${material.name} has been added to your library.`,
         });
@@ -587,7 +589,7 @@ export default function CreateProduct() {
       };
 
       await createProduct(productData);
-      toast({ title: 'Success', description: 'Product created successfully' });
+      toast({ variant: 'success', title: 'Success', description: 'Product created successfully' });
       navigate('/products');
 
     } catch (error: any) {
