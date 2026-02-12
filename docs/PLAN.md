@@ -119,6 +119,10 @@
 - ✅ Edit Material Dialog improvements (popup, better layout, consumable flag)
 - ✅ Batch size validation fixes
 - ✅ Real-time profit/margin/markup indicators in Add Product
+- ✅ **Bug Fixes & Refinements**
+  - Resolved category persistence issues in product editing.
+  - Fixed "400 Bad Request" errors for zero-value numeric fields.
+  - Standardized success toast notifications across the application.
 
 ### Core Features
 
