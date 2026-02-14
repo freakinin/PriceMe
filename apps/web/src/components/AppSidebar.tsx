@@ -1,60 +1,29 @@
-import { Home, PlusCircle, Package, Settings, LogOut, Box, Map, ShoppingCart, Tag } from 'lucide-react';
+import { Home, PlusCircle, Package, Settings, LogOut, Box, Map, ShoppingCart, Tag, ChartScatter } from 'lucide-react';
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarSeparator,
+  useSidebar,
 } from '@/components/ui/sidebar';
 import { useAuth } from '@/hooks/useAuth';
 import { Link, useLocation } from 'react-router-dom';
 
-const menuItems = [
-  {
-    title: 'Home',
-    url: '/',
-    icon: Home,
-  },
-  {
-    title: 'Add Product',
-    url: '/products/add',
-    icon: PlusCircle,
-  },
-  {
-    title: 'Products',
-    url: '/products',
-    icon: Package,
-  },
-  {
-    title: 'Categories',
-    url: '/categories',
-    icon: Tag,
-  },
-  {
-    title: 'Materials',
-    url: '/materials',
-    icon: Box,
-  },
-  {
-    title: 'On Sale',
-    url: '/on-sale',
-    icon: ShoppingCart,
-  },
-  {
-    title: 'Settings',
-    url: '/settings',
-    icon: Settings,
-  },
-];
-
 export function AppSidebar() {
   const { user, logout } = useAuth();
   const location = useLocation();
+  const { state } = useSidebar();
+  const isCollapsed = state === 'collapsed';
+
+
+
+  const settingsItem = { title: 'Settings', url: '/settings', icon: Settings };
 
   return (
     <Sidebar collapsible="icon">
@@ -65,15 +34,14 @@ export function AppSidebar() {
               size="lg"
               asChild
               tooltip="PriceMe"
-              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground group/logo"
             >
               <Link to="/">
-                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground [&_svg]:size-4 group-data-[collapsible=icon]:rounded-full">
-                  <Package />
+                <div className="flex h-8 w-8 items-center justify-center">
+                  <ChartScatter className="size-6" style={{ color: 'hsl(var(--secondary))' }} />
                 </div>
-                <div className="grid flex-1 text-left text-sm leading-tight text-sidebar-foreground" style={{ color: 'hsl(0 0% 98%)' }}>
-                  <span className="truncate font-semibold" style={{ color: 'hsl(0 0% 98%)' }}>PriceMe</span>
-                  <span className="truncate text-xs group-data-[collapsible=icon]:hidden" style={{ color: 'hsl(0 0% 98%)' }}>Pricing Tool</span>
+                <div className="grid flex-1 text-left leading-tight text-sidebar-foreground" style={{ color: 'hsl(0 0% 98%)' }}>
+                  <span className="truncate font-bold text-2xl tracking-tight text-sidebar-foreground pt-1">PriceMe</span>
                 </div>
               </Link>
             </SidebarMenuButton>
@@ -82,36 +50,81 @@ export function AppSidebar() {
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel className="group-data-[collapsible=icon]:hidden" style={{ color: 'hsl(0 0% 98%)' }}>
-            Menu
-          </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {menuItems.map((item) => {
-                const isActive = location.pathname === item.url;
-                return (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={isActive}
-                      tooltip={item.title}
-                      className="text-sidebar-foreground"
-                      style={{ color: 'hsl(0 0% 98%)' }}
-                    >
-                      <Link to={item.url} style={{ color: 'hsl(0 0% 98%)' }}>
-                        <item.icon className="h-4 w-4 text-sidebar-foreground" style={{ color: 'hsl(0 0% 98%)' }} />
-                        <span className="group-data-[collapsible=icon]:hidden" style={{ color: 'hsl(0 0% 98%)' }}>{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={location.pathname === '/'}
+                  tooltip="Home"
+                  className="text-sidebar-foreground"
+                  style={{ color: 'hsl(0 0% 98%)' }}
+                >
+                  <Link to="/" style={{ color: 'hsl(0 0% 98%)' }}>
+                    <Home className="h-4 w-4 text-sidebar-foreground" style={{ color: 'hsl(0 0% 98%)' }} />
+                    <span className="group-data-[collapsible=icon]:hidden" style={{ color: 'hsl(0 0% 98%)' }}>Home</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={location.pathname === '/products/add'}
+                  tooltip="Add Product"
+                  className="text-sidebar-foreground font-medium"
+                  style={{ color: 'hsl(var(--secondary))' }}
+                >
+                  <Link to="/products/add">
+                    <PlusCircle className="h-4 w-4" style={{ color: 'hsl(var(--secondary))' }} />
+                    <span className="group-data-[collapsible=icon]:hidden" style={{ color: 'hsl(var(--secondary))' }}>Add Product</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+
+              <SidebarSeparator className="my-2 bg-white/10" />
+
+              {[
+                { title: 'On Sale', url: '/on-sale', icon: ShoppingCart },
+                { title: 'Products', url: '/products', icon: Package },
+                { title: 'Materials', url: '/materials', icon: Box },
+                { title: 'Categories', url: '/categories', icon: Tag },
+              ].map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={location.pathname === item.url}
+                    tooltip={item.title}
+                    className="text-sidebar-foreground"
+                    style={{ color: 'hsl(0 0% 98%)' }}
+                  >
+                    <Link to={item.url} style={{ color: 'hsl(0 0% 98%)' }}>
+                      <item.icon className="h-4 w-4 text-sidebar-foreground" style={{ color: 'hsl(0 0% 98%)' }} />
+                      <span className="group-data-[collapsible=icon]:hidden" style={{ color: 'hsl(0 0% 98%)' }}>{item.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border p-4">
         <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              asChild
+              isActive={location.pathname === settingsItem.url}
+              tooltip={settingsItem.title}
+              className="text-sidebar-foreground"
+              style={{ color: 'hsl(0 0% 98%)' }}
+            >
+              <Link to={settingsItem.url} style={{ color: 'hsl(0 0% 98%)' }}>
+                <settingsItem.icon className="h-4 w-4 text-sidebar-foreground" style={{ color: 'hsl(0 0% 98%)' }} />
+                <span className="group-data-[collapsible=icon]:hidden" style={{ color: 'hsl(0 0% 98%)' }}>{settingsItem.title}</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton
               asChild
@@ -127,20 +140,31 @@ export function AppSidebar() {
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <div className="flex items-center gap-2 px-2 py-1.5 text-sm text-sidebar-foreground/70 group-data-[collapsible=icon]:hidden" style={{ color: 'hsl(0 0% 85%)' }}>
-              <span className="truncate" style={{ color: 'hsl(0 0% 85%)' }}>{user?.email || 'Not logged in'}</span>
+            <div className="flex w-full items-center justify-between gap-2 group-data-[collapsible=icon]:justify-center">
+              <SidebarMenuButton
+                asChild
+                tooltip="Logout"
+                className="p-0 h-auto w-auto bg-transparent hover:bg-transparent" // Make the button itself transparent for the avatar
+              >
+                <div
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground transition-all group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8 group-data-[collapsible=icon]:cursor-pointer group-data-[collapsible=icon]:hover:bg-primary/90"
+                  onClick={isCollapsed ? logout : undefined} // Only trigger logout on avatar click if collapsed
+                >
+                  {(user?.email || 'N').substring(0, 2).toUpperCase()}
+                </div>
+              </SidebarMenuButton>
+
+              {!isCollapsed && ( // Only show the logout icon button if not collapsed
+                <SidebarMenuButton
+                  onClick={logout}
+                  tooltip="Logout"
+                  className="h-8 w-8 shrink-0 text-sidebar-foreground hover:bg-sidebar-accent"
+                >
+                  <LogOut className="h-4 w-4" />
+                  <span className="sr-only">Logout</span>
+                </SidebarMenuButton>
+              )}
             </div>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              onClick={logout}
-              tooltip="Logout"
-              className="text-sidebar-foreground hover:text-sidebar-accent-foreground hover:bg-sidebar-accent"
-              style={{ color: 'hsl(0 0% 98%)' }}
-            >
-              <LogOut className="h-4 w-4 text-sidebar-foreground" style={{ color: 'hsl(0 0% 98%)' }} />
-              <span className="group-data-[collapsible=icon]:hidden" style={{ color: 'hsl(0 0% 98%)' }}>Logout</span>
-            </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
