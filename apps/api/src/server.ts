@@ -9,10 +9,18 @@ import express from 'express';
 import cors from 'cors';
 
 // Load env vars (try standard locations just in case)
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-dotenv.config({ path: path.resolve(__dirname, '../.env.local') });
-dotenv.config();
+// Only run this in development/local environments
+if (process.env.VERCEL !== '1') {
+  try {
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    dotenv.config({ path: path.resolve(__dirname, '../.env.local') });
+    dotenv.config();
+  } catch (e) {
+    console.warn('Failed to load local .env files', e);
+  }
+}
+
 
 import { errorHandler } from './middleware/errorHandler.js';
 import { initializeDatabase } from './utils/db.js';
