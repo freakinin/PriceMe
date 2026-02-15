@@ -143,6 +143,8 @@ export const login = async (req: Request, res: Response) => {
     return res.status(500).json({
       status: 'error',
       message: 'Failed to login',
+      // Include detailed error message for debugging (remove in production if sensitive)
+      details: error instanceof Error ? error.message : String(error),
     });
   }
 };
