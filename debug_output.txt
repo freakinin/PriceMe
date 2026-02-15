@@ -1,0 +1,63 @@
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0*   Trying 216.198.79.195:443...
+* Connected to price-me-api.vercel.app (216.198.79.195) port 443
+* ALPN: curl offers h2,http/1.1
+* (304) (OUT), TLS handshake, Client hello (1):
+} [328 bytes data]
+*  CAfile: /etc/ssl/cert.pem
+*  CApath: none
+* (304) (IN), TLS handshake, Server hello (2):
+{ [122 bytes data]
+* (304) (IN), TLS handshake, Unknown (8):
+{ [19 bytes data]
+* (304) (IN), TLS handshake, Certificate (11):
+{ [4032 bytes data]
+* (304) (IN), TLS handshake, CERT verify (15):
+{ [264 bytes data]
+* (304) (IN), TLS handshake, Finished (20):
+{ [36 bytes data]
+* (304) (OUT), TLS handshake, Finished (20):
+} [36 bytes data]
+* SSL connection using TLSv1.3 / AEAD-CHACHA20-POLY1305-SHA256
+* ALPN: server accepted h2
+* Server certificate:
+*  subject: CN=*.vercel.app
+*  start date: Dec 26 17:44:01 2025 GMT
+*  expire date: Mar 26 17:44:00 2026 GMT
+*  subjectAltName: host "price-me-api.vercel.app" matched cert's "*.vercel.app"
+*  issuer: C=US; O=Google Trust Services; CN=WR1
+*  SSL certificate verify ok.
+* using HTTP/2
+* [HTTP/2] [1] OPENED stream for https://price-me-api.vercel.app/api/health
+* [HTTP/2] [1] [:method: GET]
+* [HTTP/2] [1] [:scheme: https]
+* [HTTP/2] [1] [:authority: price-me-api.vercel.app]
+* [HTTP/2] [1] [:path: /api/health]
+* [HTTP/2] [1] [user-agent: curl/8.4.0]
+* [HTTP/2] [1] [accept: */*]
+> GET /api/health HTTP/2
+> Host: price-me-api.vercel.app
+> User-Agent: curl/8.4.0
+> Accept: */*
+> 
+< HTTP/2 500 
+< access-control-allow-credentials: true
+< access-control-allow-headers: X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization
+< access-control-allow-methods: GET,OPTIONS,PATCH,DELETE,POST,PUT
+< access-control-allow-origin: *
+< age: 0
+< cache-control: public, max-age=0, must-revalidate
+< content-type: application/json; charset=utf-8
+< date: Sun, 15 Feb 2026 17:52:17 GMT
+< etag: W/"410-aezeIKZGet12QEohM6IhJbriWks"
+< server: Vercel
+< strict-transport-security: max-age=63072000; includeSubDomains; preload
+< x-vercel-cache: MISS
+< x-vercel-id: fra1::iad1::ps5hr-1771177937874-09293d53ddf0
+< content-length: 1040
+< 
+{ [1040 bytes data]
+100  1040  100  1040    0     0   2960      0 --:--:-- --:--:-- --:--:--  2962
+* Connection #0 to host price-me-api.vercel.app left intact
+{"status":"error","message":"Server initialization failed","error":"Cannot find module '/var/task/apps/api/src/server' imported from /var/task/apps/api/api/index.js","stack":"Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/var/task/apps/api/src/server' imported from /var/task/apps/api/api/index.js\n    at finalizeResolution (node:internal/modules/esm/resolve:280:11)\n    at moduleResolve (node:internal/modules/esm/resolve:870:10)\n    at moduleResolveWithNodePath (node:internal/modules/esm/resolve:996:14)\n    at defaultResolve (node:internal/modules/esm/resolve:1039:79)\n    at #cachedDefaultResolve (node:internal/modules/esm/loader:718:20)\n    at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:735:38)\n    at ModuleLoader.resolveSync (node:internal/modules/esm/loader:764:52)\n    at #resolve (node:internal/modules/esm/loader:700:17)\n    at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:620:35)\n    at onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:649:32)"}

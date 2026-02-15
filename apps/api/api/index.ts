@@ -1,3 +1,5 @@
+import app from '../src/server.js'; // Vercel handles TS transpilation from .js -> .ts
+
 export const config = {
     maxDuration: 10,
     api: {
@@ -22,12 +24,6 @@ export default async function handler(req: any, res: any) {
     }
 
     try {
-        // Dynamic import to catch initialization errors (like DB failure)
-        // Note: In Vercel Node runtime, we import the source TS file if built with @vercel/node
-        // or the transpiled JS. Since we rely on Vercel's zero-config TS support:
-        const module = await import('../src/server');
-        const app = module.default;
-
         if (typeof app !== 'function') {
             throw new Error('Exported app is not a function');
         }
