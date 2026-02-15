@@ -10,6 +10,22 @@ export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const parseJwt = (token: string) => {
+    try {
+      const base64Url = token.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(
+        atob(base64)
+          .split('')
+          .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+          .join('')
+      );
+      return JSON.parse(jsonPayload);
+    } catch (e) {
+      return null;
+    }
+  };
+
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (token) {
@@ -22,15 +38,15 @@ export function useAuth() {
           // Fallback to JWT decode
         }
       }
-      
+
       // Also decode JWT to get user info (simple decode, not verifying)
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1]));
+      const payload = parseJwt(token);
+      if (payload) {
         setUser(prev => prev || {
           id: payload.userId,
           email: payload.email,
         });
-      } catch (error) {
+      } else {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
       }
