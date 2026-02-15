@@ -218,6 +218,12 @@
   - Variant stock tracking
   - See: `docs/specs/product-variants.md`
 
+- ✅ **Production Deployment**
+  - Separated Frontend (web) and Backend (api) Vercel projects
+  - Configured CORS, SPA Routing, and API rewrites
+  - Production Database (Neon) connection verified
+  - Auth flow (JWT) fixed for production environment
+
 ### Small things to fix
 
 - [x] SKU auto generated even though typed when creating a product
