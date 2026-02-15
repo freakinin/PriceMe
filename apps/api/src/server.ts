@@ -34,8 +34,35 @@ initializeDatabase().catch((error) => {
 });
 
 // Middleware
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  'http://localhost:5173',
+  'http://localhost:3000'
+].filter(Boolean);
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+
+    // Check if origin is in explicit allowed list
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      return callback(null, true);
+    }
+
+    // Allow Vercel preview deployments matching the pattern
+    if (/^https:\/\/price-me.*\.vercel\.app$/.test(origin)) {
+      return callback(null, true);
+    }
+
+    // Allow localhost (development)
+    if (origin.startsWith('http://localhost:')) {
+      return callback(null, true);
+    }
+
+    console.log('Blocked by CORS:', origin);
+    return callback(new Error('Not allowed by CORS'), false);
+  },
   credentials: true,
 }));
 app.use(express.json());
