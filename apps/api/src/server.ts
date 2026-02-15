@@ -27,10 +27,14 @@ if (!process.env.POSTGRES_URL) {
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Log available environment variables (keys only) for debugging
+console.log('Available Env Vars:', Object.keys(process.env).join(', '));
+
 // Initialize database on startup
 initializeDatabase().catch((error) => {
   console.error('Failed to initialize database:', error);
-  process.exit(1);
+  // Do not exit process, allow generic error handling to catch request errors
+  // process.exit(1); 
 });
 
 // Middleware
