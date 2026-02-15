@@ -1,6 +1,6 @@
 import { Response } from 'express';
-import { db } from '../utils/db';
-import { AuthRequest } from '../middleware/auth';
+import { db } from '../utils/db.js';
+import { AuthRequest } from '../middleware/auth.js';
 import { z } from 'zod';
 import { bulkDeleteSchema } from '@priceme/shared';
 

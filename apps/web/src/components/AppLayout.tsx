@@ -8,6 +8,8 @@ interface AppLayoutProps {
 }
 
 // Page titles mapping
+import { NotificationBell } from './NotificationBell';
+
 const getPageTitle = (pathname: string): string => {
   if (pathname === '/') {
     return 'Home';
@@ -38,7 +40,9 @@ export function AppLayout({ children }: AppLayoutProps) {
         <div className="flex h-16 items-center gap-4 border-b border-border bg-background px-6">
           <SidebarTrigger />
           <h1 className="text-xl font-semibold">{pageTitle}</h1>
-          <div id="header-actions" className="ml-auto flex items-center gap-2" />
+          <div id="header-actions" className="ml-auto flex items-center gap-2">
+            <NotificationBell />
+          </div>
         </div>
         <div className="flex-1 overflow-auto">{children}</div>
       </main>

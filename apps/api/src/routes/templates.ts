@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import { getTemplates, createTemplate, getTemplate, deleteTemplate } from '../controllers/templateController';
-import { authenticate } from '../middleware/auth';
+import { getTemplates, createTemplate, getTemplate, deleteTemplate } from '../controllers/templateController.js';
+import { authenticate } from '../middleware/auth.js';
 
 const router = Router();
 

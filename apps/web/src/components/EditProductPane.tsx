@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -6,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, SplitSquareHorizontal } from 'lucide-react';
 import {
   Sheet,
   SheetContent,
@@ -22,9 +23,10 @@ import { useProducts } from '@/hooks/useProducts';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { CategorySelect } from '@/components/CategorySelect';
+// NEW Import
+import { MarketAnalysisPanel } from '@/components/MarketAnalysisPanel';
 
-// --- Validation Schemas ---
-
+// --- Validation Schemas --- (Same as before)
 const materialItemSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   quantity: z.coerce.number().min(0, 'Quantity must be positive'),
@@ -66,15 +68,12 @@ const productSchema = z.object({
 type ProductFormValues = z.infer<typeof productSchema>;
 
 // --- Helper Functions ---
-
 const formatNumberDisplay = (val: number | undefined | null): string => {
   if (val === null || val === undefined) return '-';
-  // Remove trailing zeros
   return val.toString().replace(/(\.[0-9]*?)0+$/, '$1').replace(/\.$/, '');
 };
 
-// --- Sub-components for Adding Items ---
-
+// --- Sub-components for Adding Items --- (Same as before, abbreviated/collapsed in replace)
 function AddMaterialForm({ onAdd }: { onAdd: (data: z.infer<typeof materialItemSchema>) => void }) {
   const form = useForm<z.infer<typeof materialItemSchema>>({
     resolver: zodResolver(materialItemSchema),
@@ -230,6 +229,9 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
   const [isTemplateDialogOpen, setIsTemplateDialogOpen] = useState(false);
   const [templateName, setTemplateName] = useState('');
 
+  // New State for Split View
+  const [isMarketAnalysisOpen, setIsMarketAnalysisOpen] = useState(false);
+
   // Fetch full product details
   const { data: product, isLoading: isLoadingProduct } = useQuery({
     queryKey: ['product', productId],
@@ -256,7 +258,9 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
     }
   });
 
-  const { reset, control, handleSubmit, getValues } = form;
+  const { reset, control, handleSubmit, getValues, watch } = form; // Added watch
+  const currentPrice = watch('target_price') || 0;
+
 
   const handleSaveAsTemplate = async () => {
     if (!templateName.trim()) {
@@ -265,24 +269,20 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
     }
 
     try {
-      // Get current form values which reflect the product state
       const currentValues = getValues();
-
       const templateData = {
         name: templateName,
         description: currentValues.description,
         category: currentValues.category,
         default_batch_size: currentValues.batch_size,
         default_pricing_method: currentValues.pricing_method,
-        // materials, labor, etc from form
         materials: currentValues.materials,
         labor_costs: currentValues.labor_costs,
         other_costs: currentValues.other_costs,
-        variants: product?.variants || [], // Variants not in form yet, use from fetched product
+        variants: product?.variants || [],
       };
 
       await api.post('/templates', templateData);
-
       toast({ title: 'Success', description: 'Template created successfully' });
       setIsTemplateDialogOpen(false);
       setTemplateName('');
@@ -364,7 +364,6 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
       const message = getErrorMessage(errors[key]);
       messages.push(`${key}: ${message}`);
     });
-
     toast({
       variant: 'destructive',
       title: 'Validation Error',
@@ -377,188 +376,222 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
-          <SheetHeader className="flex flex-row items-center justify-between">
-            <SheetTitle>Edit {product?.name || 'Product'}</SheetTitle>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon">
-                  <MoreVertical className="h-4 w-4" />
+        <SheetContent
+          side="right"
+          className={`transition-all duration-300 ease-in-out ${isMarketAnalysisOpen ? 'w-screen sm:max-w-none sm:w-[95vw]' : 'w-full sm:max-w-2xl'} overflow-y-auto p-0 flex flex-col`}
+        >
+          {/* Header */}
+          <div className="flex-none p-6 pb-2">
+            <SheetHeader className="flex flex-row items-center justify-between space-y-0">
+              <SheetTitle>Edit {product?.name || 'Product'}</SheetTitle>
+              <div className="flex items-center gap-2">
+                {/* Toggle Market Analysis Button */}
+                <Button
+                  variant={isMarketAnalysisOpen ? "secondary" : "outline"}
+                  size="sm"
+                  onClick={() => setIsMarketAnalysisOpen(!isMarketAnalysisOpen)}
+                  className="gap-2 mr-2"
+                >
+                  <SplitSquareHorizontal className="h-4 w-4" />
+                  {isMarketAnalysisOpen ? 'Close Market Analysis' : 'Market Analysis'}
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => {
-                  setTemplateName(product?.name ? `${product.name} Template` : '');
-                  setIsTemplateDialogOpen(true);
-                }}>
-                  <Copy className="mr-2 h-4 w-4" />
-                  Save as Template
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </SheetHeader>
 
-          {isLoadingProduct || !product ? (
-            <div className="py-8 text-center text-muted-foreground">Loading product data...</div>
-          ) : (
-            <div className="mt-6 space-y-6">
-              <Form {...form}>
-                <form onSubmit={handleSubmit(onFinalSubmit, onInvalid)} className="flex flex-col h-full">
-                  <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                    <TabsList className="grid w-full grid-cols-4 mb-6">
-                      <TabsTrigger value="basic">Basic</TabsTrigger>
-                      <TabsTrigger value="materials">Materials</TabsTrigger>
-                      <TabsTrigger value="labor">Labor</TabsTrigger>
-                      <TabsTrigger value="other">Other</TabsTrigger>
-                    </TabsList>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon">
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => {
+                      setTemplateName(product?.name ? `${product.name} Template` : '');
+                      setIsTemplateDialogOpen(true);
+                    }}>
+                      <Copy className="mr-2 h-4 w-4" />
+                      Save as Template
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </SheetHeader>
+          </div>
 
-                    {/* Tab 1: Basic Info */}
-                    <TabsContent value="basic" className="space-y-4 mt-0">
-                      <FormField control={control} name="name" render={({ field }) => (
-                        <FormItem><FormLabel>Product Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-                      )} />
-                      <FormField control={control} name="category_id" render={({ field }) => (
-                        <FormItem><FormLabel>Category</FormLabel><FormControl>
-                          <CategorySelect
-                            value={field.value}
-                            onChange={(val) => {
-                              field.onChange(val);
-                              // Clear the legacy string category to ensure backend uses the ID
-                              form.setValue('category', undefined);
-                            }}
-                          />
-                        </FormControl><FormMessage /></FormItem>
-                      )} />
-                      <div className="grid grid-cols-2 gap-4">
-                        <FormField control={control} name="sku" render={({ field }) => (
-                          <FormItem><FormLabel>SKU</FormLabel><FormControl><Input placeholder="SKU-001" autoComplete="off" {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>
-                        )} />
-                        <FormField control={control} name="batch_size" render={({ field }) => (
-                          <FormItem><FormLabel>Batch Size</FormLabel><FormControl><Input {...field} type="number" min="1" onChange={e => field.onChange(parseInt(e.target.value) || 1)} /></FormControl><FormMessage /></FormItem>
-                        )} />
-                      </div>
-                      <FormField control={control} name="target_price" render={({ field }) => (
-                        <FormItem><FormLabel>Target Price ({getCurrencySymbol(settings?.currency || 'USD')})</FormLabel><FormControl><Input {...field} value={field.value || ''} type="number" step="0.01" onChange={e => field.onChange(parseFloat(e.target.value) || 0)} /></FormControl><FormMessage /></FormItem>
-                      )} />
-                    </TabsContent>
+          {/* Main Content Area - Split View */}
+          <div className={`flex-1 flex overflow-hidden`}>
+            {/* Left/Main Panel: Product Form */}
+            <div className={`flex-1 overflow-y-auto p-6 pt-2 h-full ${isMarketAnalysisOpen ? 'border-r' : ''}`}>
+              {isLoadingProduct || !product ? (
+                <div className="py-8 text-center text-muted-foreground">Loading product data...</div>
+              ) : (
+                <div className="space-y-6 h-full flex flex-col">
+                  <Form {...form}>
+                    <form onSubmit={handleSubmit(onFinalSubmit, onInvalid)} className="flex flex-col h-full">
+                      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full flex-1">
+                        <TabsList className="grid w-full grid-cols-4 mb-6">
+                          <TabsTrigger value="basic">Basic</TabsTrigger>
+                          <TabsTrigger value="materials">Materials</TabsTrigger>
+                          <TabsTrigger value="labor">Labor</TabsTrigger>
+                          <TabsTrigger value="other">Other</TabsTrigger>
+                        </TabsList>
 
-                    {/* Tab 2: Materials */}
-                    <TabsContent value="materials" className="space-y-4 mt-0">
-                      <AddMaterialForm onAdd={(data) => materialsArray.append(data)} />
+                        {/* Tab 1: Basic Info */}
+                        <TabsContent value="basic" className="space-y-4 mt-0">
+                          <FormField control={control} name="name" render={({ field }) => (
+                            <FormItem><FormLabel>Product Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                          )} />
+                          <FormField control={control} name="category_id" render={({ field }) => (
+                            <FormItem><FormLabel>Category</FormLabel><FormControl>
+                              <CategorySelect
+                                value={field.value}
+                                onChange={(val) => {
+                                  field.onChange(val);
+                                  form.setValue('category', undefined);
+                                }}
+                              />
+                            </FormControl><FormMessage /></FormItem>
+                          )} />
+                          <div className="grid grid-cols-2 gap-4">
+                            <FormField control={control} name="sku" render={({ field }) => (
+                              <FormItem><FormLabel>SKU</FormLabel><FormControl><Input placeholder="SKU-001" autoComplete="off" {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>
+                            )} />
+                            <FormField control={control} name="batch_size" render={({ field }) => (
+                              <FormItem><FormLabel>Batch Size</FormLabel><FormControl><Input {...field} type="number" min="1" onChange={e => field.onChange(parseInt(e.target.value) || 1)} /></FormControl><FormMessage /></FormItem>
+                            )} />
+                          </div>
+                          <FormField control={control} name="target_price" render={({ field }) => (
+                            <FormItem><FormLabel>Target Price ({getCurrencySymbol(settings?.currency || 'USD')})</FormLabel><FormControl><Input {...field} value={field.value || ''} type="number" step="0.01" onChange={e => field.onChange(parseFloat(e.target.value) || 0)} /></FormControl><FormMessage /></FormItem>
+                          )} />
+                        </TabsContent>
 
-                      {materialsArray.fields.length > 0 && (
-                        <div className="border rounded-md">
-                          <table className="w-full text-sm">
-                            <thead className="bg-muted/50">
-                              <tr>
-                                <th className="text-left p-2 font-medium">Material</th>
-                                <th className="p-2 font-medium text-right">Qty</th>
-                                <th className="p-2 font-medium text-right">Cost</th>
-                                <th className="p-2 w-10"></th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {materialsArray.fields.map((field, index) => {
-                                const cost = (field.quantity * field.price_per_unit) / field.units_made;
-                                return (
-                                  <tr key={field.id} className="border-t">
-                                    <td className="p-2">
-                                      <div className="font-medium">{field.name}</div>
-                                      <div className="text-xs text-muted-foreground">{formatNumberDisplay(field.quantity)} {field.unit} @ {formatCurrency(field.price_per_unit, settings?.currency || 'USD')}</div>
-                                    </td>
-                                    <td className="p-2 text-right">{formatNumberDisplay(field.quantity)}</td>
-                                    <td className="p-2 text-right">{formatCurrency(cost, settings?.currency || 'USD')}</td>
-                                    <td className="p-2 text-right"><Button type="button" variant="ghost" size="sm" onClick={() => materialsArray.remove(index)}><Trash2 className="h-3 w-3 text-destructive" /></Button></td>
+                        {/* Tab 2: Materials */}
+                        <TabsContent value="materials" className="space-y-4 mt-0">
+                          <AddMaterialForm onAdd={(data) => materialsArray.append(data)} />
+                          {materialsArray.fields.length > 0 && (
+                            <div className="border rounded-md">
+                              <table className="w-full text-sm">
+                                <thead className="bg-muted/50">
+                                  <tr>
+                                    <th className="text-left p-2 font-medium">Material</th>
+                                    <th className="p-2 font-medium text-right">Qty</th>
+                                    <th className="p-2 font-medium text-right">Cost</th>
+                                    <th className="p-2 w-10"></th>
                                   </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-                    </TabsContent>
+                                </thead>
+                                <tbody>
+                                  {materialsArray.fields.map((field, index) => {
+                                    const cost = (field.quantity * field.price_per_unit) / field.units_made;
+                                    return (
+                                      <tr key={field.id} className="border-t">
+                                        <td className="p-2">
+                                          <div className="font-medium">{field.name}</div>
+                                          <div className="text-xs text-muted-foreground">{formatNumberDisplay(field.quantity)} {field.unit} @ {formatCurrency(field.price_per_unit, settings?.currency || 'USD')}</div>
+                                        </td>
+                                        <td className="p-2 text-right">{formatNumberDisplay(field.quantity)}</td>
+                                        <td className="p-2 text-right">{formatCurrency(cost, settings?.currency || 'USD')}</td>
+                                        <td className="p-2 text-right"><Button type="button" variant="ghost" size="sm" onClick={() => materialsArray.remove(index)}><Trash2 className="h-3 w-3 text-destructive" /></Button></td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </TabsContent>
 
-                    {/* Tab 3: Labor */}
-                    <TabsContent value="labor" className="space-y-4 mt-0">
-                      <AddLaborForm currency={settings?.currency || 'USD'} onAdd={(data) => laborArray.append(data)} />
-
-                      {laborArray.fields.length > 0 && (
-                        <div className="border rounded-md">
-                          <table className="w-full text-sm">
-                            <thead className="bg-muted/50">
-                              <tr>
-                                <th className="text-left p-2 font-medium">Activity</th>
-                                <th className="p-2 font-medium text-right">Time</th>
-                                <th className="p-2 font-medium text-right">Cost</th>
-                                <th className="p-2 w-10"></th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {laborArray.fields.map((field, index) => {
-                                const cost = (field.time_spent_minutes / 60) * field.hourly_rate;
-                                return (
-                                  <tr key={field.id} className="border-t">
-                                    <td className="p-2">
-                                      <div className="font-medium">{field.activity}</div>
-                                      <div className="text-xs text-muted-foreground">{field.per_unit ? 'Per Unit' : 'Batch'} @ {formatCurrency(field.hourly_rate, settings?.currency || 'USD')}/hr</div>
-                                    </td>
-                                    <td className="p-2 text-right">{field.time_spent_minutes}m</td>
-                                    <td className="p-2 text-right">{formatCurrency(cost, settings?.currency || 'USD')}</td>
-                                    <td className="p-2 text-right"><Button type="button" variant="ghost" size="sm" onClick={() => laborArray.remove(index)}><Trash2 className="h-3 w-3 text-destructive" /></Button></td>
+                        {/* Tab 3: Labor */}
+                        <TabsContent value="labor" className="space-y-4 mt-0">
+                          <AddLaborForm currency={settings?.currency || 'USD'} onAdd={(data) => laborArray.append(data)} />
+                          {laborArray.fields.length > 0 && (
+                            <div className="border rounded-md">
+                              <table className="w-full text-sm">
+                                <thead className="bg-muted/50">
+                                  <tr>
+                                    <th className="text-left p-2 font-medium">Activity</th>
+                                    <th className="p-2 font-medium text-right">Time</th>
+                                    <th className="p-2 font-medium text-right">Cost</th>
+                                    <th className="p-2 w-10"></th>
                                   </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-                    </TabsContent>
+                                </thead>
+                                <tbody>
+                                  {laborArray.fields.map((field, index) => {
+                                    const cost = (field.time_spent_minutes / 60) * field.hourly_rate;
+                                    return (
+                                      <tr key={field.id} className="border-t">
+                                        <td className="p-2">
+                                          <div className="font-medium">{field.activity}</div>
+                                          <div className="text-xs text-muted-foreground">{field.per_unit ? 'Per Unit' : 'Batch'} @ {formatCurrency(field.hourly_rate, settings?.currency || 'USD')}/hr</div>
+                                        </td>
+                                        <td className="p-2 text-right">{field.time_spent_minutes}m</td>
+                                        <td className="p-2 text-right">{formatCurrency(cost, settings?.currency || 'USD')}</td>
+                                        <td className="p-2 text-right"><Button type="button" variant="ghost" size="sm" onClick={() => laborArray.remove(index)}><Trash2 className="h-3 w-3 text-destructive" /></Button></td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </TabsContent>
 
-                    {/* Tab 4: Other Costs */}
-                    <TabsContent value="other" className="space-y-4 mt-0">
-                      <AddOtherCostForm currency={settings?.currency || 'USD'} onAdd={(data) => otherCostsArray.append(data)} />
-
-                      {otherCostsArray.fields.length > 0 && (
-                        <div className="border rounded-md">
-                          <table className="w-full text-sm">
-                            <thead className="bg-muted/50">
-                              <tr>
-                                <th className="text-left p-2 font-medium">Item</th>
-                                <th className="p-2 font-medium text-right">Qty</th>
-                                <th className="p-2 font-medium text-right">Cost</th>
-                                <th className="p-2 w-10"></th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {otherCostsArray.fields.map((field, index) => {
-                                const cost = field.quantity * field.cost;
-                                return (
-                                  <tr key={field.id} className="border-t">
-                                    <td className="p-2">
-                                      <div className="font-medium">{field.item}</div>
-                                      <div className="text-xs text-muted-foreground">{field.per_unit ? 'Per Unit' : 'Batch'}</div>
-                                    </td>
-                                    <td className="p-2 text-right">{formatNumberDisplay(field.quantity)}</td>
-                                    <td className="p-2 text-right">{formatCurrency(cost, settings?.currency || 'USD')}</td>
-                                    <td className="p-2 text-right"><Button type="button" variant="ghost" size="sm" onClick={() => otherCostsArray.remove(index)}><Trash2 className="h-3 w-3 text-destructive" /></Button></td>
+                        {/* Tab 4: Other Costs */}
+                        <TabsContent value="other" className="space-y-4 mt-0">
+                          <AddOtherCostForm currency={settings?.currency || 'USD'} onAdd={(data) => otherCostsArray.append(data)} />
+                          {otherCostsArray.fields.length > 0 && (
+                            <div className="border rounded-md">
+                              <table className="w-full text-sm">
+                                <thead className="bg-muted/50">
+                                  <tr>
+                                    <th className="text-left p-2 font-medium">Item</th>
+                                    <th className="p-2 font-medium text-right">Qty</th>
+                                    <th className="p-2 font-medium text-right">Cost</th>
+                                    <th className="p-2 w-10"></th>
                                   </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-                    </TabsContent>
+                                </thead>
+                                <tbody>
+                                  {otherCostsArray.fields.map((field, index) => {
+                                    const cost = field.quantity * field.cost;
+                                    return (
+                                      <tr key={field.id} className="border-t">
+                                        <td className="p-2">
+                                          <div className="font-medium">{field.item}</div>
+                                          <div className="text-xs text-muted-foreground">{field.per_unit ? 'Per Unit' : 'Batch'}</div>
+                                        </td>
+                                        <td className="p-2 text-right">{formatNumberDisplay(field.quantity)}</td>
+                                        <td className="p-2 text-right">{formatCurrency(cost, settings?.currency || 'USD')}</td>
+                                        <td className="p-2 text-right"><Button type="button" variant="ghost" size="sm" onClick={() => otherCostsArray.remove(index)}><Trash2 className="h-3 w-3 text-destructive" /></Button></td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </TabsContent>
 
-                    <div className="flex justify-end gap-2 pt-6 mt-6 border-t">
-                      <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-                      <Button type="submit">Save Changes</Button>
-                    </div>
-                  </Tabs>
-                </form>
-              </Form>
+                        <div className="flex justify-between gap-2 pt-6 mt-6 border-t flex-none">
+                          <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
+                          <Button type="submit">Save Changes</Button>
+                        </div>
+                      </Tabs>
+                    </form>
+                  </Form>
+                </div>
+              )}
             </div>
-          )}
+
+            {/* Right Panel: Market Analysis */}
+            {isMarketAnalysisOpen && (
+              <div className="flex-1 w-1/2 overflow-hidden h-full">
+                {/* w-1/2 ensures it takes half space when in flex container */}
+                <MarketAnalysisPanel
+                  productId={productId}
+                  productName={product?.name || ''}
+                  currentPrice={currentPrice}
+                  currency={settings?.currency || 'USD'}
+                />
+              </div>
+            )}
+          </div>
         </SheetContent>
       </Sheet>
 

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authenticate } from '../middleware/auth';
+import { authenticate } from '../middleware/auth.js';
 import {
   createMaterial,
   getMaterials,
@@ -8,7 +8,7 @@ import {
   deleteMaterial,
   bulkDeleteMaterials,
   bulkUpdateMaterials,
-} from '../controllers/materialController';
+} from '../controllers/materialController.js';
 
 const router = Router();
 

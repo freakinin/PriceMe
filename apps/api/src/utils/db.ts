@@ -584,6 +584,85 @@ export async function initializeDatabase() {
       console.log('Note: Index creation for sales table:', e.message);
     }
 
+
+    // Create competitors table
+    await sql`
+      CREATE TABLE IF NOT EXISTS competitors (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        url VARCHAR(500),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+
+    // Create tracked_products table
+    await sql`
+      CREATE TABLE IF NOT EXISTS tracked_products (
+        id SERIAL PRIMARY KEY,
+        competitor_id INTEGER REFERENCES competitors(id) ON DELETE CASCADE NOT NULL,
+        linked_product_id INTEGER REFERENCES products(id) ON DELETE SET NULL,
+        url TEXT NOT NULL,
+        title VARCHAR(255),
+        current_price DECIMAL(10, 2),
+        currency VARCHAR(3) DEFAULT 'USD',
+        image_url TEXT,
+        last_scraped_at TIMESTAMP,
+        
+        materials_analysis JSONB,
+        quality_score INTEGER,
+        image_quality_score INTEGER,
+        description_score INTEGER,
+        ai_analysis_summary TEXT,
+        
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(competitor_id, url)
+      );
+    `;
+
+    // Create price_history table
+    await sql`
+      CREATE TABLE IF NOT EXISTS price_history (
+        id SERIAL PRIMARY KEY,
+        tracked_product_id INTEGER REFERENCES tracked_products(id) ON DELETE CASCADE NOT NULL,
+        price DECIMAL(10, 2) NOT NULL,
+        recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+
+    // Indexes for competitor tracking
+    try {
+      await sql`CREATE INDEX IF NOT EXISTS idx_competitors_user_id ON competitors(user_id)`;
+      await sql`CREATE INDEX IF NOT EXISTS idx_tracked_products_competitor_id ON tracked_products(competitor_id)`;
+      await sql`CREATE INDEX IF NOT EXISTS idx_tracked_products_linked_product_id ON tracked_products(linked_product_id)`;
+      await sql`CREATE INDEX IF NOT EXISTS idx_price_history_tracked_product_id ON price_history(tracked_product_id)`;
+    } catch (e: any) {
+      console.log('Note: Index creation for competitor tracking tables:', e.message);
+    }
+
+    // Create notifications table
+    await sql`
+      CREATE TABLE IF NOT EXISTS notifications (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+        type VARCHAR(50) NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        message TEXT,
+        data JSONB,
+        is_read BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+
+    try {
+      await sql`CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id)`;
+      await sql`CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications(is_read)`;
+    } catch (e: any) {
+      console.log('Note: Index creation for notifications:', e.message);
+    }
+
     console.log('✅ Database tables initialized successfully');
   } catch (error) {
     console.error('❌ Error initializing database:', error);

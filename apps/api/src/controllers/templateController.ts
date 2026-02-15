@@ -1,6 +1,6 @@
 import { Response } from 'express';
-import { AuthRequest } from '../middleware/auth';
-import { db } from '../utils/db';
+import { AuthRequest } from '../middleware/auth.js';
+import { db } from '../utils/db.js';
 import { createTemplateSchema } from '@priceme/shared';
 
 // Get all templates for the authenticated user

@@ -150,6 +150,6 @@ export const bulkUpdateCategorySchema = z.object({
   category_id: z.number().int().positive().nullable(),
 });
 
-export * from './template';
-export * from './sales';
-export * from './category';
+export * from './template.js';
+export * from './sales.js';
+export * from './category.js';
