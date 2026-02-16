@@ -49,22 +49,51 @@ export class ScraperService {
             console.log(`Jina Response Status: ${response.status}`);
             console.log(`Content Length: ${typeof content === 'string' ? content.length : 'N/A'}`);
 
-            // Check if content indicates a block/error (Jina might return 200 with error text)
+            // Check for CAPTCHA/Block triggers
             const lowerContent = typeof content === 'string' ? content.toLowerCase() : '';
-            if (lowerContent.includes('access denied') ||
+            const isBlocked = lowerContent.includes('access denied') ||
                 lowerContent.includes('403 forbidden') ||
                 lowerContent.includes('cloudflare') ||
-                lowerContent.includes('target url returned error') ||
                 lowerContent.includes('please enable js') ||
                 lowerContent.includes('captcha') ||
-                lowerContent.includes('robot check')) {
-                throw new Error('Jina returned blocked content/CAPTCHA');
+                lowerContent.includes('robot check');
+
+            if (isBlocked) {
+                console.warn('Block/CAPTCHA detected. Attempting to rescue metadata properties...');
+                // Try to extract OpenGraph or Schema.org metadata which often bypasses blocks
+                // Look for og:title, og:price:amount, etc.
+                const metaTitle = content.match(/<meta property="og:title" content="([^"]+)"/i)?.[1];
+                const metaDesc = content.match(/<meta property="og:description" content="([^"]+)"/i)?.[1];
+                const metaPrice = content.match(/<meta property="product:price:amount" content="([^"]+)"/i)?.[1] ||
+                    content.match(/"price":\s*"(\d+\.?\d*)"/i)?.[1];
+                const metaCurrency = content.match(/<meta property="product:price:currency" content="([^"]+)"/i)?.[1] ||
+                    content.match(/"priceCurrency":\s*"([^"]+)"/i)?.[1];
+
+                if (metaTitle) {
+                    console.log('Metadata Rescue Successful!');
+                    return `
+# ${metaTitle}
+
+**Price:** ${metaPrice || 'N/A'} ${metaCurrency || 'USD'}
+
+**Description:**
+${metaDesc || 'No description extracted.'}
+
+*(Note: Data extraction recovered from page metadata due to strict bot protection)*
+                     `;
+                }
+
+                throw new Error('Jina/Direct request returned blocked content/CAPTCHA and no metadata found');
             }
 
             console.log('Scraped Content Preview:', typeof content === 'string' ? content.substring(0, 500) : 'Non-string content');
             return content;
         } catch (error: any) {
             console.warn(`Jina scraping failed (${error.message}). Attempting Direct Axios fallback...`);
+
+            // Only fall through if this wasn't the last attempt
+            // ... logic continues to next strategy
+
 
             try {
                 console.log(`Attempt 2: Direct Axios GET: ${url}`);
