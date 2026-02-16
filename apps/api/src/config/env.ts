@@ -21,7 +21,9 @@ export const envConfig = {
     JWT_SECRET: '1a9a930c3f314e5feeaea6ea8dc88be6d8ae191fccb6bb9052ab8244e72ae6b5',
 
     // AI API Keys
-    GEMINI_API_KEY: 'AIzaSyDQvEMQ_qY76T387NYtl5HU_JbGNwy0Upo',
+    // AI API Keys
+    // GEMINI_API_KEY removed to force loading from .env
+    // GEMINI_API_KEY: process.env.GEMINI_API_KEY,
 
 };
 

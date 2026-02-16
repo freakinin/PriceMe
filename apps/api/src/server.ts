@@ -1,5 +1,8 @@
-import { fileURLToPath } from 'url';
+
+
+
 import path from 'path';
+import fs from 'fs';
 import dotenv from 'dotenv';
 
 // Load fallback configuration first
@@ -12,10 +15,25 @@ import cors from 'cors';
 // Only run this in development/local environments
 if (process.env.VERCEL !== '1') {
   try {
-    const __filename = fileURLToPath(import.meta.url);
-    const __dirname = path.dirname(__filename);
-    dotenv.config({ path: path.resolve(__dirname, '../.env.local') });
+
+
+    // Safer to use process.cwd() if we run from apps/api root.
+    const envPath = path.resolve(process.cwd(), '.env.local');
+    const customEnvPath = path.resolve(process.cwd(), '.env.custom');
+
+    // Try custom env first
+    if (fs.existsSync(customEnvPath)) {
+      console.log('Loading env from:', customEnvPath);
+      dotenv.config({ path: customEnvPath });
+    }
+
+    console.log('Loading env from:', envPath);
+    const result = dotenv.config({ path: envPath });
+    if (result.error) console.error('Dotenv Error:', result.error);
+    console.log('Dotenv Parsed Keys:', result.parsed ? Object.keys(result.parsed).join(', ') : 'None');
+    console.log('GEMINI_API_KEY in process.env:', process.env.GEMINI_API_KEY ? 'Yes' : 'No');
     dotenv.config();
+
   } catch (e) {
     console.warn('Failed to load local .env files', e);
   }
@@ -34,9 +52,6 @@ if (!process.env.POSTGRES_URL) {
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-
-// Log available environment variables (keys only) for debugging
-console.log('Available Env Vars:', Object.keys(process.env).join(', '));
 
 // Initialize database on startup
 initializeDatabase().catch((error) => {

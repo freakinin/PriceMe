@@ -52,10 +52,16 @@ export const trackCompetitorProduct = async (req: Request, res: Response): Promi
             }
 
             const aiResult = await AIService.analyzeProduct(markdown);
+
+            // Log if AI returned 0 price, which might indicate extraction failure
+            if (aiResult.price === 0) {
+                console.warn('AI returned 0 price. This might be a parsing error or the product is free/unpriced.');
+            }
+
             analysis = { ...analysis, ...aiResult };
         } catch (aiError: any) {
             console.warn('AI Analysis failed, proceeding with defaults:', aiError.message);
-            // Allow the process to continue even if AI fails
+            // Allow the process to continue even if AI fails - we already have defaults
         }
 
         // 3. Extract store name (competitor name) - simplistic approach for now

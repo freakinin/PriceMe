@@ -30,9 +30,20 @@ export class ScraperService {
             });
 
             const content = response.data;
+
+            console.log(`Jina Response Status: ${response.status}`);
+            console.log(`Content Length: ${typeof content === 'string' ? content.length : 'N/A'}`);
+
             // Check if content indicates a block/error (Jina might return 200 with error text)
-            if (content.includes('Access Denied') || content.includes('403 Forbidden') || content.includes('Cloudflare') || content.includes('Target URL returned error') || content.includes('Please enable JS')) {
-                throw new Error('Jina returned blocked content');
+            const lowerContent = typeof content === 'string' ? content.toLowerCase() : '';
+            if (lowerContent.includes('access denied') ||
+                lowerContent.includes('403 forbidden') ||
+                lowerContent.includes('cloudflare') ||
+                lowerContent.includes('target url returned error') ||
+                lowerContent.includes('please enable js') ||
+                lowerContent.includes('captcha') ||
+                lowerContent.includes('robot check')) {
+                throw new Error('Jina returned blocked content/CAPTCHA');
             }
 
             console.log('Scraped Content Preview:', typeof content === 'string' ? content.substring(0, 500) : 'Non-string content');

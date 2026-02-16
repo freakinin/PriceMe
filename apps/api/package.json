@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/server.ts",
+    "dev": "mkdir -p temp && TMPDIR=$(pwd)/temp tsx watch src/server.ts",
     "build": "cd ../../packages/shared && npm run build && cd ../../apps/api && tsc",
     "start": "node dist/server.js",
     "lint": "eslint .",
