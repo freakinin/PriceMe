@@ -1,6 +1,5 @@
 
 import { Request, Response } from 'express';
-import { ScraperService } from '../services/scraper.service.js';
 import { AIService } from '../services/ai.service.js';
 import { db } from '../utils/db.js';
 
@@ -22,17 +21,8 @@ export const trackCompetitorProduct = async (req: Request, res: Response): Promi
 
         console.log(`Starting tracking for URL: ${url} (User: ${userId})`);
 
-        // 1. Scrape the URL
-        // We scrape first to get the content and potentially the title/store name to create the Competitor record
-        let markdown = '';
-        try {
-            markdown = await ScraperService.scrapeUrl(url);
-            console.log('Scraped Content Preview:', markdown.substring(0, 500));
-        } catch (scrapeError: any) {
-            return res.status(400).json({ error: `Failed to scrape URL: ${scrapeError.message}` });
-        }
-
-        // 2. Analyze the content with AI
+        // 1. Skip Manual Scraping - Use AI Grounding instead
+        // We pass the RAW URL to the AI service, which will use Google Search Grounding to fetch info.
         let analysis = {
             title: 'Unknown Product',
             price: 0,
@@ -45,23 +35,19 @@ export const trackCompetitorProduct = async (req: Request, res: Response): Promi
         };
 
         try {
-            // Attempt basic title extraction from markdown if possible
-            const titleMatch = markdown.match(/^#\s+(.+)$/m);
-            if (titleMatch) {
-                analysis.title = titleMatch[1].trim();
-            }
+            console.log('Sending URL directly to Gemini with Google Search Grounding...');
+            const aiResult = await AIService.analyzeProduct(url);
 
-            const aiResult = await AIService.analyzeProduct(markdown);
-
-            // Log if AI returned 0 price, which might indicate extraction failure
+            // Log if AI returned 0 price
             if (aiResult.price === 0) {
-                console.warn('AI returned 0 price. This might be a parsing error or the product is free/unpriced.');
+                console.warn('AI returned 0 price. This might indicate the product is free or unlisted.');
             }
 
             analysis = { ...analysis, ...aiResult };
         } catch (aiError: any) {
-            console.warn('AI Analysis failed, proceeding with defaults:', aiError.message);
-            // Allow the process to continue even if AI fails - we already have defaults
+            console.warn('AI Analysis failed:', aiError.message);
+            // If AI Search fails, we could fallback to scraping, but let's assume Search is superior for now.
+            return res.status(400).json({ error: `AI Analysis (Google Search) failed: ${aiError.message}` });
         }
 
         // 3. Extract store name (competitor name) - simplistic approach for now
