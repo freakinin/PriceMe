@@ -22,6 +22,7 @@ const getPageTitle = (pathname: string): string => {
     '/on-sale': 'On Sale',
     '/settings': 'Settings',
     '/roadmap': 'Roadmap',
+    '/market-analysis': 'Market Analysis',
   };
   return titles[pathname] || 'PriceMe';
 };
@@ -30,8 +31,8 @@ export function AppLayout({ children }: AppLayoutProps) {
   const location = useLocation();
   const pageTitle = getPageTitle(location.pathname);
 
-  // Close sidebar by default on Materials page
-  const defaultOpen = location.pathname !== '/materials';
+  // Close sidebar by default on Materials and Market Analysis pages
+  const defaultOpen = !['/materials', '/market-analysis'].includes(location.pathname);
 
   return (
     <SidebarProvider defaultOpen={defaultOpen}>
@@ -39,7 +40,11 @@ export function AppLayout({ children }: AppLayoutProps) {
       <main className="flex flex-1 flex-col overflow-hidden">
         <div className="flex h-16 items-center gap-4 border-b border-border bg-background px-6">
           <SidebarTrigger />
-          <h1 className="text-xl font-semibold">{pageTitle}</h1>
+          <div id="header-title" className="flex-1 flex items-center">
+            {location.pathname !== '/market-analysis' && (
+              <h1 className="text-xl font-semibold">{pageTitle}</h1>
+            )}
+          </div>
           <div id="header-actions" className="ml-auto flex items-center gap-2">
             <NotificationBell />
           </div>

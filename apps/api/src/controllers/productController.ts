@@ -271,10 +271,12 @@ export const getProducts = async (req: AuthRequest, res: Response) => {
     }
 
     const products = await db`
-      SELECT id, name, sku, status, batch_size, target_price, pricing_method, pricing_value, created_at, updated_at, category, category_id
-      FROM products
-      WHERE user_id = ${req.userId}
-      ORDER BY created_at DESC
+      SELECT 
+        p.id, p.name, p.sku, p.status, p.batch_size, p.target_price, p.pricing_method, p.pricing_value, p.created_at, p.updated_at, p.category, p.category_id,
+        (SELECT COUNT(*)::int FROM tracked_products tp WHERE tp.linked_product_id = p.id) as competitor_count
+      FROM products p
+      WHERE p.user_id = ${req.userId}
+      ORDER BY p.created_at DESC
     `;
 
     const productsList = Array.isArray(products) ? products : products.rows || [];
@@ -290,7 +292,7 @@ export const getProducts = async (req: AuthRequest, res: Response) => {
           FROM product_variants
           WHERE product_id = ${product.id}
           ORDER BY name ASC
-        `;
+      `;
         const variants = Array.isArray(variantsResult) ? variantsResult : variantsResult.rows || [];
 
         return {
@@ -361,7 +363,7 @@ export const getProduct = async (req: AuthRequest, res: Response) => {
       FROM product_variants
       WHERE product_id = ${productId}
       ORDER BY name ASC
-    `;
+      `;
     const variantsRows = Array.isArray(variantsResult) ? variantsResult : variantsResult.rows || [];
 
     // Get attributes for all variants
@@ -416,7 +418,7 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
 
     // Get current product to merge with updates
     const currentProductResult = await db`
-      SELECT * FROM products
+    SELECT * FROM products
       WHERE id = ${productId} AND user_id = ${req.userId}
     `;
     const currentProductRows = Array.isArray(currentProductResult) ? currentProductResult : currentProductResult.rows || [];
@@ -513,23 +515,23 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
       await db`
           UPDATE products
           SET name = ${name},
-              sku = ${sku !== undefined ? sku : null},
-              description = ${description || null},
-              category = ${category || null},
-              category_id = ${category_id || null},
-              status = ${status !== undefined ? status : null},
-              batch_size = ${batch_size || 1},
-              target_price = ${target_price || null},
-              pricing_method = ${pricing_method || null},
-              pricing_value = ${pricing_value || null},
-              updated_at = CURRENT_TIMESTAMP
+    sku = ${sku !== undefined ? sku : null},
+    description = ${description || null},
+    category = ${category || null},
+    category_id = ${category_id || null},
+    status = ${status !== undefined ? status : null},
+    batch_size = ${batch_size || 1},
+    target_price = ${target_price || null},
+    pricing_method = ${pricing_method || null},
+    pricing_value = ${pricing_value || null},
+    updated_at = CURRENT_TIMESTAMP
           WHERE id = ${productId} AND user_id = ${req.userId}
-        `;
+    `;
 
       // If status changed to 'on_sale', reduce stock for materials
       if (isChangingToOnSale) {
         const effectiveBatchSize = batch_size || currentProduct.batch_size || 1;
-        const materialsResult = await db`SELECT user_material_id, quantity FROM materials WHERE product_id = ${productId}`;
+        const materialsResult = await db`SELECT user_material_id, quantity FROM materials WHERE product_id = ${productId} `;
         const materialsList = Array.isArray(materialsResult) ? materialsResult : materialsResult.rows || [];
 
         for (const material of materialsList) {
@@ -539,67 +541,67 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
               UPDATE user_materials
               SET stock_level = stock_level - ${requiredQuantity}, updated_at = CURRENT_TIMESTAMP
               WHERE id = ${material.user_material_id} AND user_id = ${req.userId}
-            `;
+    `;
           }
         }
       }
 
       if (hasMaterials) {
-        await db`DELETE FROM materials WHERE product_id = ${productId}`;
+        await db`DELETE FROM materials WHERE product_id = ${productId} `;
         if (materials && materials.length > 0) {
           for (const m of materials) {
             const unitsMade = m.units_made || 1;
             const totalCost = (m.quantity * m.price_per_unit) / unitsMade;
             await db`
-              INSERT INTO materials (product_id, user_material_id, name, quantity, unit, price_per_unit, units_made, total_cost)
-              VALUES (${productId}, ${m.user_material_id || null}, ${m.name}, ${m.quantity}, ${m.unit}, ${m.price_per_unit}, ${unitsMade}, ${totalCost})
+              INSERT INTO materials(product_id, user_material_id, name, quantity, unit, price_per_unit, units_made, total_cost)
+    VALUES(${productId}, ${m.user_material_id || null}, ${m.name}, ${m.quantity}, ${m.unit}, ${m.price_per_unit}, ${unitsMade}, ${totalCost})
             `;
           }
         }
       }
 
       if (hasLaborCosts) {
-        await db`DELETE FROM labor_costs WHERE product_id = ${productId}`;
+        await db`DELETE FROM labor_costs WHERE product_id = ${productId} `;
         if (labor_costs && labor_costs.length > 0) {
           for (const l of labor_costs) {
             const totalCost = (l.time_spent_minutes / 60) * l.hourly_rate;
             await db`
-              INSERT INTO labor_costs (product_id, activity, time_spent_minutes, hourly_rate, total_cost, per_unit)
-              VALUES (${productId}, ${l.activity}, ${l.time_spent_minutes}, ${l.hourly_rate}, ${totalCost}, ${l.per_unit ?? true})
+              INSERT INTO labor_costs(product_id, activity, time_spent_minutes, hourly_rate, total_cost, per_unit)
+    VALUES(${productId}, ${l.activity}, ${l.time_spent_minutes}, ${l.hourly_rate}, ${totalCost}, ${l.per_unit ?? true})
             `;
           }
         }
       }
 
       if (hasOtherCosts) {
-        await db`DELETE FROM other_costs WHERE product_id = ${productId}`;
+        await db`DELETE FROM other_costs WHERE product_id = ${productId} `;
         if (other_costs && other_costs.length > 0) {
           for (const o of other_costs) {
             const totalCost = o.quantity * o.cost;
             await db`
-              INSERT INTO other_costs (product_id, item, quantity, cost, total_cost, per_unit)
-              VALUES (${productId}, ${o.item}, ${o.quantity}, ${o.cost}, ${totalCost}, ${o.per_unit ?? true})
+              INSERT INTO other_costs(product_id, item, quantity, cost, total_cost, per_unit)
+    VALUES(${productId}, ${o.item}, ${o.quantity}, ${o.cost}, ${totalCost}, ${o.per_unit ?? true})
             `;
           }
         }
       }
 
       if (hasVariants) {
-        await db`DELETE FROM product_variants WHERE product_id = ${productId}`;
+        await db`DELETE FROM product_variants WHERE product_id = ${productId} `;
         if (variants && variants.length > 0) {
           for (const v of variants) {
             const variantResult = await db`
-              INSERT INTO product_variants (product_id, name, sku, price_override, cost_override, stock_level, is_active)
-              VALUES (${productId}, ${v.name}, ${v.sku || null}, ${v.price_override || null}, ${v.cost_override || null}, ${v.stock_level}, ${v.is_active ?? true})
+              INSERT INTO product_variants(product_id, name, sku, price_override, cost_override, stock_level, is_active)
+    VALUES(${productId}, ${v.name}, ${v.sku || null}, ${v.price_override || null}, ${v.cost_override || null}, ${v.stock_level}, ${v.is_active ?? true})
               RETURNING id
-            `;
+      `;
             const vId = Array.isArray(variantResult) ? variantResult[0]?.id : (variantResult as any)?.rows?.[0]?.id || (variantResult as any)?.id;
 
             if (vId && v.attributes && v.attributes.length > 0) {
               for (const attr of v.attributes) {
                 await db`
-                  INSERT INTO variant_attributes (variant_id, attribute_name, attribute_value, display_order)
-                  VALUES (${vId}, ${attr.attribute_name}, ${attr.attribute_value}, ${attr.display_order || 0})
+                  INSERT INTO variant_attributes(variant_id, attribute_name, attribute_value, display_order)
+    VALUES(${vId}, ${attr.attribute_name}, ${attr.attribute_value}, ${attr.display_order || 0})
                 `;
               }
             }
@@ -638,12 +640,12 @@ export const deleteProduct = async (req: AuthRequest, res: Response) => {
     const productId = parseInt(req.params.id);
     if (isNaN(productId)) return res.status(400).json({ status: 'error', message: 'Invalid product ID' });
 
-    const productCheck = await db`SELECT id FROM products WHERE id = ${productId} AND user_id = ${req.userId}`;
+    const productCheck = await db`SELECT id FROM products WHERE id = ${productId} AND user_id = ${req.userId} `;
     if ((Array.isArray(productCheck) ? productCheck.length : (productCheck as any).rows?.length || 0) === 0) {
       return res.status(404).json({ status: 'error', message: 'Product not found' });
     }
 
-    await db`DELETE FROM products WHERE id = ${productId} AND user_id = ${req.userId}`;
+    await db`DELETE FROM products WHERE id = ${productId} AND user_id = ${req.userId} `;
     return res.json({ status: 'success', message: 'Product deleted successfully' });
   } catch (error: any) {
     console.error('Delete product error:', error);
@@ -662,7 +664,7 @@ export const bulkDeleteProducts = async (req: AuthRequest, res: Response) => {
     // Cast to int[] to ensure postgres treats parameter as array
     const result = await db`
       DELETE FROM products 
-      WHERE id = ANY(${ids as any}::int[]) AND user_id = ${req.userId}
+      WHERE id = ANY(${ids as any}:: int[]) AND user_id = ${req.userId}
       RETURNING id
     `;
 
@@ -694,7 +696,7 @@ export const bulkUpdateProductStatus = async (req: AuthRequest, res: Response) =
     const result = await db`
       UPDATE products
       SET status = ${status}, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ANY(${ids as any}::int[]) AND user_id = ${req.userId}
+      WHERE id = ANY(${ids as any}:: int[]) AND user_id = ${req.userId}
       RETURNING id
     `;
 
@@ -727,7 +729,7 @@ export const bulkUpdateProductCategory = async (req: AuthRequest, res: Response)
     if (category_id) {
       const categoryResult = await db`
         SELECT name FROM categories WHERE id = ${category_id} AND user_id = ${req.userId}
-      `;
+    `;
       if (Array.isArray(categoryResult) && categoryResult.length > 0) {
         categoryName = categoryResult[0].name;
       } else if ((categoryResult as any).rows && (categoryResult as any).rows.length > 0) {
@@ -739,11 +741,11 @@ export const bulkUpdateProductCategory = async (req: AuthRequest, res: Response)
     // Update category and category_id
     const result = await db`
       UPDATE products
-      SET 
-        category_id = ${category_id},
-        category = ${categoryName}, 
-        updated_at = CURRENT_TIMESTAMP
-      WHERE id = ANY(${ids as any}::int[]) AND user_id = ${req.userId}
+    SET
+    category_id = ${category_id},
+    category = ${categoryName},
+    updated_at = CURRENT_TIMESTAMP
+      WHERE id = ANY(${ids as any}:: int[]) AND user_id = ${req.userId}
       RETURNING id
     `;
 

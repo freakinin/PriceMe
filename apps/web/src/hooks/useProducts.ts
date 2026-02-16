@@ -29,6 +29,7 @@ export interface Product {
     description?: string;
     category_id: number | null;
     category?: string;
+    competitor_count?: number;
 }
 
 export function useProducts() {

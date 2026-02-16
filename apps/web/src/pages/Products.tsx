@@ -552,6 +552,46 @@ export default function Products() {
       },
     },
     {
+      accessorKey: 'competitor_count',
+      header: 'Competitors',
+      size: 130,
+      minSize: 120,
+      maxSize: 200,
+      cell: ({ row }) => {
+        const product = row.original;
+        const count = Number(product.competitor_count || 0);
+
+        if (count === 0) {
+          return (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs text-muted-foreground hover:text-primary px-2"
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate(`/market-analysis?productId=${product.id}`);
+              }}
+            >
+              <Plus className="h-3 w-3 mr-1" /> Add
+            </Button>
+          )
+        }
+
+        return (
+          <Badge
+            variant="secondary"
+            className="cursor-pointer hover:bg-secondary/80 font-normal"
+            onClick={(e) => {
+              e.stopPropagation();
+              navigate(`/market-analysis?productId=${product.id}`);
+            }}
+          >
+            {count} {count === 1 ? 'Product' : 'Products'}
+          </Badge>
+        )
+      }
+    },
+    {
       accessorKey: 'sku',
       header: 'SKU',
       size: 150,

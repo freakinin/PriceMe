@@ -2,17 +2,30 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Search, Plus, ExternalLink, RefreshCw, AlertCircle } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Plus, ExternalLink, RefreshCw, AlertCircle, TrendingUp, TrendingDown, Package, DollarSign, Layers, Tag } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import api from '@/lib/api';
 import { formatCurrency } from '@/utils/currency';
 import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+
+// Need to import Product type or define a subset here if strict
+interface Product {
+    id: number;
+    name: string;
+    description?: string;
+    target_price: number | null;
+    product_cost: number;
+    profit: number | null;
+    profit_margin: number | null;
+    materials?: any[];
+    category?: string;
+    status?: string;
+}
 
 interface MarketAnalysisPanelProps {
-    productId: number;
-    productName: string;
-    currentPrice: number;
+    product: Product;
     currency: string;
 }
 
@@ -31,7 +44,7 @@ interface TrackedProduct {
     last_scraped_at?: string;
 }
 
-export function MarketAnalysisPanel({ productId, productName, currentPrice, currency }: MarketAnalysisPanelProps) {
+export function MarketAnalysisPanel({ product, currency }: MarketAnalysisPanelProps) {
     const { toast } = useToast();
     const [urlInput, setUrlInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -39,17 +52,17 @@ export function MarketAnalysisPanel({ productId, productName, currentPrice, curr
     const [trackedProducts, setTrackedProducts] = useState<TrackedProduct[]>([]);
     const [error, setError] = useState<string | null>(null);
 
+    const productId = product.id;
+    const currentPrice = Number(product.target_price || 0);
+
     const fetchTrackedProducts = async () => {
         try {
             setIsLoading(true);
             setError(null);
-            // In a real scenario, we would filter by linked_product_id = productId
-            // For now, fetching all to demonstrate (API might fail if down)
             const res = await api.get(`/competitors?productId=${productId}`);
             setTrackedProducts(res.data);
         } catch (err) {
             console.error('Failed to fetch tracked products', err);
-            // Don't show error toast on mount if API is down, just set local error state
             setError('Could not load competitor data. API might be unreachable.');
         } finally {
             setIsLoading(false);
@@ -114,135 +127,285 @@ export function MarketAnalysisPanel({ productId, productName, currentPrice, curr
 
     const priceDiff = currentPrice - avgCompetitorPrice;
     const isHigher = priceDiff > 0;
+    const diffPercentage = avgCompetitorPrice > 0 ? (Math.abs(priceDiff) / avgCompetitorPrice) * 100 : 0;
 
     return (
-        <div className="h-full flex flex-col bg-muted/10 border-l">
-            {/* Header */}
-            <div className="p-6 border-b bg-background">
-                <h2 className="text-lg font-semibold flex items-center gap-2">
-                    <Search className="h-5 w-5 text-muted-foreground" />
-                    Market Analysis
-                </h2>
-                <p className="text-sm text-muted-foreground mt-1">
-                    Compare <b>{productName}</b> with competitors.
-                </p>
+        <div className="flex flex-col h-full bg-muted/5">
+            {/* Top Insights Section */}
+            <div className="px-6 py-4 bg-background border-b-0 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <Card className="shadow-sm border bg-card">
+                        <CardHeader className="p-3 pb-1">
+                            <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Market Position</CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-3 pt-1">
+                            <div className="text-xl font-bold flex items-center gap-2">
+                                {trackedProducts.length > 0 ? (
+                                    <>
+                                        {isHigher ? (
+                                            <span className="text-destructive flex items-center">
+                                                +{diffPercentage.toFixed(0)}% <TrendingUp className="ml-1 h-3 w-3" />
+                                            </span>
+                                        ) : (
+                                            <span className="text-green-600 flex items-center">
+                                                -{diffPercentage.toFixed(0)}% <TrendingDown className="ml-1 h-3 w-3" />
+                                            </span>
+                                        )}
+                                        <span className="text-xs font-normal text-muted-foreground">vs Average</span>
+                                    </>
+                                ) : (
+                                    <span className="text-muted-foreground text-sm">No Competitors API Data</span>
+                                )}
+                            </div>
+                        </CardContent>
+                    </Card>
 
-                {/* Stats Summary */}
-                {trackedProducts.length > 0 && (
-                    <div className="mt-4 grid grid-cols-2 gap-4">
-                        <div className="p-3 bg-card border rounded-md">
-                            <div className="text-xs text-muted-foreground">My Price</div>
-                            <div className="text-xl font-bold text-primary">{formatCurrency(currentPrice, currency)}</div>
+                    <Card className="shadow-sm border bg-card">
+                        <CardHeader className="p-3 pb-1">
+                            <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Avg. Competitor Price</CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-3 pt-1">
+                            <div className="text-xl font-bold">
+                                {formatCurrency(avgCompetitorPrice, currency)}
+                            </div>
+                            <p className="text-[10px] text-muted-foreground mt-1">Based on {trackedProducts.length} tracked products</p>
+                        </CardContent>
+                    </Card>
+
+                    <Card className="shadow-sm border bg-card">
+                        <CardHeader className="p-3 pb-1">
+                            <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">My Target Price</CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-3 pt-1">
+                            <div className="text-xl font-bold text-primary">
+                                {formatCurrency(currentPrice, currency)}
+                            </div>
+                            <div className="flex items-center gap-2 mt-1">
+                                <Badge variant="outline" className="text-[10px] font-normal border-primary/20 bg-primary/5 h-4 px-1.5">
+                                    Cost: {formatCurrency(product.product_cost, currency)}
+                                </Badge>
+                                <Badge variant="outline" className="text-[10px] font-normal border-green-500/20 bg-green-500/5 text-green-700 h-4 px-1.5">
+                                    Margin: {product.profit_margin?.toFixed(0)}%
+                                </Badge>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+            </div>
+
+            {/* Main Content Layout */}
+            <div className="flex-1 px-6 py-4 grid grid-cols-1 lg:grid-cols-3 gap-6 overflow-y-auto">
+
+                {/* Left Column: My Product Info */}
+                <div className="lg:col-span-1 space-y-6">
+                    <div className="bg-card border rounded-lg p-4 space-y-3 sticky top-0 shadow-sm">
+                        <div className="flex items-center gap-2 mb-2">
+                            <Package className="h-4 w-4 text-primary" />
+                            <h3 className="font-semibold text-base">Product Details</h3>
                         </div>
-                        <div className="p-3 bg-card border rounded-md">
-                            <div className="text-xs text-muted-foreground">Avg. Competitor</div>
-                            <div className="text-xl font-bold">{formatCurrency(avgCompetitorPrice, currency)}</div>
-                            <div className={`text-xs ${isHigher ? 'text-destructive' : 'text-green-600'}`}>
-                                {isHigher ? '+' : ''}{formatCurrency(priceDiff, currency)} ({isHigher ? 'Higher' : 'Lower'})
+                        <Separator />
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="text-[10px] font-semibold text-muted-foreground uppercase">Description</label>
+                                <p className="text-xs mt-1 leading-relaxed text-foreground/90 line-clamp-4 hover:line-clamp-none transition-all cursor-default">
+                                    {product.description || 'No description provided.'}
+                                </p>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-[10px] font-semibold text-muted-foreground uppercase flex items-center gap-1">
+                                        <Tag className="h-3 w-3" /> Category
+                                    </label>
+                                    <p className="text-xs font-medium mt-1">{product.category || 'Uncategorized'}</p>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-semibold text-muted-foreground uppercase">Status</label>
+                                    <div className="mt-1">
+                                        <Badge
+                                            variant="secondary"
+                                            className={`font-normal text-[10px] h-5 px-1.5 capitalize ${product.status === 'on_sale' ? 'bg-green-100 text-green-800 hover:bg-green-200' :
+                                                product.status === 'in_progress' ? 'bg-amber-100 text-amber-800 hover:bg-amber-200' :
+                                                    product.status === 'draft' ? 'bg-slate-100 text-slate-800 hover:bg-slate-200' :
+                                                        ''
+                                                }`}
+                                        >
+                                            {product.status?.replace('_', ' ') || 'Draft'}
+                                        </Badge>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="text-[10px] font-semibold text-muted-foreground uppercase flex items-center gap-1">
+                                    <Layers className="h-3 w-3" /> Materials
+                                </label>
+                                {product.materials && product.materials.length > 0 ? (
+                                    <ul className="mt-1.5 space-y-1">
+                                        {product.materials.slice(0, 5).map((m: any, idx: number) => (
+                                            <li key={idx} className="text-xs flex justify-between">
+                                                <span className="text-muted-foreground truncate max-w-[150px]" title={m.name}>{m.quantity} {m.unit} {m.name}</span>
+                                            </li>
+                                        ))}
+                                        {product.materials.length > 5 && (
+                                            <li className="text-[10px] text-muted-foreground italic pt-0.5">
+                                                + {product.materials.length - 5} more...
+                                            </li>
+                                        )}
+                                    </ul>
+                                ) : (
+                                    <p className="text-xs text-muted-foreground mt-1 italic">No materials listed</p>
+                                )}
+                            </div>
+
+                            <div>
+                                <label className="text-[10px] font-semibold text-muted-foreground uppercase flex items-center gap-1">
+                                    <DollarSign className="h-3 w-3" /> Financials
+                                </label>
+                                <div className="mt-1.5 bg-muted/40 rounded p-2 text-xs space-y-1.5">
+                                    <div className="flex justify-between">
+                                        <span className="text-muted-foreground">Total Cost</span>
+                                        <span className="font-mono">{formatCurrency(product.product_cost, currency)}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-muted-foreground">Projected Profit</span>
+                                        <span className="font-mono text-green-600">+{formatCurrency(product.profit || 0, currency)}</span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
-                )}
-            </div>
-
-            {/* Content */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                {/* Add New */}
-                <div className="space-y-2">
-                    <label className="text-sm font-medium">Add Competitor URL</label>
-                    <div className="flex gap-2">
-                        <Input
-                            placeholder="Paste Etsy, Amazon, or Shop URL..."
-                            value={urlInput}
-                            onChange={(e) => setUrlInput(e.target.value)}
-                            className="flex-1"
-                        />
-                        <Button onClick={handleTrackUrl} disabled={isTracking || !urlInput}>
-                            {isTracking ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                        </Button>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                        Paste a URL to automatically extract price, materials, and quality score.
-                    </p>
                 </div>
 
-                {error && (
-                    <div className="p-3 bg-destructive/10 text-destructive text-sm rounded-md flex items-start gap-2">
-                        <AlertCircle className="h-4 w-4 mt-0.5" />
-                        <span>{error}</span>
+                {/* Right Column: Competitor Feed */}
+                <div className="lg:col-span-2 space-y-6">
+                    {/* Add New Input */}
+                    <div className="flex items-center justify-between gap-4 mb-2">
+                        <div className="font-semibold text-sm whitespace-nowrap text-muted-foreground">Add Competitor</div>
+                        <div className="flex-1 flex gap-2 max-w-xl justify-end">
+                            <Input
+                                placeholder="Paste product URL..."
+                                value={urlInput}
+                                onChange={(e) => setUrlInput(e.target.value)}
+                                className="h-9 text-sm bg-background w-full max-w-sm"
+                            />
+                            <Button
+                                onClick={handleTrackUrl}
+                                disabled={isTracking || !urlInput}
+                                size="sm"
+                                className="h-9 px-4 gap-1.5 font-medium shrink-0 bg-black text-white hover:bg-zinc-700 disabled:bg-black disabled:text-white disabled:opacity-100 shadow-sm transition-colors"
+                            >
+                                {isTracking ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                                {isTracking ? 'Analyzing...' : 'Track'}
+                            </Button>
+                        </div>
                     </div>
-                )}
 
-                {/* List */}
-                <div className="space-y-4">
-                    <h3 className="text-sm font-medium text-muted-foreground">Tracked Competitors ({trackedProducts.length})</h3>
-
-                    {isLoading && trackedProducts.length === 0 ? (
-                        <div className="text-center py-8 text-muted-foreground space-y-2">
-                            <RefreshCw className="h-6 w-6 animate-spin mx-auto opacity-50" />
-                            <p>Loading market data...</p>
+                    {error && (
+                        <div className="p-3 bg-destructive/10 text-destructive text-sm rounded-md flex items-start gap-2 border-0">
+                            <AlertCircle className="h-4 w-4 mt-0.5" />
+                            <span>{error}</span>
                         </div>
-                    ) : trackedProducts.length === 0 ? (
-                        <div className="text-center py-8 border-2 border-dashed rounded-lg">
-                            <p className="text-muted-foreground text-sm">No competitors tracked yet.</p>
-                        </div>
-                    ) : (
-                        trackedProducts.map(p => (
-                            <Card key={p.id} className="overflow-hidden">
-                                <CardHeader className="p-4 pb-2">
-                                    <div className="flex justify-between items-start gap-2">
-                                        <div className="space-y-1">
-                                            <CardTitle className="text-base leading-tight font-medium line-clamp-2" title={p.title}>
-                                                <a href={p.url} target="_blank" rel="noreferrer" className="hover:underline flex items-center gap-1">
-                                                    {p.title || 'Untitled Product'} <ExternalLink className="h-3 w-3 opacity-50" />
-                                                </a>
-                                            </CardTitle>
-                                            <CardDescription className="text-xs">{p.competitor_name || new URL(p.url).hostname}</CardDescription>
-                                        </div>
-                                        <div className="text-right">
-                                            <div className="font-bold">{formatCurrency(p.current_price, p.currency)}</div>
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                className="h-6 text-xs text-destructive px-2 mt-1 -mr-2"
-                                                onClick={() => handleDelete(p.id)}
-                                            >
-                                                Remove
-                                            </Button>
-                                        </div>
-                                    </div>
-                                </CardHeader>
-                                <CardContent className="p-4 pt-2 space-y-3">
-                                    {/* Scores */}
-                                    <div className="flex items-center gap-2">
-                                        <Badge variant="outline" className="text-[10px] font-normal">
-                                            Quality: <span className="font-bold ml-1">{p.quality_score ?? '-'}/10</span>
-                                        </Badge>
-                                        {p.image_quality_score && (
-                                            <Badge variant="outline" className="text-[10px] font-normal">
-                                                Img: <span className="font-bold ml-1">{p.image_quality_score}/10</span>
-                                            </Badge>
-                                        )}
-                                    </div>
-
-                                    {/* Materials */}
-                                    {p.materials_analysis && Array.isArray(p.materials_analysis) && p.materials_analysis.length > 0 && (
-                                        <div className="text-xs text-muted-foreground">
-                                            <span className="font-medium text-foreground">Materials: </span>
-                                            {p.materials_analysis.join(', ')}
-                                        </div>
-                                    )}
-
-                                    {/* Summary */}
-                                    {/* {p.ai_analysis_summary && (
-                    <p className="text-xs text-muted-foreground bg-muted p-2 rounded line-clamp-3">
-                      {p.ai_analysis_summary}
-                    </p>
-                  )} */}
-                                </CardContent>
-                            </Card>
-                        ))
                     )}
+
+                    {/* Feed List */}
+                    <div className="space-y-3">
+                        <div className="flex items-center justify-between px-1">
+                            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Competitor Feed</h3>
+                            <Badge variant="secondary" className="bg-muted text-muted-foreground hover:bg-muted">{trackedProducts.length} Tracked</Badge>
+                        </div>
+
+                        {isLoading && trackedProducts.length === 0 ? (
+                            <div className="text-center py-12">
+                                <RefreshCw className="h-6 w-6 animate-spin mx-auto opacity-20 mb-3" />
+                                <p className="text-sm text-muted-foreground">Loading market intelligence...</p>
+                            </div>
+                        ) : trackedProducts.length === 0 ? (
+                            <div className="text-center py-8 rounded-xl bg-muted/20">
+                                <Package className="h-8 w-8 mx-auto text-muted-foreground/30 mb-2" />
+                                <h4 className="font-medium text-sm">No Competitors Yet</h4>
+                                <p className="text-muted-foreground text-xs mt-1 max-w-xs mx-auto">
+                                    Start tracking competitors to see how your product compares.
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 gap-3">
+                                {trackedProducts.map(p => (
+                                    <div key={p.id} className="bg-card rounded-lg overflow-hidden flex flex-col md:flex-row group border shadow-sm hover:shadow-md transition-shadow">
+                                        {/* Image placeholder or real image if available */}
+                                        {p.image_url && (
+                                            <div className="w-full md:w-28 h-28 md:h-auto bg-muted shrink-0">
+                                                <img src={p.image_url} alt={p.title} className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500" />
+                                            </div>
+                                        )}
+
+                                        <div className="flex-1 p-3 flex flex-col justify-between gap-2">
+                                            <div className="flex justify-between items-start gap-3">
+                                                <div className="space-y-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <Badge variant="secondary" className="text-[10px] h-4 px-1.5 font-normal rounded-sm bg-muted text-muted-foreground">
+                                                            {p.competitor_name || new URL(p.url).hostname.replace('www.', '')}
+                                                        </Badge>
+                                                        <span className="text-[10px] text-muted-foreground whitespace-nowrap opacity-60">
+                                                            {p.last_scraped_at ? new Date(p.last_scraped_at).toLocaleDateString() : 'Just now'}
+                                                        </span>
+                                                    </div>
+                                                    <a href={p.url} target="_blank" rel="noreferrer" className="block">
+                                                        <h4 className="font-medium text-sm leading-snug hover:text-primary transition-colors line-clamp-2">
+                                                            {p.title || 'Untitled Product'}
+                                                            <ExternalLink className="inline-block h-2.5 w-2.5 ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                        </h4>
+                                                    </a>
+                                                </div>
+                                                <div className="text-right shrink-0">
+                                                    <div className="text-base font-bold tracking-tight">
+                                                        {formatCurrency(p.current_price, p.currency)}
+                                                    </div>
+                                                    {p.current_price > 0 && currentPrice > 0 && (
+                                                        <div className={`text-[10px] font-medium ${p.current_price > currentPrice ? 'text-green-600' : 'text-destructive'}`}>
+                                                            {p.current_price > currentPrice ? 'Higher' : 'Lower'} than yours
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Bottom Row: Tags + Actions */}
+                                            <div className="flex items-center justify-between mt-auto pt-2 border-t border-dashed">
+                                                <div className="flex flex-wrap gap-2 items-center">
+                                                    {p.quality_score !== undefined && (
+                                                        <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                                                            <span>Quality:</span>
+                                                            <span className={`font-bold ${p.quality_score >= 8 ? 'text-green-600' : p.quality_score < 5 ? 'text-orange-600' : ''}`}>
+                                                                {p.quality_score}/10
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                    {p.materials_analysis && p.materials_analysis.length > 0 && (
+                                                        <div className="flex items-center gap-1 text-[10px] text-muted-foreground max-w-[200px] overflow-hidden">
+                                                            <span>Materials:</span>
+                                                            <span className="font-medium truncate text-foreground" title={p.materials_analysis.join(', ')}>
+                                                                {p.materials_analysis.join(', ')}
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="h-5 text-[10px] text-muted-foreground hover:text-destructive hover:bg-destructive/10 px-1.5 transition-colors"
+                                                    onClick={() => handleDelete(p.id)}
+                                                >
+                                                    Remove
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>

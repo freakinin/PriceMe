@@ -11,6 +11,7 @@ import Roadmap from './pages/Roadmap';
 import OnSale from './pages/OnSale';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
+import MarketAnalysis from './pages/MarketAnalysis';
 import { useAuth } from './hooks/useAuth';
 import './index.css';
 
@@ -142,6 +143,16 @@ function App() {
             <ProtectedRoute>
               <AppLayout>
                 <OnSale />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/market-analysis"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <MarketAnalysis />
               </AppLayout>
             </ProtectedRoute>
           }
