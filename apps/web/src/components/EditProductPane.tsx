@@ -580,13 +580,14 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
             </div>
 
             {/* Right Panel: Market Analysis */}
-            {isMarketAnalysisOpen && (
+            {isMarketAnalysisOpen && product && (
               <div className="flex-1 w-1/2 overflow-hidden h-full">
                 {/* w-1/2 ensures it takes half space when in flex container */}
                 <MarketAnalysisPanel
-                  productId={productId}
-                  productName={product?.name || ''}
-                  currentPrice={currentPrice}
+                  product={{
+                    ...product,
+                    target_price: currentPrice
+                  }}
                   currency={settings?.currency || 'USD'}
                 />
               </div>
