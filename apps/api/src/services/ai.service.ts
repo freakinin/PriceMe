@@ -18,10 +18,10 @@ export class AIService {
         return new GoogleGenerativeAI(apiKey).getGenerativeModel({
             model: "gemini-2.5-flash",
             tools: [{
-                // Enable Google Search Retrieval independently
-                // Note: accurate scraping depends on Google Index freshness
-                googleSearchRetrieval: {}
-            }]
+                // Enable Google Search Grounding using the correct new tool name
+                // @ts-ignore - Tool type in SDK might be outdated
+                googleSearch: {}
+            } as any]
         });
     }
 
