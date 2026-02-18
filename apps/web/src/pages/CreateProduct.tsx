@@ -670,11 +670,16 @@ export default function CreateProduct() {
     }
   };
 
-  // Header Portal Target
+  // Header Portal Targets
   const [headerContainer, setHeaderContainer] = useState<HTMLElement | null>(null);
+  const [headerTitleContainer, setHeaderTitleContainer] = useState<HTMLElement | null>(null);
+
   useEffect(() => {
     setHeaderContainer(document.getElementById('header-actions'));
+    setHeaderTitleContainer(document.getElementById('header-title'));
   }, []);
+
+  const watchedName = watch('name');
 
   if (isLoadingProduct) {
     return <div className="flex items-center justify-center h-[calc(100vh-4rem)]">Loading product data...</div>;
@@ -684,11 +689,19 @@ export default function CreateProduct() {
     <div className="flex flex-col h-[calc(100vh-4rem)] overflow-hidden">
       <div className="flex-1 overflow-y-auto p-6">
 
+        {/* Header Title Portal */}
+        {headerTitleContainer && createPortal(
+          <h1 className="text-xl font-semibold">
+            {isEditMode ? `Edit ${watchedName || 'Product'}` : 'Add Product'}
+          </h1>,
+          headerTitleContainer
+        )}
+
         {/* Header Actions Portal */}
         {headerContainer && createPortal(
           <div className="flex items-center gap-2">
             <Select value={selectedTemplateId} onValueChange={handleLoadTemplate}>
-              <SelectTrigger className="w-[200px] h-9">
+              <SelectTrigger className="w-[180px] h-9">
                 <SelectValue placeholder="Load Template..." />
               </SelectTrigger>
               <SelectContent>
@@ -700,25 +713,26 @@ export default function CreateProduct() {
                 ))}
               </SelectContent>
             </Select>
+
             <Button
-              variant="outline"
-              size="sm"
+              variant="ghost"
+              size="icon"
               onClick={() => setIsVariationsModalOpen(true)}
-              className="h-9 gap-1.5"
+              className="h-9 w-9"
+              title={variants.length > 0 ? `Manage Variations (${variants.length})` : 'Add Variations'}
             >
               <Settings2 className="h-4 w-4" />
-              {variants.length > 0 ? `Manage Variations (${variants.length})` : 'Add Variations'}
             </Button>
 
             {isEditMode && editProductId && (
               <Button
-                variant="outline"
-                size="sm"
-                className="h-9 gap-1.5"
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9"
                 onClick={() => navigate(`/market-analysis?productId=${editProductId}`)}
+                title="Competitor Analysis"
               >
                 <BarChart2 className="h-4 w-4" />
-                Competitor Analysis
               </Button>
             )}
           </div>,

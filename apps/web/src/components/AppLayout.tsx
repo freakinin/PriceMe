@@ -41,11 +41,13 @@ export function AppLayout({ children }: AppLayoutProps) {
         <div className="flex h-16 items-center gap-4 border-b border-border bg-background px-6">
           <SidebarTrigger />
           <div id="header-title" className="flex-1 flex items-center">
-            {location.pathname !== '/market-analysis' && (
+            {location.pathname !== '/market-analysis' && !location.pathname.includes('/edit') && location.pathname !== '/products/add' && (
               <h1 className="text-xl font-semibold">{pageTitle}</h1>
             )}
           </div>
           <div id="header-actions" className="ml-auto flex items-center gap-2">
+          </div>
+          <div className="flex items-center gap-2 pl-2">
             <NotificationBell />
           </div>
         </div>
