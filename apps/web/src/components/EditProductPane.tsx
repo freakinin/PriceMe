@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -7,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Plus, Trash2, SplitSquareHorizontal } from 'lucide-react';
+import { Plus, Trash2, Settings2, BarChart2 } from 'lucide-react';
 import {
   Sheet,
   SheetContent,
@@ -23,10 +22,10 @@ import { useProducts } from '@/hooks/useProducts';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { CategorySelect } from '@/components/CategorySelect';
-// NEW Import
 import { MarketAnalysisPanel } from '@/components/MarketAnalysisPanel';
+import { ProductVariationsModal, type Variant } from '@/components/products/ProductVariationsModal';
 
-// --- Validation Schemas --- (Same as before)
+// --- Validation Schemas ---
 const materialItemSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   quantity: z.coerce.number().min(0, 'Quantity must be positive'),
@@ -73,7 +72,7 @@ const formatNumberDisplay = (val: number | undefined | null): string => {
   return val.toString().replace(/(\.[0-9]*?)0+$/, '$1').replace(/\.$/, '');
 };
 
-// --- Sub-components for Adding Items --- (Same as before, abbreviated/collapsed in replace)
+// --- Sub-components for Adding Items ---
 function AddMaterialForm({ onAdd }: { onAdd: (data: z.infer<typeof materialItemSchema>) => void }) {
   const form = useForm<z.infer<typeof materialItemSchema>>({
     resolver: zodResolver(materialItemSchema),
@@ -195,24 +194,7 @@ function AddOtherCostForm({ onAdd, currency }: { onAdd: (data: z.infer<typeof ot
   );
 }
 
-
 // --- Main Component ---
-
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { MoreVertical, Copy } from 'lucide-react';
 
 interface EditProductPaneProps {
   productId: number | null;
@@ -226,11 +208,13 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
   const { toast } = useToast();
   const { updateProduct } = useProducts();
   const [activeTab, setActiveTab] = useState('basic');
-  const [isTemplateDialogOpen, setIsTemplateDialogOpen] = useState(false);
-  const [templateName, setTemplateName] = useState('');
 
   // New State for Split View
   const [isMarketAnalysisOpen, setIsMarketAnalysisOpen] = useState(false);
+
+  // Variations State
+  const [variants, setVariants] = useState<Variant[]>([]);
+  const [isVariationsModalOpen, setIsVariationsModalOpen] = useState(false);
 
   // Fetch full product details
   const { data: product, isLoading: isLoadingProduct } = useQuery({
@@ -258,39 +242,9 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
     }
   });
 
-  const { reset, control, handleSubmit, getValues, watch } = form; // Added watch
+  const { reset, control, handleSubmit, watch } = form;
   const currentPrice = watch('target_price') || 0;
-
-
-  const handleSaveAsTemplate = async () => {
-    if (!templateName.trim()) {
-      toast({ variant: 'destructive', title: 'Error', description: 'Template name is required' });
-      return;
-    }
-
-    try {
-      const currentValues = getValues();
-      const templateData = {
-        name: templateName,
-        description: currentValues.description,
-        category: currentValues.category,
-        default_batch_size: currentValues.batch_size,
-        default_pricing_method: currentValues.pricing_method,
-        materials: currentValues.materials,
-        labor_costs: currentValues.labor_costs,
-        other_costs: currentValues.other_costs,
-        variants: product?.variants || [],
-      };
-
-      await api.post('/templates', templateData);
-      toast({ title: 'Success', description: 'Template created successfully' });
-      setIsTemplateDialogOpen(false);
-      setTemplateName('');
-    } catch (error: any) {
-      console.error('Failed to save template', error);
-      toast({ variant: 'destructive', title: 'Error', description: 'Failed to create template' });
-    }
-  };
+  const watchedName = watch('name');
 
   const materialsArray = useFieldArray({ control, name: 'materials' });
   const laborArray = useFieldArray({ control, name: 'labor_costs' });
@@ -330,7 +284,22 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
           per_unit: Boolean(o.per_unit ?? true)
         })) || []
       });
-      console.log('Reset form with product:', product);
+
+      // Load variants
+      if (product.variants) {
+        setVariants(product.variants.map((v: any) => ({
+          name: v.name,
+          sku: v.sku || '',
+          price_override: v.price_override ? Number(v.price_override) : undefined,
+          cost_override: v.cost_override ? Number(v.cost_override) : undefined,
+          stock_level: v.stock_level || 0,
+          is_active: v.is_active ?? true,
+          attributes: v.attributes || [],
+        })));
+      } else {
+        setVariants([]);
+      }
+
       setActiveTab('basic');
     }
   }, [open, product, reset]);
@@ -340,7 +309,16 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
     try {
       const updateData = {
         ...data,
-        sku: data.sku || undefined
+        sku: data.sku || undefined,
+        variants: variants.map(v => ({
+          name: v.name,
+          sku: v.sku,
+          price_override: v.price_override,
+          cost_override: v.cost_override,
+          stock_level: v.stock_level,
+          is_active: v.is_active,
+          attributes: v.attributes
+        })),
       };
       await updateProduct({ id: productId, data: updateData });
       toast({ variant: 'success', title: 'Success', description: 'Product updated successfully' });
@@ -383,35 +361,29 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
           {/* Header */}
           <div className="flex-none p-6 pb-2">
             <SheetHeader className="flex flex-row items-center justify-between space-y-0">
-              <SheetTitle>Edit {product?.name || 'Product'}</SheetTitle>
+              <SheetTitle>Edit {watchedName || product?.name || 'Product'}</SheetTitle>
               <div className="flex items-center gap-2">
-                {/* Toggle Market Analysis Button */}
+                {/* Variations Button */}
                 <Button
-                  variant={isMarketAnalysisOpen ? "secondary" : "outline"}
-                  size="sm"
-                  onClick={() => setIsMarketAnalysisOpen(!isMarketAnalysisOpen)}
-                  className="gap-2 mr-2"
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9"
+                  onClick={() => setIsVariationsModalOpen(true)}
+                  title={variants.length > 0 ? `Manage Variations (${variants.length})` : 'Add Variations'}
                 >
-                  <SplitSquareHorizontal className="h-4 w-4" />
-                  {isMarketAnalysisOpen ? 'Close Market Analysis' : 'Market Analysis'}
+                  <Settings2 className="h-4 w-4" />
                 </Button>
 
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon">
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => {
-                      setTemplateName(product?.name ? `${product.name} Template` : '');
-                      setIsTemplateDialogOpen(true);
-                    }}>
-                      <Copy className="mr-2 h-4 w-4" />
-                      Save as Template
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                {/* Toggle Market Analysis Button */}
+                <Button
+                  variant={isMarketAnalysisOpen ? "secondary" : "ghost"}
+                  size="icon"
+                  onClick={() => setIsMarketAnalysisOpen(!isMarketAnalysisOpen)}
+                  className="h-9 w-9"
+                  title={isMarketAnalysisOpen ? 'Close Market Analysis' : 'Competitor Analysis'}
+                >
+                  <BarChart2 className="h-4 w-4" />
+                </Button>
               </div>
             </SheetHeader>
           </div>
@@ -596,27 +568,13 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
         </SheetContent>
       </Sheet>
 
-      <Dialog open={isTemplateDialogOpen} onOpenChange={setIsTemplateDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Save as Template</DialogTitle>
-            <DialogDescription>
-              Create a new template from this product's configuration. This will make it easy to create similar products in the future.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4">
-            <Input
-              value={templateName}
-              onChange={(e) => setTemplateName(e.target.value)}
-              placeholder="Template Name (e.g. Standard T-Shirt)"
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsTemplateDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSaveAsTemplate}>Create Template</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ProductVariationsModal
+        open={isVariationsModalOpen}
+        onOpenChange={setIsVariationsModalOpen}
+        variants={variants}
+        onSave={setVariants}
+        currency={getCurrencySymbol(settings.currency)}
+      />
     </>
   );
 }
