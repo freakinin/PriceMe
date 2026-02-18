@@ -1,14 +1,22 @@
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
 import { MarketAnalysisPanel } from '@/components/MarketAnalysisPanel';
 import api from '@/lib/api';
 import { Button } from '@/components/ui/button';
+import { Edit } from 'lucide-react';
 
 export default function MarketAnalysis() {
     const [searchParams] = useSearchParams();
     const productId = searchParams.get('productId');
     const navigate = useNavigate();
+
+    const [headerActionsContainer, setHeaderActionsContainer] = useState<HTMLElement | null>(null);
+
+    useEffect(() => {
+        setHeaderActionsContainer(document.getElementById('header-actions'));
+    }, []);
 
     const { data: product, isLoading, error } = useQuery({
         queryKey: ['product', productId],
@@ -63,7 +71,18 @@ export default function MarketAnalysis() {
                 headerPortal
             )}
 
-            {/* Subtitle removed */}
+            {headerActionsContainer && createPortal(
+                <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 h-8"
+                    onClick={() => navigate(`/products/${productId}/edit`)}
+                >
+                    <Edit className="h-3.5 w-3.5" />
+                    Edit Product
+                </Button>,
+                headerActionsContainer
+            )}
 
             <div className="flex-1 h-full min-h-0">
                 <MarketAnalysisPanel

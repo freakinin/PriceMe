@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, X, Package, Clock, Receipt, Save, Settings2 } from 'lucide-react';
+import { Plus, X, Package, Clock, Receipt, Save, Settings2, BarChart2 } from 'lucide-react';
 import { useSidebar } from '@/components/ui/sidebar';
 import api from '@/lib/api';
 import { useSettings } from '@/hooks/useSettings';
@@ -322,10 +322,12 @@ function AddOtherCostForm({ onAdd, settings }: { onAdd: (data: z.infer<typeof ot
 
 export default function CreateProduct() {
   const navigate = useNavigate();
+  const { id: editProductId } = useParams<{ id: string }>();
+  const isEditMode = !!editProductId;
   const { setOpen } = useSidebar();
   const { settings } = useSettings();
   const { toast } = useToast();
-  const { createProduct } = useProducts();
+  const { createProduct, updateProduct } = useProducts();
 
   // Helper used for display calculations, similar to Products page, but here we calculate on the fly
   const { calculateProfitFromPrice } = useProductPricing();
@@ -337,6 +339,8 @@ export default function CreateProduct() {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
 
 
+
+  const [isLoadingProduct, setIsLoadingProduct] = useState(false);
 
   useEffect(() => {
     setOpen(false);
@@ -370,6 +374,70 @@ export default function CreateProduct() {
       other_costs: [],
     },
   });
+
+  // Fetch product data when in edit mode
+  useEffect(() => {
+    if (!isEditMode || !editProductId) return;
+    const fetchProduct = async () => {
+      setIsLoadingProduct(true);
+      try {
+        const res = await api.get(`/products/${editProductId}`);
+        if (res.data.status === 'success') {
+          const p = res.data.data;
+          form.reset({
+            name: p.name || '',
+            sku: p.sku || '',
+            category_id: p.category_id || null,
+            batch_size: p.batch_size || 1,
+            target_price: p.target_price ? Number(p.target_price) : 0,
+            materials: (p.materials || []).map((m: any) => ({
+              name: m.name,
+              quantity: Number(m.quantity) || 0,
+              unit: m.unit || 'pcs',
+              price_per_unit: Number(m.price_per_unit) || 0,
+              quantity_type: 'exact' as const,
+              quantity_percentage: undefined,
+              per_batch: false,
+              units_made: Number(m.units_made) || 1,
+              user_material_id: m.user_material_id || undefined,
+              stock_level: undefined,
+            })),
+            labor_costs: (p.labor_costs || []).map((l: any) => ({
+              activity: l.activity,
+              time_minutes: Number(l.time_spent_minutes) || 0,
+              hourly_rate: Number(l.hourly_rate) || 0,
+              per_batch: !l.per_unit,
+            })),
+            other_costs: (p.other_costs || []).map((o: any) => ({
+              item: o.item,
+              quantity: Number(o.quantity) || 0,
+              cost: Number(o.cost) || 0,
+              per_batch: !o.per_unit,
+            })),
+          });
+          // Load variants
+          if (p.variants && p.variants.length > 0) {
+            setVariants(p.variants.map((v: any) => ({
+              name: v.name,
+              sku: v.sku || '',
+              price_override: v.price_override ? Number(v.price_override) : undefined,
+              cost_override: v.cost_override ? Number(v.cost_override) : undefined,
+              stock_level: v.stock_level || 0,
+              is_active: v.is_active ?? true,
+              attributes: v.attributes || [],
+            })));
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch product for editing', err);
+        toast({ variant: 'destructive', title: 'Error', description: 'Failed to load product data' });
+        navigate('/products');
+      } finally {
+        setIsLoadingProduct(false);
+      }
+    };
+    fetchProduct();
+  }, [editProductId, isEditMode]);
 
   const { reset, control, handleSubmit, watch, setValue } = form;
 
@@ -588,12 +656,17 @@ export default function CreateProduct() {
         })),
       };
 
-      await createProduct(productData);
-      toast({ variant: 'success', title: 'Success', description: 'Product created successfully' });
+      if (isEditMode && editProductId) {
+        await updateProduct({ id: Number(editProductId), data: productData });
+        toast({ variant: 'success', title: 'Success', description: 'Product updated successfully' });
+      } else {
+        await createProduct(productData);
+        toast({ variant: 'success', title: 'Success', description: 'Product created successfully' });
+      }
       navigate('/products');
 
     } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Error', description: error.message || 'Failed to create product' });
+      toast({ variant: 'destructive', title: 'Error', description: error.message || `Failed to ${isEditMode ? 'update' : 'create'} product` });
     }
   };
 
@@ -602,6 +675,10 @@ export default function CreateProduct() {
   useEffect(() => {
     setHeaderContainer(document.getElementById('header-actions'));
   }, []);
+
+  if (isLoadingProduct) {
+    return <div className="flex items-center justify-center h-[calc(100vh-4rem)]">Loading product data...</div>;
+  }
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] overflow-hidden">
@@ -627,11 +704,23 @@ export default function CreateProduct() {
               variant="outline"
               size="sm"
               onClick={() => setIsVariationsModalOpen(true)}
-              className="gap-2 h-9"
+              className="h-9 gap-1.5"
             >
               <Settings2 className="h-4 w-4" />
               {variants.length > 0 ? `Manage Variations (${variants.length})` : 'Add Variations'}
             </Button>
+
+            {isEditMode && editProductId && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 gap-1.5"
+                onClick={() => navigate(`/market-analysis?productId=${editProductId}`)}
+              >
+                <BarChart2 className="h-4 w-4" />
+                Competitor Analysis
+              </Button>
+            )}
           </div>,
           headerContainer
         )}
@@ -837,7 +926,7 @@ export default function CreateProduct() {
           {/* Right: Buttons */}
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={() => navigate('/products')}>Cancel</Button>
-            <Button size="sm" onClick={handleSubmit(onSubmit)}>Create Product</Button>
+            <Button size="sm" onClick={handleSubmit(onSubmit)}>{isEditMode ? 'Save Changes' : 'Create Product'}</Button>
           </div>
         </div>
       </div>

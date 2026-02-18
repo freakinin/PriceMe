@@ -272,9 +272,12 @@ export const getProducts = async (req: AuthRequest, res: Response) => {
 
     const products = await db`
       SELECT 
-        p.id, p.name, p.sku, p.status, p.batch_size, p.target_price, p.pricing_method, p.pricing_value, p.created_at, p.updated_at, p.category, p.category_id,
+        p.id, p.name, p.sku, p.status, p.batch_size, p.target_price, p.pricing_method, p.pricing_value, p.created_at, p.updated_at, 
+        COALESCE(c.name, p.category) as category, 
+        p.category_id,
         (SELECT COUNT(*)::int FROM tracked_products tp WHERE tp.linked_product_id = p.id) as competitor_count
       FROM products p
+      LEFT JOIN categories c ON p.category_id = c.id
       WHERE p.user_id = ${req.userId}
       ORDER BY p.created_at DESC
     `;
@@ -339,9 +342,12 @@ export const getProduct = async (req: AuthRequest, res: Response) => {
 
     // Get product
     const productResult = await db`
-      SELECT id, name, sku, status, description, category, category_id, batch_size, target_price, pricing_method, pricing_value, created_at, updated_at
-      FROM products
-      WHERE id = ${productId} AND user_id = ${req.userId}
+      SELECT p.id, p.name, p.sku, p.status, p.description, 
+             COALESCE(c.name, p.category) as category, 
+             p.category_id, p.batch_size, p.target_price, p.pricing_method, p.pricing_value, p.created_at, p.updated_at
+      FROM products p
+      LEFT JOIN categories c ON p.category_id = c.id
+      WHERE p.id = ${productId} AND p.user_id = ${req.userId}
     `;
     const productRows = Array.isArray(productResult) ? productResult : productResult.rows || [];
 

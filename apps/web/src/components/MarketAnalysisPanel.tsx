@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Plus, ExternalLink, RefreshCw, AlertCircle, TrendingUp, TrendingDown, Package, DollarSign, Layers, Tag, Edit, AlertTriangle, Trash2, Sparkles, Lightbulb, Shield, Target, CheckCircle2 } from 'lucide-react';
+import { Plus, ExternalLink, RefreshCw, AlertCircle, TrendingUp, TrendingDown, Package, DollarSign, Layers, Tag, Edit, AlertTriangle, Trash2, Sparkles, Lightbulb, Shield, Target, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import api from '@/lib/api';
 import { formatCurrency } from '@/utils/currency';
@@ -94,6 +94,7 @@ export function MarketAnalysisPanel({ product, currency }: MarketAnalysisPanelPr
     // AI Insights state
     const [insights, setInsights] = useState<CompetitiveInsights | null>(null);
     const [isLoadingInsights, setIsLoadingInsights] = useState(false);
+    const [insightsExpanded, setInsightsExpanded] = useState(true);
 
     const productId = product.id;
     const currentPrice = Number(product.target_price || 0);
@@ -391,7 +392,7 @@ export function MarketAnalysisPanel({ product, currency }: MarketAnalysisPanelPr
                                     <ul className="mt-1.5 space-y-1">
                                         {product.materials.slice(0, 5).map((m: any, idx: number) => (
                                             <li key={idx} className="text-xs flex justify-between">
-                                                <span className="text-muted-foreground truncate max-w-[150px]" title={m.name}>{m.quantity} {m.unit} {m.name}</span>
+                                                <span className="text-muted-foreground truncate max-w-[180px]" title={m.name}>{m.name}</span>
                                             </li>
                                         ))}
                                         {product.materials.length > 5 && (
@@ -407,7 +408,7 @@ export function MarketAnalysisPanel({ product, currency }: MarketAnalysisPanelPr
 
                             <div>
                                 <label className="text-[10px] font-semibold text-muted-foreground uppercase flex items-center gap-1">
-                                    <DollarSign className="h-3 w-3" /> Financials
+                                    <DollarSign className="h-3 w-3" /> Cost & Profit
                                 </label>
                                 <div className="mt-1.5 bg-muted/40 rounded p-2 text-xs space-y-1.5">
                                     <div className="flex justify-between">
@@ -416,7 +417,9 @@ export function MarketAnalysisPanel({ product, currency }: MarketAnalysisPanelPr
                                     </div>
                                     <div className="flex justify-between">
                                         <span className="text-muted-foreground">Projected Profit</span>
-                                        <span className="font-mono text-green-600">+{formatCurrency(product.profit || 0, currency)}</span>
+                                        <span className={`font-mono ${(product.profit || 0) >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                                            {(product.profit || 0) >= 0 ? '+' : ''}{formatCurrency(product.profit || 0, currency)}
+                                        </span>
                                     </div>
                                 </div>
                             </div>
@@ -624,80 +627,95 @@ export function MarketAnalysisPanel({ product, currency }: MarketAnalysisPanelPr
                         </button>
                     ) : (
                         <div className="rounded-xl border bg-gradient-to-br from-card to-primary/[0.02] overflow-hidden">
-                            <div className="flex items-center justify-between px-5 py-3 border-b bg-primary/5">
+                            <div
+                                className="flex items-center justify-between px-5 py-3 border-b bg-primary/5 cursor-pointer select-none"
+                                onClick={() => setInsightsExpanded(!insightsExpanded)}
+                            >
                                 <div className="flex items-center gap-2 min-w-0">
                                     <Sparkles className="h-4 w-4 text-primary shrink-0" />
                                     <h3 className="font-semibold text-sm shrink-0">AI Competitive Insights</h3>
                                     <span className="text-xs text-muted-foreground truncate ml-2 hidden sm:inline">{renderLinkedText(insights.summary)}</span>
                                 </div>
-                                <button
-                                    onClick={async () => {
-                                        try {
-                                            setIsLoadingInsights(true);
-                                            const res = await api.get(`/competitors/insights?productId=${productId}`);
-                                            setInsights(res.data);
-                                        } catch (err: any) {
-                                            toast({ title: 'Error', description: 'Failed to refresh insights', variant: 'destructive' });
-                                        } finally {
-                                            setIsLoadingInsights(false);
-                                        }
-                                    }}
-                                    disabled={isLoadingInsights}
-                                    className="text-xs text-muted-foreground hover:text-primary transition-colors flex items-center gap-1 shrink-0 ml-3"
-                                >
-                                    <RefreshCw className={`h-3 w-3 ${isLoadingInsights ? 'animate-spin' : ''}`} />
-                                    Regenerate
-                                </button>
-                            </div>
-
-                            <div className="p-4">
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                    {/* Action Items — first card */}
-                                    <div className="p-3 rounded-lg bg-primary/5 border border-primary/10 space-y-2">
-                                        <div className="flex items-center gap-1.5">
-                                            <Target className="h-3.5 w-3.5 text-primary" />
-                                            <span className="text-xs font-semibold uppercase tracking-wide">Actions</span>
-                                        </div>
-                                        {insights.action_items && insights.action_items.length > 0 && (
-                                            <div className="space-y-1.5">
-                                                {insights.action_items.map((item, i) => (
-                                                    <div key={i} className="flex items-start gap-1.5 text-xs text-foreground">
-                                                        <CheckCircle2 className="h-3 w-3 text-primary shrink-0 mt-0.5" />
-                                                        <span className="leading-tight">{renderLinkedText(item)}</span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Pricing Insight */}
-                                    <div className="p-3 rounded-lg bg-green-500/5 border border-green-500/10 space-y-1.5">
-                                        <div className="flex items-center gap-1.5">
-                                            <DollarSign className="h-3.5 w-3.5 text-green-600" />
-                                            <span className="text-xs font-semibold text-green-700 uppercase tracking-wide">Pricing</span>
-                                        </div>
-                                        <p className="text-xs text-foreground leading-relaxed">{renderLinkedText(insights.pricing_insight)}</p>
-                                    </div>
-
-                                    {/* Differentiation */}
-                                    <div className="p-3 rounded-lg bg-blue-500/5 border border-blue-500/10 space-y-1.5">
-                                        <div className="flex items-center gap-1.5">
-                                            <Lightbulb className="h-3.5 w-3.5 text-blue-600" />
-                                            <span className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Differentiate</span>
-                                        </div>
-                                        <p className="text-xs text-foreground leading-relaxed">{renderLinkedText(insights.differentiation)}</p>
-                                    </div>
-
-                                    {/* Risks */}
-                                    <div className="p-3 rounded-lg bg-amber-500/5 border border-amber-500/10 space-y-1.5">
-                                        <div className="flex items-center gap-1.5">
-                                            <Shield className="h-3.5 w-3.5 text-amber-600" />
-                                            <span className="text-xs font-semibold text-amber-700 uppercase tracking-wide">Risks</span>
-                                        </div>
-                                        <p className="text-xs text-foreground leading-relaxed">{renderLinkedText(insights.risks)}</p>
-                                    </div>
+                                <div className="flex items-center gap-2 shrink-0 ml-3">
+                                    {insightsExpanded && (
+                                        <button
+                                            onClick={async (e) => {
+                                                e.stopPropagation();
+                                                try {
+                                                    setIsLoadingInsights(true);
+                                                    const res = await api.get(`/competitors/insights?productId=${productId}`);
+                                                    setInsights(res.data);
+                                                } catch (err: any) {
+                                                    toast({ title: 'Error', description: 'Failed to refresh insights', variant: 'destructive' });
+                                                } finally {
+                                                    setIsLoadingInsights(false);
+                                                }
+                                            }}
+                                            disabled={isLoadingInsights}
+                                            className="text-xs text-muted-foreground hover:text-primary transition-colors flex items-center gap-1"
+                                        >
+                                            <RefreshCw className={`h-3 w-3 ${isLoadingInsights ? 'animate-spin' : ''}`} />
+                                            Regenerate
+                                        </button>
+                                    )}
+                                    {insightsExpanded ? (
+                                        <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                                    ) : (
+                                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                                    )}
                                 </div>
                             </div>
+
+                            {insightsExpanded && (
+                                <div className="p-4">
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                        {/* Action Items — first card */}
+                                        <div className="p-3 rounded-lg bg-primary/5 border border-primary/10 space-y-2">
+                                            <div className="flex items-center gap-1.5">
+                                                <Target className="h-3.5 w-3.5 text-primary" />
+                                                <span className="text-xs font-semibold uppercase tracking-wide">Actions</span>
+                                            </div>
+                                            {insights.action_items && insights.action_items.length > 0 && (
+                                                <div className="space-y-1.5">
+                                                    {insights.action_items.map((item, i) => (
+                                                        <div key={i} className="flex items-start gap-1.5 text-xs text-foreground">
+                                                            <CheckCircle2 className="h-3 w-3 text-primary shrink-0 mt-0.5" />
+                                                            <span className="leading-tight">{renderLinkedText(item)}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Pricing Insight */}
+                                        <div className="p-3 rounded-lg bg-green-500/5 border border-green-500/10 space-y-1.5">
+                                            <div className="flex items-center gap-1.5">
+                                                <DollarSign className="h-3.5 w-3.5 text-green-600" />
+                                                <span className="text-xs font-semibold text-green-700 uppercase tracking-wide">Pricing</span>
+                                            </div>
+                                            <p className="text-xs text-foreground leading-relaxed">{renderLinkedText(insights.pricing_insight)}</p>
+                                        </div>
+
+                                        {/* Differentiation */}
+                                        <div className="p-3 rounded-lg bg-blue-500/5 border border-blue-500/10 space-y-1.5">
+                                            <div className="flex items-center gap-1.5">
+                                                <Lightbulb className="h-3.5 w-3.5 text-blue-600" />
+                                                <span className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Differentiate</span>
+                                            </div>
+                                            <p className="text-xs text-foreground leading-relaxed">{renderLinkedText(insights.differentiation)}</p>
+                                        </div>
+
+                                        {/* Risks */}
+                                        <div className="p-3 rounded-lg bg-amber-500/5 border border-amber-500/10 space-y-1.5">
+                                            <div className="flex items-center gap-1.5">
+                                                <Shield className="h-3.5 w-3.5 text-amber-600" />
+                                                <span className="text-xs font-semibold text-amber-700 uppercase tracking-wide">Risks</span>
+                                            </div>
+                                            <p className="text-xs text-foreground leading-relaxed">{renderLinkedText(insights.risks)}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>

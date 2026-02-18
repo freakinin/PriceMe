@@ -108,6 +108,16 @@ function App() {
           }
         />
         <Route
+          path="/products/:id/edit"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <CreateProduct />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/materials"
           element={
             <ProtectedRoute>
