@@ -21,8 +21,7 @@ export const trackCompetitorProduct = async (req: Request, res: Response): Promi
 
         console.log(`Starting tracking for URL: ${url} (User: ${userId})`);
 
-        // 1. Skip Manual Scraping - Use AI Grounding instead
-        // We pass the RAW URL to the AI service, which will use Google Search Grounding to fetch info.
+        // 1. Use AI with Google Search Grounding to analyze URL directly
         let analysis = {
             title: 'Unknown Product',
             price: 0,
@@ -35,7 +34,7 @@ export const trackCompetitorProduct = async (req: Request, res: Response): Promi
         };
 
         try {
-            console.log('Sending URL directly to Gemini with Google Search Grounding...');
+            console.log('Sending URL to Gemini with Google Search Grounding...');
             const aiResult = await AIService.analyzeProduct(url);
 
             // Log if AI returned 0 price
@@ -46,8 +45,7 @@ export const trackCompetitorProduct = async (req: Request, res: Response): Promi
             analysis = { ...analysis, ...aiResult };
         } catch (aiError: any) {
             console.warn('AI Analysis failed:', aiError.message);
-            // If AI Search fails, we could fallback to scraping, but let's assume Search is superior for now.
-            return res.status(400).json({ error: `AI Analysis (Google Search) failed: ${aiError.message}` });
+            return res.status(400).json({ error: `AI Analysis failed: ${aiError.message}` });
         }
 
         // 3. Extract store name (competitor name) - simplistic approach for now
@@ -165,7 +163,16 @@ export const trackCompetitorProduct = async (req: Request, res: Response): Promi
             message: 'Product tracked successfully',
             trackedProductId,
             competitorName,
-            analysis
+            analysis,
+            warning: (analysis.price === 0 || analysis.price === null)
+                ? 'Price could not be extracted. Please update manually.'
+                : null,
+            // Include raw AI response in development for debugging
+            ...(process.env.NODE_ENV === 'development' && {
+                debug: {
+                    raw_ai_response: (analysis as any).raw_ai_response
+                }
+            })
         });
 
     } catch (error: any) {
@@ -213,6 +220,169 @@ export const getTrackedProducts = async (req: Request, res: Response) => {
     } catch (error) {
         console.error('Error fetching tracked products:', error);
         res.status(500).json({ error: 'Failed to fetch tracked products' });
+    }
+};
+
+/**
+ * Return previously saved competitive insights (no AI call).
+ */
+export const getSavedInsights = async (req: Request, res: Response): Promise<Response | void> => {
+    try {
+        const userId = (req as any).userId;
+        const { productId } = req.query;
+
+        if (!productId) {
+            return res.status(400).json({ error: 'productId query param is required' });
+        }
+
+        const result = await db`
+            SELECT competitive_insights, insights_generated_at FROM products
+            WHERE id = ${Number(productId)} AND user_id = ${userId}
+        `;
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Product not found' });
+        }
+
+        const { competitive_insights, insights_generated_at } = result.rows[0];
+
+        if (!competitive_insights) {
+            return res.json({ insights: null });
+        }
+
+        res.json({ insights: competitive_insights, generated_at: insights_generated_at });
+    } catch (error) {
+        console.error('Error fetching saved insights:', error);
+        res.status(500).json({ error: 'Failed to fetch insights' });
+    }
+};
+
+/**
+ * Generate AI-powered competitive insights based on tracked products and notes.
+ * Saves the result to the products table for future retrieval.
+ */
+export const getCompetitiveInsights = async (req: Request, res: Response): Promise<Response | void> => {
+    try {
+        const userId = (req as any).userId;
+        const { productId } = req.query;
+
+        if (!productId) {
+            return res.status(400).json({ error: 'productId query param is required' });
+        }
+
+        // Get the user's product info
+        const productResult = await db`
+            SELECT id, name, target_price FROM products
+            WHERE id = ${Number(productId)} AND user_id = ${userId}
+        `;
+
+        if (productResult.rows.length === 0) {
+            return res.status(404).json({ error: 'Product not found' });
+        }
+
+        const product = productResult.rows[0];
+
+        // Get all tracked competitors for this product
+        const competitors = await db`
+            SELECT tp.title, tp.current_price, tp.quality_score, tp.competition_level, 
+                   tp.notes, tp.materials_analysis, tp.url
+            FROM tracked_products tp
+            JOIN competitors c ON tp.competitor_id = c.id
+            WHERE c.user_id = ${userId} AND tp.linked_product_id = ${Number(productId)}
+        `;
+
+        if (competitors.rows.length < 2) {
+            return res.status(400).json({
+                error: 'Need at least 2 tracked competitors to generate insights'
+            });
+        }
+
+        const competitorData = competitors.rows.map((c: any) => ({
+            title: c.title,
+            price: Number(c.current_price),
+            url: c.url,
+            quality_score: c.quality_score ? Number(c.quality_score) : undefined,
+            competition_level: c.competition_level,
+            notes: c.notes,
+            materials: c.materials_analysis
+        }));
+
+        const insights = await AIService.generateCompetitiveInsights({
+            productName: product.name,
+            productPrice: Number(product.target_price || 0),
+            competitors: competitorData
+        });
+
+        // Save insights to the products table
+        await db`
+            UPDATE products 
+            SET competitive_insights = ${JSON.stringify(insights)}::jsonb,
+                insights_generated_at = NOW()
+            WHERE id = ${Number(productId)} AND user_id = ${userId}
+        `;
+
+        res.json(insights);
+    } catch (error) {
+        console.error('Error generating competitive insights:', error);
+        res.status(500).json({ error: 'Failed to generate insights' });
+    }
+};
+
+/**
+ * Update a tracked product (for manual price/title edits).
+ */
+export const updateTrackedProduct = async (req: Request, res: Response): Promise<Response | void> => {
+    try {
+        const { id } = req.params;
+        const { title, current_price, quality_score, competition_level, notes } = req.body;
+        const userId = (req as any).userId;
+
+        // Verify ownership and get current data
+        const existing = await db`
+            SELECT tp.* 
+            FROM tracked_products tp
+            JOIN competitors c ON tp.competitor_id = c.id
+            WHERE tp.id = ${Number(id)} AND c.user_id = ${userId}
+        `;
+
+        if (existing.rows.length === 0) {
+            return res.status(404).json({ error: 'Tracked product not found or unauthorized' });
+        }
+
+        const current = existing.rows[0];
+
+        // Merge: use provided value or keep existing
+        const newTitle = title !== undefined ? title : current.title;
+        const newPrice = current_price !== undefined ? Number(current_price) : Number(current.current_price);
+        const newQuality = quality_score !== undefined ? (quality_score ? Number(quality_score) : null) : current.quality_score;
+        const newCompLevel = competition_level !== undefined ? competition_level : (current.competition_level || null);
+        const newNotes = notes !== undefined ? notes : (current.notes || null);
+
+        // Add to price history if price changed
+        if (current_price !== undefined && Number(current_price) !== Number(current.current_price)) {
+            await db`
+                INSERT INTO price_history (tracked_product_id, price)
+                VALUES (${Number(id)}, ${Number(current_price)})
+            `;
+        }
+
+        // Single clean update
+        await db`
+            UPDATE tracked_products
+            SET 
+                title = ${newTitle},
+                current_price = ${newPrice},
+                quality_score = ${newQuality},
+                competition_level = ${newCompLevel},
+                notes = ${newNotes},
+                last_scraped_at = NOW()
+            WHERE id = ${Number(id)}
+        `;
+
+        res.json({ message: 'Product updated successfully' });
+    } catch (error) {
+        console.error('Error updating tracked product:', error);
+        res.status(500).json({ error: 'Failed to update tracked product' });
     }
 };
 

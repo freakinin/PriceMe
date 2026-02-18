@@ -642,6 +642,53 @@ export async function initializeDatabase() {
       console.log('Note: Index creation for competitor tracking tables:', e.message);
     }
 
+    // Add competition_level and notes columns to tracked_products if they don't exist
+    try {
+      const competitionLevelExists = await sql`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name='tracked_products' AND column_name='competition_level'
+      `;
+      const competitionLevelRows = Array.isArray(competitionLevelExists) ? competitionLevelExists : competitionLevelExists.rows || [];
+      if (competitionLevelRows.length === 0) {
+        console.log('Adding competition_level column to tracked_products table...');
+        await sql`ALTER TABLE tracked_products ADD COLUMN competition_level VARCHAR(10) CHECK (competition_level IN ('low', 'medium', 'high'))`;
+        console.log('✅ Added competition_level column');
+      }
+
+      const notesExists = await sql`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name='tracked_products' AND column_name='notes'
+      `;
+      const notesRows = Array.isArray(notesExists) ? notesExists : notesExists.rows || [];
+      if (notesRows.length === 0) {
+        console.log('Adding notes column to tracked_products table...');
+        await sql`ALTER TABLE tracked_products ADD COLUMN notes TEXT`;
+        console.log('✅ Added notes column');
+      }
+    } catch (error: any) {
+      console.log('Note: Migration check for tracked_products competition fields:', error.message);
+    }
+
+    // Migration: Add competitive_insights to products table
+    try {
+      const insightsExists = await sql`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name='products' AND column_name='competitive_insights'
+      `;
+      const insightsRows = Array.isArray(insightsExists) ? insightsExists : insightsExists.rows || [];
+      if (insightsRows.length === 0) {
+        console.log('Adding competitive_insights columns to products table...');
+        await sql`ALTER TABLE products ADD COLUMN competitive_insights JSONB`;
+        await sql`ALTER TABLE products ADD COLUMN insights_generated_at TIMESTAMP`;
+        console.log('✅ Added competitive_insights columns');
+      }
+    } catch (error: any) {
+      console.log('Note: Migration check for competitive_insights:', error.message);
+    }
+
     // Create notifications table
     await sql`
       CREATE TABLE IF NOT EXISTS notifications (
