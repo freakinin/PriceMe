@@ -917,92 +917,22 @@ export default function CreateProduct() {
           </div>
 
           {/* Center: Circular Indicators & Design Options */}
-          <div className="flex items-center gap-6 overflow-x-auto pb-2 -mb-2 no-scrollbar">
-
-            {/* Current (Live Data) */}
-            <div className="flex flex-col gap-1 items-center">
-              <span className="text-[10px] text-muted-foreground font-medium mb-1">Current</span>
-              <div className="flex items-center gap-3">
-                <div className={`flex flex-col items-center justify-center w-14 h-14 rounded-full border-2 ${profit >= 0 ? 'border-green-100 bg-green-50/50' : 'border-red-100 bg-red-50/50'}`}>
-                  <div className="text-[8px] text-muted-foreground uppercase">Profit</div>
-                  <div className={`font-bold text-xs ${profit >= 0 ? 'text-green-700' : 'text-red-700'}`}>{formatCurrency(profit, settings.currency)}</div>
-                </div>
-                <div className={`flex flex-col items-center justify-center w-14 h-14 rounded-full border-2 ${margin >= 0 ? 'border-blue-100 bg-blue-50/50' : 'border-red-100 bg-red-50/50'}`}>
-                  <div className="text-[8px] text-muted-foreground uppercase">Margin</div>
-                  <div className={`font-bold text-xs ${margin >= 0 ? 'text-blue-700' : 'text-red-700'}`}>{formatNumberDisplay(margin)}%</div>
-                </div>
-                <div className="flex flex-col items-center justify-center w-14 h-14 rounded-full border-2 border-purple-100 bg-purple-50/50">
-                  <div className="text-[8px] text-muted-foreground uppercase">Markup</div>
-                  <div className="font-bold text-xs text-purple-700">{formatNumberDisplay(markup)}%</div>
-                </div>
-              </div>
+          {/* Center: Metrics (Minimal Design) */}
+          <div className="flex items-center gap-4">
+            <div className="flex flex-col text-right">
+              <div className="text-[9px] text-muted-foreground uppercase leading-none mb-1">Profit</div>
+              <div className={`font-bold text-sm leading-none ${profit >= 0 ? 'text-green-700' : 'text-red-700'}`}>{formatCurrency(profit, settings.currency)}</div>
             </div>
-
-            <div className="h-10 w-px bg-border/50" />
-
-            {/* Option 1: Capsules (expands) */}
-            <div className="flex flex-col gap-1 items-center">
-              <span className="text-[10px] text-muted-foreground font-medium mb-1">Option 1: Capsules</span>
-              <div className="flex items-center gap-3">
-                <div className="flex flex-col items-center justify-center min-w-[3.5rem] px-3 h-12 rounded-full border bg-red-50/50 border-red-200">
-                  <div className="text-[9px] text-muted-foreground uppercase tracking-tight">Profit</div>
-                  <div className="font-bold text-sm text-red-700 whitespace-nowrap">-$892.50</div>
-                </div>
-                <div className="flex flex-col items-center justify-center min-w-[3.5rem] px-3 h-12 rounded-full border bg-red-50/50 border-red-200">
-                  <div className="text-[9px] text-muted-foreground uppercase tracking-tight">Margin</div>
-                  <div className="font-bold text-sm text-red-700 whitespace-nowrap">-112.5%</div>
-                </div>
-                <div className="flex flex-col items-center justify-center min-w-[3.5rem] px-3 h-12 rounded-full border bg-purple-50/50 border-purple-200">
-                  <div className="text-[9px] text-muted-foreground uppercase tracking-tight">Markup</div>
-                  <div className="font-bold text-sm text-purple-700 whitespace-nowrap">45.0%</div>
-                </div>
-              </div>
+            <div className="w-px h-8 bg-border" />
+            <div className="flex flex-col text-right">
+              <div className="text-[9px] text-muted-foreground uppercase leading-none mb-1">Margin</div>
+              <div className={`font-bold text-sm leading-none ${margin >= 0 ? 'text-blue-700' : 'text-red-700'}`}>{formatNumberDisplay(margin)}%</div>
             </div>
-
-            <div className="h-10 w-px bg-border/50" />
-
-            {/* Option 2: Clean Cards */}
-            <div className="flex flex-col gap-1 items-center">
-              <span className="text-[10px] text-muted-foreground font-medium mb-1">Option 2: Cards</span>
-              <div className="flex items-center gap-2">
-                <div className="flex flex-col justify-center px-3 py-1.5 h-12 rounded-lg border bg-background shadow-sm min-w-[4rem]">
-                  <div className="text-[9px] text-muted-foreground uppercase">Profit</div>
-                  <div className="font-bold text-sm text-red-600">-$892.50</div>
-                </div>
-                <div className="flex flex-col justify-center px-3 py-1.5 h-12 rounded-lg border bg-background shadow-sm min-w-[4rem]">
-                  <div className="text-[9px] text-muted-foreground uppercase">Margin</div>
-                  <div className="font-bold text-sm text-red-600">-112.5%</div>
-                </div>
-                <div className="flex flex-col justify-center px-3 py-1.5 h-12 rounded-lg border bg-background shadow-sm min-w-[4rem]">
-                  <div className="text-[9px] text-muted-foreground uppercase">Markup</div>
-                  <div className="font-bold text-sm text-purple-600">45.0%</div>
-                </div>
-              </div>
+            <div className="w-px h-8 bg-border" />
+            <div className="flex flex-col text-right">
+              <div className="text-[9px] text-muted-foreground uppercase leading-none mb-1">Markup</div>
+              <div className="font-bold text-sm text-purple-700 leading-none">{formatNumberDisplay(markup)}%</div>
             </div>
-
-            <div className="h-10 w-px bg-border/50" />
-
-            {/* Option 3: Minimal */}
-            <div className="flex flex-col gap-1 items-center">
-              <span className="text-[10px] text-muted-foreground font-medium mb-1">Option 3: Minimal</span>
-              <div className="flex items-center gap-4">
-                <div className="flex flex-col text-right">
-                  <div className="text-[9px] text-muted-foreground uppercase leading-none mb-1">Profit</div>
-                  <div className="font-bold text-sm text-red-600 leading-none">-$892.50</div>
-                </div>
-                <div className="w-px h-8 bg-border" />
-                <div className="flex flex-col text-right">
-                  <div className="text-[9px] text-muted-foreground uppercase leading-none mb-1">Margin</div>
-                  <div className="font-bold text-sm text-red-600 leading-none">-112.5%</div>
-                </div>
-                <div className="w-px h-8 bg-border" />
-                <div className="flex flex-col text-right">
-                  <div className="text-[9px] text-muted-foreground uppercase leading-none mb-1">Markup</div>
-                  <div className="font-bold text-sm text-purple-600 leading-none">45.0%</div>
-                </div>
-              </div>
-            </div>
-
           </div>
 
           {/* Right: Buttons */}
