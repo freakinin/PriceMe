@@ -76,8 +76,8 @@ type ProductFormValues = z.infer<typeof productSchema>;
 
 const formatNumberDisplay = (val: number | undefined | null): string => {
   if (val === null || val === undefined) return '-';
-  // Remove trailing zeros
-  return val.toString().replace(/(\.[0-9]*?)0+$/, '$1').replace(/\.$/, '');
+  // Fix to 2 decimal places to avoid rendering issues
+  return parseFloat(Number(val).toFixed(2)).toString();
 };
 
 
