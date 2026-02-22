@@ -15,6 +15,8 @@ export interface EditableCellProps {
     formatDisplay?: (value: string | number | null | undefined) => ReactNode;
     className?: string;
     options?: string[];
+    /** Use inline mode (no absolute positioning) — for use inside cards/flex layouts */
+    inline?: boolean;
 }
 
 export function EditableCell({
@@ -24,6 +26,7 @@ export function EditableCell({
     formatDisplay,
     className = '',
     options,
+    inline = false,
 }: EditableCellProps) {
     const formatEditValue = (val: string | number | null | undefined): string => {
         if (val === null || val === undefined || val === '') return '';
@@ -179,6 +182,33 @@ export function EditableCell({
             setIsEditing(true);
         }
     };
+
+    // Inline mode: renders without absolute positioning (for use inside cards / flex layouts)
+    if (inline) {
+        if (isEditing) {
+            return (
+                <input
+                    ref={inputRef}
+                    type={type === 'number' ? 'number' : 'text'}
+                    step={type === 'number' ? '0.01' : undefined}
+                    className={`w-full bg-transparent border-b border-primary outline-none ${className}`}
+                    value={editValue}
+                    onChange={e => setEditValue(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    onBlur={handleSave}
+                    disabled={isSaving}
+                />
+            );
+        }
+        return (
+            <span
+                className={`cursor-text hover:opacity-70 transition-opacity truncate ${className}`}
+                onClick={handleClick}
+            >
+                {displayValue}
+            </span>
+        );
+    }
 
     return (
         <div
