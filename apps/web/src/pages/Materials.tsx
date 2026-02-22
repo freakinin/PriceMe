@@ -1,7 +1,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 
-import { Plus, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown, Edit, Trash2, ExternalLink, Package, Columns, X, Info, PackagePlus, AlertTriangle, Download } from 'lucide-react';
+import { Plus, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown, Edit, Trash2, ExternalLink, Package, Columns, X, Info, PackagePlus, AlertTriangle, Download, Table2, LayoutGrid } from 'lucide-react';
 import { useSidebar } from '@/components/ui/sidebar';
 import {
   useReactTable,
@@ -52,6 +52,7 @@ import { useMaterials, type Material } from '@/hooks/useMaterials';
 import { EditableCell } from '@/components/EditableCell';
 import { Checkbox } from '@/components/ui/checkbox';
 import { BulkActionToolbar } from '@/components/BulkActionToolbar';
+import { MaterialsCardView } from '@/components/materials/MaterialsCardView';
 
 export default function Materials() {
   const { settings } = useSettings();
@@ -61,6 +62,7 @@ export default function Materials() {
   // Use custom hook for materials
   const { materials, isLoading: loading, updateMaterial: updateMaterialMutation, deleteMaterial: deleteMaterialMutation, bulkDeleteMaterials, bulkUpdateMaterials } = useMaterials();
 
+  const [activeTab, setActiveTab] = useState<'table' | 'grid'>('table');
   const [globalFilter, setGlobalFilter] = useState('');
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -530,14 +532,17 @@ export default function Materials() {
   return (
     <div className="p-6">
       <div className="mb-6 flex items-center justify-between">
-        <div></div>
+        <div>
+          {materials.length > 0 && (
+            <div className="relative w-[250px]">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input placeholder="Search by name or supplier..." value={globalFilter} onChange={(e) => setGlobalFilter(e.target.value)} className="pl-9 h-10" />
+            </div>
+          )}
+        </div>
         <div className="flex items-center gap-3">
           {materials.length > 0 && (
             <>
-              <div className="relative w-[250px]">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input placeholder="Search by name or supplier..." value={globalFilter} onChange={(e) => setGlobalFilter(e.target.value)} className="pl-9 h-10" />
-              </div>
               <TooltipProvider><Tooltip><TooltipTrigger asChild><Button variant={showOutOfStockOnly ? "default" : "outline"} size="icon" onClick={() => setShowOutOfStockOnly(!showOutOfStockOnly)} className={showOutOfStockOnly ? "bg-red-500 hover:bg-red-600" : ""}><AlertTriangle className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent><p>{showOutOfStockOnly ? "Showing out of stock only" : "Show out of stock only"}</p></TooltipContent></Tooltip></TooltipProvider>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild><Button variant="outline" size="icon"><Filter className="h-4 w-4" /></Button></DropdownMenuTrigger>
@@ -586,26 +591,44 @@ export default function Materials() {
                   </div>
                 </DropdownMenuContent>
               </DropdownMenu>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild><Button variant="outline" size="icon"><Columns className="h-4 w-4" /></Button></DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-[250px]">
-                  <DropdownMenuLabel>Toggle columns</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  {table.getAllColumns().filter((column) => column.getCanHide && column.getCanHide()).map((column) => <DropdownMenuCheckboxItem key={column.id} className="capitalize" checked={column.getIsVisible ? column.getIsVisible() : true} onSelect={(e) => e.preventDefault()} onCheckedChange={(value) => { if (column.toggleVisibility) column.toggleVisibility(!!value); }}>{column.id === 'supplier_link' ? 'Link' : column.id === 'price_per_unit' ? 'Price/Unit' : column.id === 'price' ? 'Investment' : column.id === 'stock_level' ? 'Stock Level' : column.id === 'reorder_point' ? 'Reorder Point' : column.id === 'last_purchased_date' ? 'Last Purchased' : column.id}</DropdownMenuCheckboxItem>)}
-                </DropdownMenuContent>
-              </DropdownMenu>
+              {activeTab === 'table' && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild><Button variant="outline" size="icon"><Columns className="h-4 w-4" /></Button></DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-[250px]">
+                    <DropdownMenuLabel>Toggle columns</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {table.getAllColumns().filter((column) => column.getCanHide && column.getCanHide()).map((column) => <DropdownMenuCheckboxItem key={column.id} className="capitalize" checked={column.getIsVisible ? column.getIsVisible() : true} onSelect={(e) => e.preventDefault()} onCheckedChange={(value) => { if (column.toggleVisibility) column.toggleVisibility(!!value); }}>{column.id === 'supplier_link' ? 'Link' : column.id === 'price_per_unit' ? 'Price/Unit' : column.id === 'price' ? 'Investment' : column.id === 'stock_level' ? 'Stock Level' : column.id === 'reorder_point' ? 'Reorder Point' : column.id === 'last_purchased_date' ? 'Last Purchased' : column.id}</DropdownMenuCheckboxItem>)}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+
+              {/* Layout toggle */}
+              <div className="flex items-center border rounded-md overflow-hidden h-9">
+                <Button
+                  variant={activeTab === 'table' ? 'secondary' : 'ghost'}
+                  size="icon"
+                  className="h-9 w-9 rounded-none border-0"
+                  onClick={() => setActiveTab('table')}
+                  title="Table view"
+                >
+                  <Table2 className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant={activeTab === 'grid' ? 'secondary' : 'ghost'}
+                  size="icon"
+                  className="h-9 w-9 rounded-none border-0 border-l"
+                  onClick={() => setActiveTab('grid')}
+                  title="Card view"
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                </Button>
+              </div>
             </>
           )}
 
-          <Button variant="outline" onClick={async () => {
+          <TooltipProvider><Tooltip><TooltipTrigger asChild>
+          <Button variant="outline" size="icon" onClick={async () => {
             try {
-              // Using relative path that will be intercepted by api instance if we used it directly, 
-              // BUT here we need 'blob' response type. 
-              // Let's use the 'api' instance we should import or passed from context?
-              // Materials page uses useMaterials hook, doesn't import api directly?
-              // Let's import api at the top.
-              // Wait, previous file imported api. Let's check imports. 
-              // Materials.tsx does NOT import api. I need to add import first.
               await import('@/lib/api').then(async ({ default: api }) => {
                 const response = await api.get('/export/materials', { responseType: 'blob' });
                 const url = window.URL.createObjectURL(new Blob([response.data]));
@@ -622,8 +645,9 @@ export default function Materials() {
               toast({ variant: 'destructive', title: 'Error', description: 'Failed to export materials' });
             }
           }}>
-            <Download className="mr-2 h-4 w-4" /> Export CSV
+            <Download className="h-4 w-4" />
           </Button>
+          </TooltipTrigger><TooltipContent>Export CSV</TooltipContent></Tooltip></TooltipProvider>
           <Button onClick={() => setIsAddDialogOpen(true)}><Plus className="h-4 w-4 mr-1" /> New</Button>
         </div>
       </div>
@@ -644,6 +668,22 @@ export default function Materials() {
         <div className="space-y-4">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-16 w-full" />)}</div>
       ) : materials.length === 0 ? (
         <div className="rounded-lg border border-dashed p-12 text-center"><Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" /><h3 className="text-lg font-semibold mb-2">No materials yet</h3><p className="text-muted-foreground mb-4">Get started by adding your first material</p><Button onClick={() => setIsAddDialogOpen(true)}><Plus className="h-4 w-4 mr-2" /> Add Material</Button></div>
+      ) : activeTab === 'grid' ? (
+        <MaterialsCardView
+          materials={table.getRowModel().rows.map(r => r.original)}
+          updateMaterial={updateMaterial}
+          onEdit={setEditingMaterial}
+          onAddStock={material => {
+            setAddStockMaterial(material);
+            const price = Number(material.price_per_unit) || 0;
+            setAddStockPrice(price % 1 === 0 ? price.toString() : parseFloat(price.toFixed(2)).toString());
+          }}
+          onDelete={handleDelete}
+          getStockBadgeVariant={getStockBadgeVariant}
+          formatDate={formatDate}
+          currency={settings.currency}
+          availableUnits={availableUnits}
+        />
       ) : (
         <div className="rounded-lg border overflow-x-auto">
           <Table>

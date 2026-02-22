@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { ArrowUpDown, ArrowUp, ArrowDown, Search, DollarSign, TrendingUp, Package, ShoppingCart, ToggleLeft, ToggleRight, PlusCircle, History } from 'lucide-react';
+import { ArrowUpDown, ArrowUp, ArrowDown, Search, DollarSign, TrendingUp, Package, ShoppingCart, ToggleLeft, ToggleRight, PlusCircle, History, Table2, LayoutGrid } from 'lucide-react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -29,6 +29,7 @@ import { EditableCell } from '@/components/EditableCell';
 import { useProducts, type Product } from '@/hooks/useProducts';
 import { useSales } from '@/hooks/useSales';
 import { SaleDialog } from '@/components/sales/SaleDialog';
+import { OnSaleCardView } from '@/components/sales/OnSaleCardView';
 
 export default function OnSale() {
   const { settings } = useSettings();
@@ -45,6 +46,7 @@ export default function OnSale() {
   const [globalFilter, setGlobalFilter] = useState<string>('');
   // true = use total investment (Made × Cost), false = use COGS (Sold × Cost)
   const [useFullInvestment, setUseFullInvestment] = useState(true);
+  const [activeTab, setActiveTab] = useState<'table' | 'grid'>('table');
 
   const [activeProductForSale, setActiveProductForSale] = useState<Product | null>(null);
   const [isSaleDialogOpen, setIsSaleDialogOpen] = useState(false);
@@ -739,7 +741,7 @@ export default function OnSale() {
           </div>
 
           {/* Search and Toggle */}
-          <div className="mb-4 flex items-center justify-between">
+          <div className="mb-4 flex items-center justify-between gap-3 flex-wrap">
             <div className="relative w-[250px]">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -750,35 +752,59 @@ export default function OnSale() {
               />
             </div>
 
-            {/* Profit Calculation Mode Toggle */}
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setUseFullInvestment(!useFullInvestment)}
-                    className="flex items-center gap-2 h-10"
-                  >
-                    {useFullInvestment ? (
-                      <ToggleRight className="h-4 w-4 text-primary" />
-                    ) : (
-                      <ToggleLeft className="h-4 w-4 text-muted-foreground" />
-                    )}
-                    <span className="text-sm">
-                      {useFullInvestment ? 'Real Profit' : 'Sold Profit'}
-                    </span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom" className="max-w-[250px]">
-                  <p className="text-sm">
-                    {useFullInvestment
-                      ? 'Real Profit: Revenue minus total investment (all items made)'
-                      : 'Sold Profit: Revenue minus cost of sold items only'}
-                  </p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            <div className="flex items-center gap-2">
+              {/* Layout toggle */}
+              <div className="flex items-center border rounded-md overflow-hidden h-9">
+                <Button
+                  variant={activeTab === 'table' ? 'secondary' : 'ghost'}
+                  size="icon"
+                  className="h-9 w-9 rounded-none border-0"
+                  onClick={() => setActiveTab('table')}
+                  title="Table view"
+                >
+                  <Table2 className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant={activeTab === 'grid' ? 'secondary' : 'ghost'}
+                  size="icon"
+                  className="h-9 w-9 rounded-none border-0 border-l"
+                  onClick={() => setActiveTab('grid')}
+                  title="Card view"
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                </Button>
+              </div>
+
+              {/* Profit Calculation Mode Toggle */}
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setUseFullInvestment(!useFullInvestment)}
+                      className="flex items-center gap-2 h-9"
+                    >
+                      {useFullInvestment ? (
+                        <ToggleRight className="h-4 w-4 text-primary" />
+                      ) : (
+                        <ToggleLeft className="h-4 w-4 text-muted-foreground" />
+                      )}
+                      <span className="text-sm">
+                        {useFullInvestment ? 'Real Profit' : 'Sold Profit'}
+                      </span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-[250px]">
+                    <p className="text-sm">
+                      {useFullInvestment
+                        ? 'Real Profit: Revenue minus total investment (all items made)'
+                        : 'Sold Profit: Revenue minus cost of sold items only'}
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
           </div>
         </>
       )}
@@ -790,6 +816,16 @@ export default function OnSale() {
             Products with status "On Sale" will appear here
           </p>
         </div>
+      ) : activeTab === 'grid' ? (
+        <OnSaleCardView
+          products={table.getRowModel().rows.map(r => r.original)}
+          salesByProduct={salesByProduct}
+          useFullInvestment={useFullInvestment}
+          formatCurrencyValue={formatCurrencyValue}
+          formatPercentage={formatPercentage}
+          onRecordSale={handleRecordSale}
+          handleSaveField={handleSaveField}
+        />
       ) : (
         <div className="rounded-lg border overflow-x-auto">
           <Table>
