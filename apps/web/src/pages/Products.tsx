@@ -120,7 +120,6 @@ export default function Products() {
           productCategoryIds={state.productCategoryIds}
           setProductCategoryIds={state.setProductCategoryIds}
           globalPricingMethod={state.globalPricingMethod}
-          categories={state.categories}
           handleSaveField={state.handleSaveField}
           handleDeleteClick={state.handleDeleteClick}
           setEditingProductId={state.setEditingProductId}

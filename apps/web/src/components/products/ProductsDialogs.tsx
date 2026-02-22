@@ -68,7 +68,6 @@ export function ProductsDialogs({
   setVariationsModalOpen,
   selectedProductForVariations,
   setSelectedProductForVariations,
-  updatingProductId,
   setUpdatingProductId,
   onConfirmBulkDelete,
   updateProduct,

@@ -10,10 +10,9 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from '@/components/ui/select';
 import { CategorySelect } from '@/components/CategorySelect';
-import { type Product, type PricingMethod, type ProductStatus } from '@/hooks/useProducts';
+import { type PricingMethod, type ProductStatus } from '@/hooks/useProducts';
 import { type ProductsPageState } from '@/hooks/useProductsPageState';
 
 type Props = Pick<ProductsPageState,
@@ -24,7 +23,6 @@ type Props = Pick<ProductsPageState,
   | 'productCategoryIds'
   | 'setProductCategoryIds'
   | 'globalPricingMethod'
-  | 'categories'
   | 'handleSaveField'
   | 'handleDeleteClick'
   | 'setEditingProductId'
@@ -56,7 +54,6 @@ export function ProductsGridView({
   productCategoryIds,
   setProductCategoryIds,
   globalPricingMethod,
-  categories,
   handleSaveField,
   handleDeleteClick,
   setEditingProductId,

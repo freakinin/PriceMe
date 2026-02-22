@@ -19,18 +19,17 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Package, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { EditableCell } from '@/components/EditableCell';
 import { CategorySelect } from '@/components/CategorySelect';
-import { type Product, type PricingMethod, type ProductStatus } from '@/hooks/useProducts';
+import { type Product, type ProductStatus } from '@/hooks/useProducts';
 import { type ProductsPageState } from '@/hooks/useProductsPageState';
 
 type Props = Pick<ProductsPageState,
