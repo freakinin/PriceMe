@@ -1,7 +1,8 @@
-import { type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from './AppSidebar';
+import { SettingsDialog } from './SettingsDialog';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -20,7 +21,6 @@ const getPageTitle = (pathname: string): string => {
     '/categories': 'Categories',
     '/materials': 'Materials',
     '/on-sale': 'On Sale',
-    '/settings': 'Settings',
     '/roadmap': 'Roadmap',
     '/market-analysis': 'Market Analysis',
   };
@@ -30,13 +30,14 @@ const getPageTitle = (pathname: string): string => {
 export function AppLayout({ children }: AppLayoutProps) {
   const location = useLocation();
   const pageTitle = getPageTitle(location.pathname);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   // Close sidebar by default on Materials and Market Analysis pages
   const defaultOpen = !['/materials', '/market-analysis'].includes(location.pathname);
 
   return (
     <SidebarProvider defaultOpen={defaultOpen}>
-      <AppSidebar />
+      <AppSidebar onSettingsOpen={() => setSettingsOpen(true)} />
       <main className="flex flex-1 flex-col overflow-hidden">
         <div className="flex h-16 items-center gap-4 border-b border-border bg-background px-6">
           <SidebarTrigger />
@@ -53,7 +54,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         </div>
         <div className="flex-1 overflow-auto">{children}</div>
       </main>
+      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
     </SidebarProvider>
   );
 }
-

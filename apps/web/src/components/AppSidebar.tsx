@@ -15,15 +15,15 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { Link, useLocation } from 'react-router-dom';
 
-export function AppSidebar() {
+interface AppSidebarProps {
+  onSettingsOpen: () => void;
+}
+
+export function AppSidebar({ onSettingsOpen }: AppSidebarProps) {
   const { user, logout } = useAuth();
   const location = useLocation();
   const { state } = useSidebar();
   const isCollapsed = state === 'collapsed';
-
-
-
-  const settingsItem = { title: 'Settings', url: '/settings', icon: Settings };
 
   return (
     <Sidebar collapsible="icon">
@@ -113,16 +113,13 @@ export function AppSidebar() {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
-              asChild
-              isActive={location.pathname === settingsItem.url}
-              tooltip={settingsItem.title}
+              tooltip="Settings"
+              onClick={onSettingsOpen}
               className="text-sidebar-foreground"
               style={{ color: 'hsl(0 0% 98%)' }}
             >
-              <Link to={settingsItem.url} style={{ color: 'hsl(0 0% 98%)' }}>
-                <settingsItem.icon className="h-4 w-4 text-sidebar-foreground" style={{ color: 'hsl(0 0% 98%)' }} />
-                <span className="group-data-[collapsible=icon]:hidden" style={{ color: 'hsl(0 0% 98%)' }}>{settingsItem.title}</span>
-              </Link>
+              <Settings className="h-4 w-4 text-sidebar-foreground" style={{ color: 'hsl(0 0% 98%)' }} />
+              <span className="group-data-[collapsible=icon]:hidden" style={{ color: 'hsl(0 0% 98%)' }}>Settings</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>

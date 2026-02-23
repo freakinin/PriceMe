@@ -6,7 +6,6 @@ import CreateProduct from './pages/CreateProduct';
 import Products from './pages/Products';
 import Categories from './pages/Categories';
 import Materials from './pages/Materials';
-import Settings from './pages/Settings';
 import Roadmap from './pages/Roadmap';
 import OnSale from './pages/OnSale';
 import Login from './pages/Login';
@@ -123,16 +122,6 @@ function App() {
             <ProtectedRoute>
               <AppLayout>
                 <Materials />
-              </AppLayout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/settings"
-          element={
-            <ProtectedRoute>
-              <AppLayout>
-                <Settings />
               </AppLayout>
             </ProtectedRoute>
           }
