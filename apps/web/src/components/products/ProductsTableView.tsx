@@ -31,6 +31,7 @@ import { EditableCell } from '@/components/EditableCell';
 import { CategorySelect } from '@/components/CategorySelect';
 import { type Product, type ProductStatus } from '@/hooks/useProducts';
 import { type ProductsPageState } from '@/hooks/useProductsPageState';
+import { FeeBreakdownTooltip } from '@/components/products/FeeBreakdownTooltip';
 
 type Props = Pick<ProductsPageState,
   | 'filteredProducts'
@@ -54,10 +55,12 @@ type Props = Pick<ProductsPageState,
   | 'formatPercentage'
   | 'getCalculatedMetrics'
   | 'clearAllFilters'
+  | 'getFeeAwareMetrics'
 > & {
   onSelectionChange: (ids: number[]) => void;
   columnVisibility: Record<string, boolean>;
   onColumnVisibilityChange: (id: string, visible: boolean) => void;
+  feeAwareMode?: boolean;
 };
 
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
@@ -88,10 +91,12 @@ export function ProductsTableView({
   formatCurrencyValue,
   formatPercentage,
   getCalculatedMetrics,
+  getFeeAwareMetrics,
   clearAllFilters,
   onSelectionChange,
   columnVisibility,
   onColumnVisibilityChange,
+  feeAwareMode = false,
 }: Props) {
   const navigate = useNavigate();
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -377,18 +382,37 @@ export function ProductsTableView({
     },
     {
       id: 'calculated_profit',
-      size: 120, minSize: 100, maxSize: 200,
+      size: 140, minSize: 110, maxSize: 220,
       header: ({ column }) => (
         <div className="flex items-center justify-start cursor-pointer hover:text-foreground text-muted-foreground gap-2 w-full"
           onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}>
-          Profit
+          {feeAwareMode ? 'Net Profit' : 'Profit'}
           {column.getIsSorted() === 'asc' ? <ArrowUp className="h-3 w-3" /> :
            column.getIsSorted() === 'desc' ? <ArrowDown className="h-3 w-3" /> :
            <ArrowUpDown className="h-3 w-3 opacity-50" />}
         </div>
       ),
-      accessorFn: row => getCalculatedMetrics(row).profit,
+      accessorFn: row => {
+        if (feeAwareMode) {
+          const fee = getFeeAwareMetrics(row);
+          return fee ? fee.netProfitPreTax : getCalculatedMetrics(row).profit;
+        }
+        return getCalculatedMetrics(row).profit;
+      },
       cell: ({ row }) => {
+        if (feeAwareMode) {
+          const feeMetrics = getFeeAwareMetrics(row.original);
+          if (feeMetrics) {
+            return (
+              <div className="flex items-center gap-1.5">
+                <span className={feeMetrics.netProfitPreTax >= 0 ? 'text-green-600' : 'text-red-600'}>
+                  {formatCurrencyValue(feeMetrics.netProfitPreTax)}
+                </span>
+                <FeeBreakdownTooltip breakdown={feeMetrics} />
+              </div>
+            );
+          }
+        }
         const metrics = getCalculatedMetrics(row.original);
         return (
           <span className={metrics.profit >= 0 ? 'text-green-600' : 'text-red-600'}>
@@ -399,18 +423,34 @@ export function ProductsTableView({
     },
     {
       id: 'calculated_margin',
-      size: 130, minSize: 110, maxSize: 200,
+      size: 150, minSize: 120, maxSize: 220,
       header: ({ column }) => (
         <div className="flex items-center justify-start cursor-pointer hover:text-foreground text-muted-foreground gap-2 w-full"
           onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}>
-          Profit Margin
+          {feeAwareMode ? 'Net Margin' : 'Profit Margin'}
           {column.getIsSorted() === 'asc' ? <ArrowUp className="h-3 w-3" /> :
            column.getIsSorted() === 'desc' ? <ArrowDown className="h-3 w-3" /> :
            <ArrowUpDown className="h-3 w-3 opacity-50" />}
         </div>
       ),
-      accessorFn: row => getCalculatedMetrics(row).margin,
+      accessorFn: row => {
+        if (feeAwareMode) {
+          const fee = getFeeAwareMetrics(row);
+          return fee ? fee.netMarginPreTax : getCalculatedMetrics(row).margin;
+        }
+        return getCalculatedMetrics(row).margin;
+      },
       cell: ({ row }) => {
+        if (feeAwareMode) {
+          const feeMetrics = getFeeAwareMetrics(row.original);
+          if (feeMetrics) {
+            return (
+              <span className={feeMetrics.netMarginPreTax >= 0 ? 'text-green-600' : 'text-red-600'}>
+                {formatPercentage(feeMetrics.netMarginPreTax)}
+              </span>
+            );
+          }
+        }
         const metrics = getCalculatedMetrics(row.original);
         return (
           <span className={metrics.margin >= 0 ? 'text-green-600' : 'text-red-600'}>
@@ -443,6 +483,8 @@ export function ProductsTableView({
     categories,
     updatingProductId,
     updatingCategoryProductId,
+    feeAwareMode,
+    getFeeAwareMetrics,
   ]);
 
   const table = useReactTable({

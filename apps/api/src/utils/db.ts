@@ -75,8 +75,8 @@ export async function initializeDatabase() {
 
       // Check and add unit_system
       const unitSystemExists = await sql`
-        SELECT column_name 
-        FROM information_schema.columns 
+        SELECT column_name
+        FROM information_schema.columns
         WHERE table_name='user_settings' AND column_name='unit_system'
       `;
       const unitSystemRows = Array.isArray(unitSystemExists) ? unitSystemExists : unitSystemExists.rows || [];
@@ -85,11 +85,72 @@ export async function initializeDatabase() {
         await sql`ALTER TABLE user_settings ADD COLUMN unit_system VARCHAR(10) DEFAULT 'metric'`;
         console.log('✅ Added unit_system column');
       }
+
+      // Check and add seller_country
+      const sellerCountryExists = await sql`
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_name='user_settings' AND column_name='seller_country'
+      `;
+      const sellerCountryRows = Array.isArray(sellerCountryExists) ? sellerCountryExists : sellerCountryExists.rows || [];
+      if (sellerCountryRows.length === 0) {
+        console.log('Adding seller_country column to user_settings table...');
+        await sql`ALTER TABLE user_settings ADD COLUMN seller_country VARCHAR(2) DEFAULT 'US'`;
+        console.log('✅ Added seller_country column');
+      }
+
+      // Check and add default_platform_profile_id
+      const defaultPlatformExists = await sql`
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_name='user_settings' AND column_name='default_platform_profile_id'
+      `;
+      const defaultPlatformRows = Array.isArray(defaultPlatformExists) ? defaultPlatformExists : defaultPlatformExists.rows || [];
+      if (defaultPlatformRows.length === 0) {
+        console.log('Adding default_platform_profile_id column to user_settings table...');
+        await sql`ALTER TABLE user_settings ADD COLUMN default_platform_profile_id INTEGER REFERENCES platform_fee_profiles(id) ON DELETE SET NULL`;
+        console.log('✅ Added default_platform_profile_id column');
+      }
     } catch (error: any) {
       console.error('Error adding columns to user_settings table:', error.message);
       console.error('Error stack:', error.stack);
     }
 
+
+    // Create platform_fee_profiles table
+    await sql`
+      CREATE TABLE IF NOT EXISTS platform_fee_profiles (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        name VARCHAR(100) NOT NULL,
+        is_default BOOLEAN DEFAULT FALSE,
+        listing_fee_usd DECIMAL(10,4) DEFAULT 0.20,
+        transaction_fee_pct DECIMAL(5,3) DEFAULT 6.5,
+        payment_processing_pct DECIMAL(5,3) DEFAULT 3.0,
+        payment_processing_flat DECIMAL(10,4) DEFAULT 0.25,
+        offsite_ads_enabled BOOLEAN DEFAULT FALSE,
+        offsite_ads_pct DECIMAL(5,3) DEFAULT 15.0,
+        currency_conversion_pct DECIMAL(5,3) DEFAULT 0,
+        vat_on_fees_pct DECIMAL(5,3) DEFAULT 0,
+        fees_apply_to_shipping BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+
+    // Create shipping_methods table
+    await sql`
+      CREATE TABLE IF NOT EXISTS shipping_methods (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        name VARCHAR(100) NOT NULL,
+        cost DECIMAL(10,2) NOT NULL DEFAULT 0,
+        is_free_shipping BOOLEAN DEFAULT FALSE,
+        is_default BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
 
     // Create categories table
     await sql`
@@ -235,8 +296,8 @@ export async function initializeDatabase() {
     // Check and add category_id column to products
     try {
       const categoryIdExists = await sql`
-        SELECT column_name 
-        FROM information_schema.columns 
+        SELECT column_name
+        FROM information_schema.columns
         WHERE table_name='products' AND column_name='category_id'
       `;
       const categoryIdRows = Array.isArray(categoryIdExists) ? categoryIdExists : categoryIdExists.rows || [];
@@ -247,6 +308,47 @@ export async function initializeDatabase() {
       }
     } catch (error: any) {
       console.log('Note: Migration check for category_id column:', error.message);
+    }
+
+    // Add platform fee and shipping columns to products
+    try {
+      const platformProfileExists = await sql`
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_name='products' AND column_name='platform_fee_profile_id'
+      `;
+      const platformProfileRows = Array.isArray(platformProfileExists) ? platformProfileExists : platformProfileExists.rows || [];
+      if (platformProfileRows.length === 0) {
+        console.log('Adding platform_fee_profile_id column to products table...');
+        await sql`ALTER TABLE products ADD COLUMN platform_fee_profile_id INTEGER REFERENCES platform_fee_profiles(id) ON DELETE SET NULL`;
+        console.log('✅ Added platform_fee_profile_id column');
+      }
+
+      const shippingCostExists = await sql`
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_name='products' AND column_name='shipping_cost'
+      `;
+      const shippingCostRows = Array.isArray(shippingCostExists) ? shippingCostExists : shippingCostExists.rows || [];
+      if (shippingCostRows.length === 0) {
+        console.log('Adding shipping_cost column to products table...');
+        await sql`ALTER TABLE products ADD COLUMN shipping_cost DECIMAL(10,2)`;
+        console.log('✅ Added shipping_cost column');
+      }
+
+      const shippingIncludedExists = await sql`
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_name='products' AND column_name='shipping_included_in_price'
+      `;
+      const shippingIncludedRows = Array.isArray(shippingIncludedExists) ? shippingIncludedExists : shippingIncludedExists.rows || [];
+      if (shippingIncludedRows.length === 0) {
+        console.log('Adding shipping_included_in_price column to products table...');
+        await sql`ALTER TABLE products ADD COLUMN shipping_included_in_price BOOLEAN DEFAULT FALSE`;
+        console.log('✅ Added shipping_included_in_price column');
+      }
+    } catch (error: any) {
+      console.log('Note: Migration check for products platform/shipping columns:', error.message);
     }
 
 

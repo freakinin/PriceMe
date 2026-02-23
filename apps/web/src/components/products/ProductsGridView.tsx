@@ -14,6 +14,7 @@ import {
 import { CategorySelect } from '@/components/CategorySelect';
 import { type PricingMethod, type ProductStatus } from '@/hooks/useProducts';
 import { type ProductsPageState } from '@/hooks/useProductsPageState';
+import { FeeBreakdownTooltip } from '@/components/products/FeeBreakdownTooltip';
 
 type Props = Pick<ProductsPageState,
   | 'filteredProducts'
@@ -35,8 +36,10 @@ type Props = Pick<ProductsPageState,
   | 'formatPercentage'
   | 'getCalculatedMetrics'
   | 'clearAllFilters'
+  | 'getFeeAwareMetrics'
 > & {
   onSelectionChange: (ids: number[]) => void;
+  feeAwareMode?: boolean;
 };
 
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
@@ -65,8 +68,10 @@ export function ProductsGridView({
   formatCurrencyValue,
   formatPercentage,
   getCalculatedMetrics,
+  getFeeAwareMetrics,
   clearAllFilters,
   onSelectionChange,
+  feeAwareMode = false,
 }: Props) {
   const navigate = useNavigate();
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -110,6 +115,7 @@ export function ProductsGridView({
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
       {filteredProducts.map(product => {
         const metrics = getCalculatedMetrics(product);
+        const feeMetrics = feeAwareMode ? getFeeAwareMetrics(product) : null;
         const method = (productPricingMethods[product.id] || globalPricingMethod || product.pricing_method || 'price') as PricingMethod;
         const pricingValue = productPricingValues[product.id] ?? product.pricing_value ?? (product.target_price || 0);
         const activeMetric: { label: string; value: number; isPercent: boolean } = {
@@ -196,17 +202,30 @@ export function ProductsGridView({
 
                 {/* Profit — calculated, color-coded */}
                 <div>
-                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">Profit</p>
-                  <p className={`text-sm font-medium mt-0.5 ${metrics.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {formatCurrencyValue(metrics.profit)}
+                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">
+                    {feeAwareMode ? 'Net Profit' : 'Profit'}
                   </p>
+                  {feeMetrics ? (
+                    <div className="flex items-center gap-1 mt-0.5">
+                      <p className={`text-sm font-medium ${feeMetrics.netProfitPreTax >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {formatCurrencyValue(feeMetrics.netProfitPreTax)}
+                      </p>
+                      <FeeBreakdownTooltip breakdown={feeMetrics} />
+                    </div>
+                  ) : (
+                    <p className={`text-sm font-medium mt-0.5 ${metrics.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {formatCurrencyValue(metrics.profit)}
+                    </p>
+                  )}
                 </div>
 
                 {/* Margin — calculated, color-coded */}
                 <div>
-                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">Margin</p>
-                  <p className={`text-sm font-medium mt-0.5 ${metrics.margin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {formatPercentage(metrics.margin)}
+                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">
+                    {feeAwareMode ? 'Net Margin' : 'Margin'}
+                  </p>
+                  <p className={`text-sm font-medium mt-0.5 ${(feeMetrics ? feeMetrics.netMarginPreTax : metrics.margin) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {formatPercentage(feeMetrics ? feeMetrics.netMarginPreTax : metrics.margin)}
                   </p>
                 </div>
 

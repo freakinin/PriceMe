@@ -140,3 +140,195 @@ export function calculateBreakEvenPrice(cost: number): number {
   return Math.max(0, cost);
 }
 
+// ─── Fee-Aware Calculations ────────────────────────────────────────────────
+
+export interface PlatformFeeConfig {
+  listing_fee_usd: number;          // flat per sale
+  transaction_fee_pct: number;      // % of (price + shipping when fees_apply_to_shipping)
+  payment_processing_pct: number;
+  payment_processing_flat: number;
+  offsite_ads_enabled: boolean;
+  offsite_ads_pct: number;
+  currency_conversion_pct: number;
+  vat_on_fees_pct: number;          // VAT on Etsy fees (UK=20, AU=10, others=0)
+  fees_apply_to_shipping: boolean;  // Etsy = true
+}
+
+export interface FeeBreakdown {
+  grossPrice: number;
+  shippingCost: number;
+  listingFee: number;
+  transactionFee: number;
+  paymentProcessingFee: number;
+  offsiteAdsFee: number;
+  currencyConversionFee: number;
+  subtotalPlatformFees: number;
+  vatOnFees: number;
+  totalPlatformFees: number;
+  netRevenue: number;
+  productCost: number;
+  netProfitPreTax: number;
+  incomeTaxPct: number;
+  taxAmount: number;
+  takeHomeProfit: number;
+  netMarginPreTax: number;    // netProfitPreTax / grossPrice × 100
+  takeHomeMargin: number;     // takeHomeProfit / grossPrice × 100
+}
+
+function r2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+function computeFees(
+  price: number,
+  shippingCost: number,
+  productCost: number,
+  fees: PlatformFeeConfig,
+  incomeTaxPct: number,
+): FeeBreakdown {
+  const feeBase = price + (fees.fees_apply_to_shipping ? shippingCost : 0);
+
+  const listingFee = fees.listing_fee_usd;
+  const transactionFee = feeBase * (fees.transaction_fee_pct / 100);
+  const paymentProcessingFee = feeBase * (fees.payment_processing_pct / 100) + fees.payment_processing_flat;
+  const offsiteAdsFee = fees.offsite_ads_enabled ? feeBase * (fees.offsite_ads_pct / 100) : 0;
+  const currencyConversionFee = feeBase * (fees.currency_conversion_pct / 100);
+
+  const subtotalPlatformFees = listingFee + transactionFee + paymentProcessingFee + offsiteAdsFee + currencyConversionFee;
+  const vatOnFees = subtotalPlatformFees * (fees.vat_on_fees_pct / 100);
+  const totalPlatformFees = subtotalPlatformFees + vatOnFees;
+
+  const netRevenue = price - totalPlatformFees;
+  const netProfitPreTax = netRevenue - productCost;
+  const taxAmount = Math.max(0, netProfitPreTax) * (incomeTaxPct / 100);
+  const takeHomeProfit = netProfitPreTax - taxAmount;
+
+  return {
+    grossPrice: r2(price),
+    shippingCost: r2(shippingCost),
+    listingFee: r2(listingFee),
+    transactionFee: r2(transactionFee),
+    paymentProcessingFee: r2(paymentProcessingFee),
+    offsiteAdsFee: r2(offsiteAdsFee),
+    currencyConversionFee: r2(currencyConversionFee),
+    subtotalPlatformFees: r2(subtotalPlatformFees),
+    vatOnFees: r2(vatOnFees),
+    totalPlatformFees: r2(totalPlatformFees),
+    netRevenue: r2(netRevenue),
+    productCost: r2(productCost),
+    netProfitPreTax: r2(netProfitPreTax),
+    incomeTaxPct,
+    taxAmount: r2(taxAmount),
+    takeHomeProfit: r2(takeHomeProfit),
+    netMarginPreTax: price > 0 ? r2((netProfitPreTax / price) * 100) : 0,
+    takeHomeMargin: price > 0 ? r2((takeHomeProfit / price) * 100) : 0,
+  };
+}
+
+/**
+ * Forward: given a price, what is the net profit after platform fees and income tax?
+ */
+export function calculateNetProfitWithFees(
+  price: number,
+  productCost: number,
+  shippingCost: number,
+  fees: PlatformFeeConfig,
+  incomeTaxPct: number,
+): FeeBreakdown {
+  return computeFees(price, shippingCost, productCost, fees, incomeTaxPct);
+}
+
+/**
+ * Reverse: what price must I charge to net a target profit (pre-tax) after platform fees?
+ *
+ * Solves: targetNetProfit = price - totalFees(price) - productCost
+ * where totalFees(price) = flatFee + price * variablePct (linear in price)
+ *
+ * Closed-form solution:
+ *   price = (targetNetProfit + productCost + flatFee) / (1 - variablePct)
+ */
+export function calculatePriceForTargetNetProfit(
+  targetNetProfitPreTax: number,
+  productCost: number,
+  shippingCost: number,
+  fees: PlatformFeeConfig,
+  incomeTaxPct: number,
+): FeeBreakdown {
+  // Variable fee rate (as fraction of price)
+  const vatMult = 1 + fees.vat_on_fees_pct / 100;
+  const shippingBase = fees.fees_apply_to_shipping ? shippingCost : 0;
+
+  // Fees as % of price (transaction + payment_processing + offsite + currency)
+  const variablePctOfPrice =
+    (fees.transaction_fee_pct / 100 +
+      fees.payment_processing_pct / 100 +
+      (fees.offsite_ads_enabled ? fees.offsite_ads_pct / 100 : 0) +
+      fees.currency_conversion_pct / 100) *
+    vatMult;
+
+  // Flat fees (per sale + per $1 of shipping)
+  const flatFees =
+    (fees.listing_fee_usd +
+      fees.payment_processing_flat +
+      shippingBase *
+        (fees.transaction_fee_pct / 100 +
+          fees.payment_processing_pct / 100 +
+          (fees.offsite_ads_enabled ? fees.offsite_ads_pct / 100 : 0) +
+          fees.currency_conversion_pct / 100)) *
+    vatMult;
+
+  const denominator = 1 - variablePctOfPrice;
+  if (denominator <= 0) {
+    // Fees exceed 100% — impossible to reach target, return 0 price
+    return computeFees(0, shippingCost, productCost, fees, incomeTaxPct);
+  }
+
+  const price = (targetNetProfitPreTax + productCost + flatFees) / denominator;
+  return computeFees(Math.max(0, r2(price)), shippingCost, productCost, fees, incomeTaxPct);
+}
+
+/**
+ * Reverse: what price must I charge to achieve a target net margin (pre-tax) after platform fees?
+ *
+ * Solves: targetMargin = (price - totalFees(price) - productCost) / price
+ *   → price * targetMargin = price - totalFees(price) - productCost
+ *   → price * (1 - variablePct - targetMargin) = productCost + flatFee
+ *   → price = (productCost + flatFee) / (1 - variablePct - targetMargin)
+ */
+export function calculatePriceForTargetNetMargin(
+  targetMarginPct: number,
+  productCost: number,
+  shippingCost: number,
+  fees: PlatformFeeConfig,
+  incomeTaxPct: number,
+): FeeBreakdown {
+  const vatMult = 1 + fees.vat_on_fees_pct / 100;
+  const shippingBase = fees.fees_apply_to_shipping ? shippingCost : 0;
+  const targetMarginFrac = Math.min(0.9999, Math.max(0, targetMarginPct / 100));
+
+  const variablePctOfPrice =
+    (fees.transaction_fee_pct / 100 +
+      fees.payment_processing_pct / 100 +
+      (fees.offsite_ads_enabled ? fees.offsite_ads_pct / 100 : 0) +
+      fees.currency_conversion_pct / 100) *
+    vatMult;
+
+  const flatFees =
+    (fees.listing_fee_usd +
+      fees.payment_processing_flat +
+      shippingBase *
+        (fees.transaction_fee_pct / 100 +
+          fees.payment_processing_pct / 100 +
+          (fees.offsite_ads_enabled ? fees.offsite_ads_pct / 100 : 0) +
+          fees.currency_conversion_pct / 100)) *
+    vatMult;
+
+  const denominator = 1 - variablePctOfPrice - targetMarginFrac;
+  if (denominator <= 0) {
+    return computeFees(0, shippingCost, productCost, fees, incomeTaxPct);
+  }
+
+  const price = (productCost + flatFees) / denominator;
+  return computeFees(Math.max(0, r2(price)), shippingCost, productCost, fees, incomeTaxPct);
+}
+

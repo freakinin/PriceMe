@@ -30,12 +30,15 @@ import { useProducts, type Product } from '@/hooks/useProducts';
 import { useSales } from '@/hooks/useSales';
 import { SaleDialog } from '@/components/sales/SaleDialog';
 import { OnSaleCardView } from '@/components/sales/OnSaleCardView';
+import { usePlatformFees } from '@/hooks/usePlatformFees';
+import { calculateNetProfitWithFees, type PlatformFeeConfig } from '@/utils/profitCalculations';
 
 export default function OnSale() {
   const { settings } = useSettings();
   const { toast } = useToast();
   const { products: allProducts, isLoading: loadingProducts, updateProduct } = useProducts();
   const { sales, isLoading: loadingSales, fetchSales, addSale } = useSales();
+  const { profiles: platformProfiles } = usePlatformFees();
 
   // Filter only products with status 'on_sale'
   const products = useMemo(() => {
@@ -635,6 +638,42 @@ export default function OnSale() {
     };
   }, [products, salesByProduct, useFullInvestment]);
 
+  // Compute estimated platform fees across all sales (when profiles are configured)
+  const feeAwareAnalytics = useMemo(() => {
+    if (platformProfiles.length === 0 || sales.length === 0) return null;
+
+    let totalEstFees = 0;
+
+    sales.forEach(sale => {
+      const product = allProducts.find(p => p.id === sale.product_id);
+      if (!product) return;
+
+      // Resolve fee profile: product-level → settings default → first default profile → first profile
+      const profileId = product.platform_fee_profile_id ?? settings.default_platform_profile_id;
+      const profile = profileId
+        ? platformProfiles.find(p => p.id === Number(profileId))
+        : (platformProfiles.find(p => p.is_default) ?? platformProfiles[0]);
+
+      if (!profile) return;
+
+      const breakdown = calculateNetProfitWithFees(
+        sale.unit_price,
+        product.product_cost || 0,
+        product.shipping_cost || 0,
+        profile as unknown as PlatformFeeConfig,
+        settings.tax_percentage || 0
+      );
+
+      totalEstFees += breakdown.totalPlatformFees * (sale.quantity || 1);
+    });
+
+    return {
+      totalEstFees,
+      estNetRevenue: analytics.totalRevenue - totalEstFees,
+      estNetProfit: analytics.totalProfit - totalEstFees,
+    };
+  }, [sales, allProducts, platformProfiles, settings, analytics.totalRevenue, analytics.totalProfit]);
+
   if (loadingProducts || loadingSales) {
     return (
       <div className="p-6">
@@ -673,8 +712,15 @@ export default function OnSale() {
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">Total Revenue</p>
+                    <p className="text-sm font-medium text-muted-foreground">
+                      {feeAwareAnalytics ? 'Gross Revenue' : 'Total Revenue'}
+                    </p>
                     <p className="text-2xl font-bold mt-1">{formatCurrencyValue(analytics.totalRevenue)}</p>
+                    {feeAwareAnalytics && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Est. net: {formatCurrencyValue(feeAwareAnalytics.estNetRevenue)} after fees
+                      </p>
+                    )}
                   </div>
                   <div className="h-12 w-12 rounded-full bg-green-100 dark:bg-green-900/20 flex items-center justify-center">
                     <DollarSign className="h-6 w-6 text-green-600 dark:text-green-400" />
@@ -691,6 +737,11 @@ export default function OnSale() {
                     <p className={`text-2xl font-bold mt-1 ${analytics.totalProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                       {formatCurrencyValue(analytics.totalProfit)}
                     </p>
+                    {feeAwareAnalytics && (
+                      <p className={`text-xs mt-1 ${feeAwareAnalytics.estNetProfit >= 0 ? 'text-muted-foreground' : 'text-red-500'}`}>
+                        Est. {formatCurrencyValue(feeAwareAnalytics.estNetProfit)} after fees
+                      </p>
+                    )}
                   </div>
                   <div className={`h-12 w-12 rounded-full flex items-center justify-center ${analytics.totalProfit >= 0
                     ? 'bg-blue-100 dark:bg-blue-900/20'

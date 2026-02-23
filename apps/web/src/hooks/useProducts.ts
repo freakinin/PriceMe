@@ -20,9 +20,6 @@ export interface Product {
     created_at: string;
     updated_at: string;
     variants?: any[];
-    // Include full details for update purposes (materials, labor, etc) is better handled by detailed fetch or optional include, 
-    // but the current Products page seems to update mostly top-level fields OR everything via EditProductPane.
-    // The inline editing in Products table touches: name, sku, status, pricing fields.
     materials?: any[];
     labor_costs?: any[];
     other_costs?: any[];
@@ -30,6 +27,10 @@ export interface Product {
     category_id: number | null;
     category?: string;
     competitor_count?: number;
+    // Platform & shipping (Phase: fees feature)
+    platform_fee_profile_id?: number | null;
+    shipping_cost?: number | null;
+    shipping_included_in_price?: boolean;
 }
 
 export function useProducts() {
