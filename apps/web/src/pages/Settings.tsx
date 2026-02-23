@@ -377,13 +377,6 @@ export default function Settings() {
     }
   };
 
-  const feeFieldProps = (
-    label: string,
-    key: keyof PlatformFeeProfileInput,
-    tooltip?: string,
-    suffix?: string,
-  ) => ({ label, key, tooltip, suffix });
-
   if (settingsLoading) {
     return (
       <div className="p-6 max-w-5xl mx-auto space-y-6">

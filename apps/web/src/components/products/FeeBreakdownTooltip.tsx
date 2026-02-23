@@ -32,7 +32,6 @@ export function FeeBreakdownTooltip({ breakdown, currency = '$', children }: Fee
     offsiteAdsFee,
     currencyConversionFee,
     vatOnFees,
-    totalPlatformFees,
     netRevenue,
     productCost,
     shippingCost,
