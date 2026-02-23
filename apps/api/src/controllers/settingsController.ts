@@ -3,34 +3,21 @@ import { db } from '../utils/db.js';
 import { z } from 'zod';
 import { AuthRequest } from '../middleware/auth.js';
 
+const numericPreprocess = (val: unknown) => {
+  if (val === null || val === undefined || val === '') return undefined;
+  const num = typeof val === 'string' ? parseFloat(val) : (typeof val === 'number' ? val : NaN);
+  return isNaN(num) ? undefined : num;
+};
+
 const updateSettingsSchema = z.object({
   currency: z.string().length(3).optional(),
-  tax_percentage: z.preprocess(
-    (val) => {
-      if (val === null || val === undefined || val === '') return undefined;
-      const num = typeof val === 'string' ? parseFloat(val) : (typeof val === 'number' ? val : NaN);
-      return isNaN(num) ? undefined : num;
-    },
-    z.number().min(0).max(100).optional()
-  ),
-  revenue_goal: z.preprocess(
-    (val) => {
-      if (val === null || val === undefined || val === '') return undefined;
-      const num = typeof val === 'string' ? parseFloat(val) : (typeof val === 'number' ? val : NaN);
-      return isNaN(num) ? undefined : num;
-    },
-    z.number().min(0).optional().nullable()
-  ),
-  labor_hourly_cost: z.preprocess(
-    (val) => {
-      if (val === null || val === undefined || val === '') return undefined;
-      const num = typeof val === 'string' ? parseFloat(val) : (typeof val === 'number' ? val : NaN);
-      return isNaN(num) ? undefined : num;
-    },
-    z.number().min(0).optional().nullable()
-  ),
+  tax_percentage: z.preprocess(numericPreprocess, z.number().min(0).max(100).optional()),
+  revenue_goal: z.preprocess(numericPreprocess, z.number().min(0).optional().nullable()),
+  labor_hourly_cost: z.preprocess(numericPreprocess, z.number().min(0).optional().nullable()),
   unit_system: z.enum(['imperial', 'metric']).optional(),
   units: z.array(z.string()).min(1).optional(),
+  seller_country: z.string().length(2).optional(),
+  default_platform_profile_id: z.preprocess(numericPreprocess, z.number().int().positive().optional().nullable()),
 });
 
 export const getSettings = async (req: AuthRequest, res: Response) => {
@@ -44,7 +31,8 @@ export const getSettings = async (req: AuthRequest, res: Response) => {
 
     try {
       const settingsResult = await db`
-        SELECT currency, tax_percentage, revenue_goal, labor_hourly_cost, unit_system, units
+        SELECT currency, tax_percentage, revenue_goal, labor_hourly_cost, unit_system, units,
+               seller_country, default_platform_profile_id
         FROM user_settings
         WHERE user_id = ${req.userId}
       `;
@@ -67,6 +55,8 @@ export const getSettings = async (req: AuthRequest, res: Response) => {
             labor_hourly_cost: null,
             unit_system: 'metric',
             units: defaultMetricUnits,
+            seller_country: 'US',
+            default_platform_profile_id: null,
           },
         });
       }
@@ -83,6 +73,8 @@ export const getSettings = async (req: AuthRequest, res: Response) => {
           units: settings.units && Array.isArray(settings.units) && settings.units.length > 0
             ? settings.units
             : (settings.unit_system === 'imperial' ? defaultImperialUnits : defaultMetricUnits),
+          seller_country: settings.seller_country || 'US',
+          default_platform_profile_id: settings.default_platform_profile_id ? Number(settings.default_platform_profile_id) : null,
         },
       });
     } catch (dbError: any) {
@@ -97,6 +89,8 @@ export const getSettings = async (req: AuthRequest, res: Response) => {
           labor_hourly_cost: null,
           unit_system: 'metric',
           units: ['ml', 'L', 'g', 'kg', 'mm', 'cm', 'm', 'm²', 'pcs'],
+          seller_country: 'US',
+          default_platform_profile_id: null,
         },
       });
     }
@@ -113,6 +107,8 @@ export const getSettings = async (req: AuthRequest, res: Response) => {
         labor_hourly_cost: null,
         unit_system: 'metric',
         units: ['ml', 'L', 'g', 'kg', 'mm', 'cm', 'm', 'm²', 'pcs'],
+        seller_country: 'US',
+        default_platform_profile_id: null,
       },
     });
   }
@@ -132,7 +128,7 @@ export const updateSettings = async (req: AuthRequest, res: Response) => {
     // Validate input
     const validatedData = updateSettingsSchema.parse(req.body);
     console.log('Validated data:', validatedData);
-    const { currency, tax_percentage, revenue_goal, labor_hourly_cost, unit_system, units } = validatedData;
+    const { currency, tax_percentage, revenue_goal, labor_hourly_cost, unit_system, units, seller_country, default_platform_profile_id } = validatedData;
 
     // Check if settings exist
     const existingSettings = await db`
@@ -147,7 +143,8 @@ export const updateSettings = async (req: AuthRequest, res: Response) => {
     if (settingsExists) {
       // Update existing settings - fetch current values first, then update
       const currentSettings = await db`
-        SELECT currency, tax_percentage, revenue_goal, labor_hourly_cost, unit_system, units
+        SELECT currency, tax_percentage, revenue_goal, labor_hourly_cost, unit_system, units,
+               seller_country, default_platform_profile_id
         FROM user_settings
         WHERE user_id = ${req.userId}
       `;
@@ -160,16 +157,20 @@ export const updateSettings = async (req: AuthRequest, res: Response) => {
       const finalLaborHourlyCost = labor_hourly_cost !== undefined ? labor_hourly_cost : current.labor_hourly_cost;
       const finalUnitSystem = unit_system !== undefined ? unit_system : (current.unit_system || 'metric');
       const finalUnits = units !== undefined ? units : (current.units || []);
+      const finalSellerCountry = seller_country !== undefined ? seller_country : (current.seller_country || 'US');
+      const finalDefaultPlatformProfileId = default_platform_profile_id !== undefined ? default_platform_profile_id : current.default_platform_profile_id;
 
       await db`
         UPDATE user_settings
-        SET 
+        SET
           currency = ${finalCurrency},
           tax_percentage = ${finalTaxPercentage},
           revenue_goal = ${finalRevenueGoal},
           labor_hourly_cost = ${finalLaborHourlyCost},
           unit_system = ${finalUnitSystem},
           units = ${(finalUnits as any)},
+          seller_country = ${finalSellerCountry},
+          default_platform_profile_id = ${finalDefaultPlatformProfileId},
           updated_at = CURRENT_TIMESTAMP
         WHERE user_id = ${req.userId}
       `;
@@ -181,7 +182,7 @@ export const updateSettings = async (req: AuthRequest, res: Response) => {
 
       // Create new settings
       await db`
-        INSERT INTO user_settings (user_id, currency, tax_percentage, revenue_goal, labor_hourly_cost, unit_system, units)
+        INSERT INTO user_settings (user_id, currency, tax_percentage, revenue_goal, labor_hourly_cost, unit_system, units, seller_country)
         VALUES (
           ${req.userId},
           ${currency || 'USD'},
@@ -189,14 +190,16 @@ export const updateSettings = async (req: AuthRequest, res: Response) => {
           ${revenue_goal !== undefined ? revenue_goal : null},
           ${labor_hourly_cost !== undefined ? labor_hourly_cost : null},
           ${unit_system || 'metric'},
-          ${(units || defaultUnits) as any}
+          ${(units || defaultUnits) as any},
+          ${seller_country || 'US'}
         )
       `;
     }
 
     // Fetch updated settings
     const updatedSettings = await db`
-      SELECT currency, tax_percentage, revenue_goal, labor_hourly_cost, unit_system, units
+      SELECT currency, tax_percentage, revenue_goal, labor_hourly_cost, unit_system, units,
+             seller_country, default_platform_profile_id
       FROM user_settings
       WHERE user_id = ${req.userId}
     `;
@@ -214,6 +217,8 @@ export const updateSettings = async (req: AuthRequest, res: Response) => {
         labor_hourly_cost: settings.labor_hourly_cost ? Number(settings.labor_hourly_cost) : null,
         unit_system: settings.unit_system || 'metric',
         units: settings.units && Array.isArray(settings.units) ? settings.units : [],
+        seller_country: settings.seller_country || 'US',
+        default_platform_profile_id: settings.default_platform_profile_id ? Number(settings.default_platform_profile_id) : null,
       },
     });
   } catch (error: any) {

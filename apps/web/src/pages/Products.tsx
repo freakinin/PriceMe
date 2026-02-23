@@ -1,8 +1,17 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Package } from 'lucide-react';
+import { Plus, Package, ShoppingBag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { BulkActionToolbar } from '@/components/BulkActionToolbar';
 import { useProductsPageState } from '@/hooks/useProductsPageState';
 import { ProductsToolbar } from '@/components/products/ProductsToolbar';
@@ -75,6 +84,50 @@ export default function Products() {
         clearAllFilters={state.clearAllFilters}
       />
 
+      {/* Fee-Aware Mode Banner */}
+      {state.platformProfiles.length > 0 && (
+        <div className={`flex flex-wrap items-center gap-4 px-3 py-2 rounded-lg border mb-3 text-sm transition-colors ${state.feeAwareMode ? 'bg-primary/5 border-primary/20' : 'bg-muted/20 border-border'}`}>
+          <div className="flex items-center gap-2">
+            <Switch
+              id="fee-mode"
+              checked={state.feeAwareMode}
+              onCheckedChange={state.toggleFeeMode}
+            />
+            <Label htmlFor="fee-mode" className="cursor-pointer font-medium flex items-center gap-1.5">
+              <ShoppingBag className="h-3.5 w-3.5" />
+              Fee-Aware Pricing
+            </Label>
+          </div>
+          {state.feeAwareMode && (
+            <>
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground text-xs">Platform:</span>
+                <Select
+                  value={String(state.selectedPlatformProfileId ?? '')}
+                  onValueChange={(v) => state.setSelectedPlatformProfileId(v ? Number(v) : null)}
+                >
+                  <SelectTrigger className="h-7 text-xs w-40 border-primary/30">
+                    <SelectValue placeholder="Select platform" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {state.platformProfiles.map(p => (
+                      <SelectItem key={p.id} value={String(p.id)}>
+                        {p.name}{p.is_default ? ' (default)' : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {state.activeFeeProfile && (
+                <span className="text-xs text-muted-foreground">
+                  Profit & margin columns now show <strong>net values after all fees</strong>. Hover the info icon for the full breakdown.
+                </span>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
       {state.products.length === 0 ? (
         <div className="rounded-lg border border-dashed p-12 text-center">
           <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
@@ -110,6 +163,8 @@ export default function Products() {
           onSelectionChange={setSelectedIds}
           columnVisibility={columnVisibility}
           onColumnVisibilityChange={(id, visible) => setColumnVisibility(prev => ({ ...prev, [id]: visible }))}
+          feeAwareMode={state.feeAwareMode}
+          getFeeAwareMetrics={state.getFeeAwareMetrics}
         />
       ) : (
         <ProductsGridView
@@ -133,6 +188,8 @@ export default function Products() {
           getCalculatedMetrics={state.getCalculatedMetrics}
           clearAllFilters={state.clearAllFilters}
           onSelectionChange={setSelectedIds}
+          feeAwareMode={state.feeAwareMode}
+          getFeeAwareMetrics={state.getFeeAwareMetrics}
         />
       )}
 

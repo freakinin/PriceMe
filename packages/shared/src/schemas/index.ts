@@ -150,6 +150,47 @@ export const bulkUpdateCategorySchema = z.object({
   category_id: z.number().int().positive().nullable(),
 });
 
+// Platform Fee Profile schemas
+export const platformFeeProfileSchema = z.object({
+  name: z.string().min(1).max(100),
+  is_default: z.boolean().optional(),
+  listing_fee_usd: z.preprocess(numericPreprocess, z.number().min(0)),
+  transaction_fee_pct: z.preprocess(numericPreprocess, z.number().min(0).max(100)),
+  payment_processing_pct: z.preprocess(numericPreprocess, z.number().min(0).max(100)),
+  payment_processing_flat: z.preprocess(numericPreprocess, z.number().min(0)),
+  offsite_ads_enabled: z.boolean(),
+  offsite_ads_pct: z.preprocess(numericPreprocess, z.number().min(0).max(100)),
+  currency_conversion_pct: z.preprocess(numericPreprocess, z.number().min(0).max(100)),
+  vat_on_fees_pct: z.preprocess(numericPreprocess, z.number().min(0).max(100)),
+  fees_apply_to_shipping: z.boolean(),
+});
+
+export type PlatformFeeProfileInput = z.infer<typeof platformFeeProfileSchema>;
+
+export interface PlatformFeeProfile extends PlatformFeeProfileInput {
+  id: number;
+  user_id: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// Shipping Method schemas
+export const shippingMethodSchema = z.object({
+  name: z.string().min(1).max(100),
+  cost: z.preprocess(numericPreprocess, z.number().min(0)),
+  is_free_shipping: z.boolean(),
+  is_default: z.boolean().optional(),
+});
+
+export type ShippingMethodInput = z.infer<typeof shippingMethodSchema>;
+
+export interface ShippingMethod extends ShippingMethodInput {
+  id: number;
+  user_id: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export * from './template.js';
 export * from './sales.js';
 export * from './category.js';

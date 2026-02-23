@@ -8,6 +8,8 @@ export interface UserSettings {
   labor_hourly_cost: number | null;
   unit_system?: 'imperial' | 'metric';
   units?: string[];
+  seller_country?: string;
+  default_platform_profile_id?: number | null;
 }
 
 const defaultSettings: UserSettings = {
@@ -17,6 +19,8 @@ const defaultSettings: UserSettings = {
   labor_hourly_cost: null,
   unit_system: 'metric',
   units: ['ml', 'L', 'g', 'kg', 'mm', 'cm', 'm', 'm²', 'pcs'],
+  seller_country: 'US',
+  default_platform_profile_id: null,
 };
 
 export function useSettings() {
@@ -39,6 +43,8 @@ export function useSettings() {
             units: data.units && Array.isArray(data.units) && data.units.length > 0
               ? data.units
               : defaultSettings.units,
+            seller_country: data.seller_country || 'US',
+            default_platform_profile_id: data.default_platform_profile_id ?? null,
           } as UserSettings;
           console.log('Mapped settings:', mappedSettings);
           return mappedSettings;

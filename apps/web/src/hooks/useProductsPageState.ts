@@ -3,10 +3,14 @@ import { useProducts, type Product, type PricingMethod, type ProductStatus } fro
 import { useCategories } from './useCategories';
 import { useProductPricing } from './useProductPricing';
 import { useSettings } from './useSettings';
+import { usePlatformFees } from './usePlatformFees';
 import { useToast } from '@/components/ui/use-toast';
 import { useSidebar } from '@/components/ui/sidebar';
 import { formatCurrency } from '@/utils/currency';
 import api from '@/lib/api';
+import { calculateNetProfitWithFees, type PlatformFeeConfig, type FeeBreakdown } from '@/utils/profitCalculations';
+
+export type { FeeBreakdown };
 
 export type ActiveFilter = { column: string; operator: string; value: string };
 
@@ -73,6 +77,53 @@ export function useProductsPageState() {
   const [productPricingValues, setProductPricingValues] = useState<Record<number, number>>({});
   const [productCategoryIds, setProductCategoryIds] = useState<Record<number, number | null>>({});
   const [globalPricingMethod, setGlobalPricingMethod] = useState<PricingMethod>('price');
+
+  // --- Fee-aware mode ---
+  const { profiles } = usePlatformFees();
+  const [feeAwareMode, setFeeAwareMode] = useState(false);
+  const [selectedPlatformProfileId, setSelectedPlatformProfileId] = useState<number | null>(null);
+
+  // Resolve the active fee profile (user-selected or settings default or first available)
+  const activeFeeProfile = useMemo(() => {
+    if (!feeAwareMode || profiles.length === 0) return null;
+    if (selectedPlatformProfileId) return profiles.find(p => p.id === selectedPlatformProfileId) ?? null;
+    const settingsDefault = settings.default_platform_profile_id;
+    if (settingsDefault) return profiles.find(p => p.id === settingsDefault) ?? null;
+    return profiles.find(p => p.is_default) ?? profiles[0] ?? null;
+  }, [feeAwareMode, profiles, selectedPlatformProfileId, settings.default_platform_profile_id]);
+
+  // Auto-select the default platform profile when entering fee mode
+  const toggleFeeMode = () => {
+    if (!feeAwareMode && profiles.length > 0 && selectedPlatformProfileId === null) {
+      const defProfile = profiles.find(p => p.is_default) ?? profiles[0];
+      if (defProfile) setSelectedPlatformProfileId(defProfile.id);
+    }
+    setFeeAwareMode(v => !v);
+  };
+
+  const getFeeAwareMetrics = (product: Product): FeeBreakdown | null => {
+    if (!activeFeeProfile) return null;
+    const method = productPricingMethods[product.id] || globalPricingMethod || product.pricing_method || 'price';
+    const pricingValue = productPricingValues[product.id] ?? product.pricing_value ?? (product.target_price || 0);
+    let price = product.target_price || 0;
+    if (method && pricingValue !== null && pricingValue !== undefined) {
+      price = calculatePriceFromMethod(method, pricingValue, product.product_cost);
+    }
+    const feeConfig: PlatformFeeConfig = {
+      listing_fee_usd: activeFeeProfile.listing_fee_usd,
+      transaction_fee_pct: activeFeeProfile.transaction_fee_pct,
+      payment_processing_pct: activeFeeProfile.payment_processing_pct,
+      payment_processing_flat: activeFeeProfile.payment_processing_flat,
+      offsite_ads_enabled: activeFeeProfile.offsite_ads_enabled,
+      offsite_ads_pct: activeFeeProfile.offsite_ads_pct,
+      currency_conversion_pct: activeFeeProfile.currency_conversion_pct,
+      vat_on_fees_pct: activeFeeProfile.vat_on_fees_pct,
+      fees_apply_to_shipping: activeFeeProfile.fees_apply_to_shipping,
+    };
+    const shippingCost = product.shipping_cost ?? 0;
+    const incomeTaxPct = settings.tax_percentage ?? 0;
+    return calculateNetProfitWithFees(price, product.product_cost, shippingCost, feeConfig, incomeTaxPct);
+  };
 
   // --- Filter state ---
   const [globalFilter, setGlobalFilter] = useState('');
@@ -394,6 +445,15 @@ export function useProductsPageState() {
     formatCurrencyValue,
     formatPercentage,
     getCalculationTypeDescription,
+
+    // Fee-aware mode
+    feeAwareMode,
+    toggleFeeMode,
+    selectedPlatformProfileId,
+    setSelectedPlatformProfileId,
+    activeFeeProfile,
+    platformProfiles: profiles,
+    getFeeAwareMetrics,
   };
 }
 
