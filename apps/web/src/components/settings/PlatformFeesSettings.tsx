@@ -22,10 +22,14 @@ import {
   Save,
   Loader2,
   Info,
+  TriangleAlert,
 } from 'lucide-react';
 import { usePlatformFees, type PlatformFeeProfile } from '@/hooks/usePlatformFees';
 import { useSettings } from '@/hooks/useSettings';
 import type { PlatformFeeProfileInput } from '@priceme/shared';
+
+// Countries with Etsy-specific fee data in the API
+const SUPPORTED_ETSY_COUNTRIES = ['US', 'GB', 'CA', 'AU', 'DE', 'FR', 'IT', 'ES', 'NL'];
 
 const emptyProfile: PlatformFeeProfileInput = {
   name: '',
@@ -150,6 +154,21 @@ export function PlatformFeesSettings() {
       </div>
 
       <Separator />
+
+      {/* Warning: country not supported for Etsy defaults */}
+      {settings?.seller_country && !SUPPORTED_ETSY_COUNTRIES.includes(settings.seller_country) && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 flex items-start gap-2.5 text-amber-800 dark:border-amber-800/30 dark:bg-amber-900/10 dark:text-amber-400">
+          <TriangleAlert className="h-4 w-4 mt-0.5 shrink-0" />
+          <div className="space-y-0.5">
+            <p className="text-xs font-medium">Etsy fee rates may be inaccurate</p>
+            <p className="text-xs">
+              Your seller country (<strong>{settings.seller_country}</strong>) doesn't have
+              country-specific Etsy rates configured. Payment processing fees and VAT on fees
+              may not reflect your actual charges. Please verify and update these values manually.
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="space-y-3">
         {loading ? (

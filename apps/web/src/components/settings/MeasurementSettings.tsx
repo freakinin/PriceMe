@@ -12,11 +12,11 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/use-toast';
 import { Save, Plus, X, Loader2 } from 'lucide-react';
 import { useSettings } from '@/hooks/useSettings';
+import { cn } from '@/lib/utils';
 
 const measurementSchema = z.object({
   unit_system: z.enum(['imperial', 'metric']),
@@ -133,9 +133,9 @@ export function MeasurementSettings() {
 
   if (loading) {
     return (
-      <div className="p-6 space-y-6">
+      <div className="p-4 space-y-4">
         {Array.from({ length: 3 }).map((_, i) => (
-          <Skeleton key={i} className="h-24 w-full" />
+          <Skeleton key={i} className="h-20 w-full" />
         ))}
       </div>
     );
@@ -144,7 +144,7 @@ export function MeasurementSettings() {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col h-full">
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
           <div>
             <h2 className="text-base font-semibold mb-0.5">Measurement Units</h2>
             <p className="text-sm text-muted-foreground">
@@ -152,58 +152,63 @@ export function MeasurementSettings() {
             </p>
           </div>
 
+          {/* Compact system toggle */}
           <FormField
             control={form.control}
             name="unit_system"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>System of Measurement</FormLabel>
+                <FormLabel className="text-xs text-muted-foreground">System of Measurement</FormLabel>
                 <FormControl>
-                  <Tabs
-                    value={field.value || 'metric'}
-                    onValueChange={(v) => handleUnitSystemChange(v as 'imperial' | 'metric')}
-                    className="w-full max-w-md"
-                  >
-                    <TabsList className="grid w-full grid-cols-2">
-                      <TabsTrigger value="metric">Metric System</TabsTrigger>
-                      <TabsTrigger value="imperial">Imperial System</TabsTrigger>
-                    </TabsList>
-                  </Tabs>
+                  <div className="flex rounded-md border overflow-hidden w-fit">
+                    {(['metric', 'imperial'] as const).map((system) => (
+                      <button
+                        key={system}
+                        type="button"
+                        onClick={() => handleUnitSystemChange(system)}
+                        className={cn(
+                          'px-3 py-1 text-xs font-medium transition-colors capitalize',
+                          field.value === system
+                            ? 'bg-foreground text-background'
+                            : 'bg-background text-muted-foreground hover:bg-muted'
+                        )}
+                      >
+                        {system === 'metric' ? 'Metric' : 'Imperial'}
+                      </button>
+                    ))}
+                  </div>
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
 
-          <div className="grid md:grid-cols-2 gap-8">
+          <div className="grid md:grid-cols-2 gap-5">
             {/* Active Units */}
-            <div className="space-y-4">
+            <div className="space-y-2.5">
               <div className="flex items-center justify-between">
-                <h4 className="text-sm font-semibold">Active Units</h4>
-                <span className="text-xs text-muted-foreground">Select units to use in the app</span>
+                <h4 className="text-xs font-semibold">Active Units</h4>
+                <span className="text-xs text-muted-foreground">tap to toggle</span>
               </div>
-              <div className="space-y-4">
+              <div className="space-y-2">
                 {Object.entries(getAvailableUnits()).map(([category, units]) => (
-                  <div key={category} className="rounded-lg border p-3 bg-muted/20">
-                    <h5 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2.5">
+                  <div key={category} className="rounded-md border p-2.5 bg-muted/20">
+                    <h5 className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
                       {category}
                     </h5>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-1.5">
                       {units.map((unit) => {
                         const isSelected = selectedUnits.includes(unit);
                         return (
                           <div
                             key={unit}
                             onClick={() => toggleUnit(unit)}
-                            className={`
-                              cursor-pointer select-none inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors
-                              border h-8 px-3 shadow-sm
-                              ${
-                                isSelected
-                                  ? 'bg-primary text-primary-foreground hover:bg-primary/90 border-primary'
-                                  : 'bg-background text-secondary-foreground hover:bg-accent/50 border-input'
-                              }
-                            `}
+                            className={cn(
+                              'cursor-pointer select-none inline-flex items-center justify-center rounded text-xs font-medium transition-colors border h-6 px-2',
+                              isSelected
+                                ? 'bg-foreground text-background border-foreground'
+                                : 'bg-background text-muted-foreground hover:bg-muted border-input'
+                            )}
                           >
                             {unit}
                           </div>
@@ -216,12 +221,12 @@ export function MeasurementSettings() {
             </div>
 
             {/* Custom Units */}
-            <div className="space-y-4">
+            <div className="space-y-2.5">
               <div className="flex items-center justify-between">
-                <h4 className="text-sm font-semibold">Custom Units</h4>
+                <h4 className="text-xs font-semibold">Custom Units</h4>
                 <span className="text-xs text-muted-foreground">Add specialized units</span>
               </div>
-              <div className="bg-muted/30 p-4 rounded-lg border space-y-4">
+              <div className="bg-muted/30 p-3 rounded-md border space-y-3">
                 <div className="flex gap-2">
                   <Input
                     placeholder="e.g. carton, bundle"
@@ -233,34 +238,40 @@ export function MeasurementSettings() {
                         addCustomUnit();
                       }
                     }}
-                    className="bg-background"
+                    className="bg-background h-7 text-xs"
                   />
-                  <Button type="button" onClick={addCustomUnit} size="icon" variant="secondary">
-                    <Plus className="h-4 w-4" />
+                  <Button
+                    type="button"
+                    onClick={addCustomUnit}
+                    size="icon"
+                    variant="secondary"
+                    className="h-7 w-7 shrink-0"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
                   </Button>
                 </div>
 
-                <div className="min-h-[100px]">
+                <div className="min-h-[80px]">
                   {getCustomUnits().length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-1.5">
                       {getCustomUnits().map((unit) => (
                         <div
                           key={unit}
-                          className="group flex items-center gap-1.5 pl-3 pr-2 py-1 bg-background border rounded-full text-sm shadow-sm"
+                          className="flex items-center gap-1 pl-2 pr-1 py-0.5 bg-background border rounded-full text-xs"
                         >
                           <span>{unit}</span>
                           <button
                             type="button"
                             onClick={() => removeCustomUnit(unit)}
-                            className="h-5 w-5 rounded-full flex items-center justify-center text-muted-foreground hover:bg-destructive hover:text-destructive-foreground transition-colors"
+                            className="h-4 w-4 rounded-full flex items-center justify-center text-muted-foreground hover:bg-destructive hover:text-destructive-foreground transition-colors"
                           >
-                            <X className="h-3 w-3" />
+                            <X className="h-2.5 w-2.5" />
                           </button>
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <div className="h-full flex flex-col items-center justify-center text-muted-foreground text-sm opacity-60">
+                    <div className="h-full flex flex-col items-center justify-center text-muted-foreground text-xs opacity-50 pt-4">
                       <p>No custom units added</p>
                     </div>
                   )}
@@ -270,8 +281,8 @@ export function MeasurementSettings() {
           </div>
         </div>
 
-        <div className="flex-shrink-0 border-t p-4 flex justify-end bg-background">
-          <Button type="submit" disabled={saving}>
+        <div className="flex-shrink-0 border-t p-3 flex justify-end bg-background">
+          <Button type="submit" variant="secondary" disabled={saving}>
             {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
             {saving ? 'Saving...' : 'Save Changes'}
           </Button>
