@@ -26,15 +26,16 @@ function pct(n: number) {
 export function FeeBreakdownTooltip({ breakdown, currency = '$', children }: FeeBreakdownTooltipProps) {
   const {
     grossPrice,
+    shippingCost,
     listingFee,
     transactionFee,
+    transactionFeePct,
     paymentProcessingFee,
     offsiteAdsFee,
     currencyConversionFee,
     vatOnFees,
     netRevenue,
     productCost,
-    shippingCost,
     netProfitPreTax,
     incomeTaxPct,
     taxAmount,
@@ -56,6 +57,13 @@ export function FeeBreakdownTooltip({ breakdown, currency = '$', children }: Fee
     );
   };
 
+  const additionRow = (label: string, value: number) => (
+    <div className="flex justify-between items-center gap-4 text-muted-foreground">
+      <span>+ {label}</span>
+      <span>+{currency}{value.toFixed(2)}</span>
+    </div>
+  );
+
   const deductionRow = (label: string, value: number) => (
     <div className="flex justify-between items-center gap-4 text-muted-foreground">
       <span>─ {label}</span>
@@ -71,10 +79,10 @@ export function FeeBreakdownTooltip({ breakdown, currency = '$', children }: Fee
         </TooltipTrigger>
         <TooltipContent side="left" className="w-64 p-3 space-y-1 text-xs font-mono">
           {row('Sale Price', fmt(grossPrice, currency))}
-          {shippingCost > 0 && deductionRow('Shipping (pass-through)', 0)}
+          {shippingCost > 0 && additionRow('Shipping Collected', shippingCost)}
           <div className="border-t my-1" />
           {deductionRow('Listing Fee', listingFee)}
-          {deductionRow(`Transaction (${pct(transactionFee / Math.max(grossPrice, 1) * 100)})`, transactionFee)}
+          {deductionRow(`Transaction (${pct(transactionFeePct)})`, transactionFee)}
           {deductionRow('Payment Processing', paymentProcessingFee)}
           {offsiteAdsFee > 0 && deductionRow('Offsite Ads', offsiteAdsFee)}
           {currencyConversionFee > 0 && deductionRow('Currency Conversion', currencyConversionFee)}
@@ -82,7 +90,7 @@ export function FeeBreakdownTooltip({ breakdown, currency = '$', children }: Fee
           <div className="border-t my-1" />
           {row('Net Revenue', fmt(netRevenue, currency))}
           {deductionRow('Product Cost', productCost)}
-          {shippingCost > 0 && deductionRow('Shipping Cost', shippingCost)}
+          {shippingCost > 0 && deductionRow('Shipping Paid', shippingCost)}
           <div className="border-t my-1" />
           {row(
             `Net Profit (pre-tax, ${pct(netMarginPreTax)})`,

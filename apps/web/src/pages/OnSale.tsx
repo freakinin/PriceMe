@@ -49,6 +49,7 @@ export default function OnSale() {
   const [globalFilter, setGlobalFilter] = useState<string>('');
   // true = use total investment (Made × Cost), false = use COGS (Sold × Cost)
   const [useFullInvestment, setUseFullInvestment] = useState(true);
+  const [showAfterTax, setShowAfterTax] = useState(false);
   const [activeTab, setActiveTab] = useState<'table' | 'grid'>('table');
 
   const [activeProductForSale, setActiveProductForSale] = useState<Product | null>(null);
@@ -643,6 +644,7 @@ export default function OnSale() {
     if (platformProfiles.length === 0 || sales.length === 0) return null;
 
     let totalEstFees = 0;
+    let totalEstTax = 0;
 
     sales.forEach(sale => {
       const product = allProducts.find(p => p.id === sale.product_id);
@@ -664,15 +666,23 @@ export default function OnSale() {
         settings.tax_percentage || 0
       );
 
-      totalEstFees += breakdown.totalPlatformFees * (sale.quantity || 1);
+      const qty = sale.quantity || 1;
+      totalEstFees += breakdown.totalPlatformFees * qty;
+      totalEstTax += breakdown.taxAmount * qty;
     });
 
     return {
       totalEstFees,
+      totalEstTax,
       estNetRevenue: analytics.totalRevenue - totalEstFees,
       estNetProfit: analytics.totalProfit - totalEstFees,
     };
   }, [sales, allProducts, platformProfiles, settings, analytics.totalRevenue, analytics.totalProfit]);
+
+  const taxRate = settings.tax_percentage || 0;
+  // Tax only applies to positive profit — losses generate no tax liability
+  const afterTaxProfit = analytics.totalProfit - Math.max(0, analytics.totalProfit) * (taxRate / 100);
+  const afterTaxMargin = analytics.totalRevenue > 0 ? (afterTaxProfit / analytics.totalRevenue) * 100 : 0;
 
   if (loadingProducts || loadingSales) {
     return (
@@ -733,15 +743,21 @@ export default function OnSale() {
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">Total Profit</p>
-                    <p className={`text-2xl font-bold mt-1 ${analytics.totalProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {formatCurrencyValue(analytics.totalProfit)}
+                    <p className="text-sm font-medium text-muted-foreground">
+                      {showAfterTax ? 'After-Tax Profit' : 'Total Profit'}
                     </p>
-                    {feeAwareAnalytics && (
-                      <p className={`text-xs mt-1 ${feeAwareAnalytics.estNetProfit >= 0 ? 'text-muted-foreground' : 'text-red-500'}`}>
-                        Est. {formatCurrencyValue(feeAwareAnalytics.estNetProfit)} after fees
-                      </p>
-                    )}
+                    <p className={`text-2xl font-bold mt-1 ${(showAfterTax ? afterTaxProfit : analytics.totalProfit) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {formatCurrencyValue(showAfterTax ? afterTaxProfit : analytics.totalProfit)}
+                    </p>
+                    {feeAwareAnalytics && (() => {
+                      const estAfterFeesAndTax = feeAwareAnalytics.estNetProfit - feeAwareAnalytics.totalEstTax;
+                      const displayEst = showAfterTax ? estAfterFeesAndTax : feeAwareAnalytics.estNetProfit;
+                      return (
+                        <p className={`text-xs mt-1 ${displayEst >= 0 ? 'text-muted-foreground' : 'text-red-500'}`}>
+                          Est. {formatCurrencyValue(displayEst)} after fees{showAfterTax ? ' + tax' : ''}
+                        </p>
+                      );
+                    })()}
                   </div>
                   <div className={`h-12 w-12 rounded-full flex items-center justify-center ${analytics.totalProfit >= 0
                     ? 'bg-blue-100 dark:bg-blue-900/20'
@@ -763,7 +779,7 @@ export default function OnSale() {
                     <p className="text-sm font-medium text-muted-foreground">Products Sold</p>
                     <p className="text-2xl font-bold mt-1">{analytics.totalSold}</p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Avg Margin: {formatPercentage(analytics.averageMargin)}
+                      Avg Margin: {formatPercentage(showAfterTax ? afterTaxMargin : analytics.averageMargin)}
                     </p>
                   </div>
                   <div className="h-12 w-12 rounded-full bg-purple-100 dark:bg-purple-900/20 flex items-center justify-center">
@@ -855,6 +871,38 @@ export default function OnSale() {
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
+
+              {/* After-Tax Toggle — only shown when a tax rate is configured */}
+              {taxRate > 0 && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowAfterTax(v => !v)}
+                        className="flex items-center gap-2 h-9"
+                      >
+                        {showAfterTax ? (
+                          <ToggleRight className="h-4 w-4 text-primary" />
+                        ) : (
+                          <ToggleLeft className="h-4 w-4 text-muted-foreground" />
+                        )}
+                        <span className="text-sm">
+                          {showAfterTax ? 'After Tax' : 'Pre-Tax'}
+                        </span>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" className="max-w-[250px]">
+                      <p className="text-sm">
+                        {showAfterTax
+                          ? `Showing profit after ${taxRate}% income tax deduction`
+                          : `Toggle to show profit after ${taxRate}% income tax`}
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
             </div>
           </div>
         </>

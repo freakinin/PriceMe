@@ -9,10 +9,13 @@ import {
   ArrowRight,
   Clock,
   CheckCircle2,
-  FileText
+  FileText,
+  ToggleLeft,
+  ToggleRight,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useAuth } from '@/hooks/useAuth';
 import { Navigate } from 'react-router-dom';
 import api from '@/lib/api';
@@ -49,6 +52,7 @@ export default function Home() {
   const navigate = useNavigate();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showAfterTax, setShowAfterTax] = useState(false);
   const { categories } = useCategories();
 
   useEffect(() => {
@@ -135,6 +139,10 @@ export default function Home() {
     return `${value.toFixed(1)}%`;
   };
 
+  const taxRate = settings.tax_percentage || 0;
+  // Tax only applies to positive profit — losses generate no tax liability
+  const afterTaxPotentialProfit = analytics.totalPotentialProfit - Math.max(0, analytics.totalPotentialProfit) * (taxRate / 100);
+
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
@@ -169,8 +177,38 @@ export default function Home() {
             Here's what's happening with your business today.
           </p>
         </div>
-        <div className="bg-muted/50 px-4 py-2 rounded-full text-sm font-medium text-muted-foreground">
-          {currentDate}
+        <div className="flex items-center gap-3">
+          {taxRate > 0 && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowAfterTax(v => !v)}
+                    className="flex items-center gap-2 h-9"
+                  >
+                    {showAfterTax ? (
+                      <ToggleRight className="h-4 w-4 text-primary" />
+                    ) : (
+                      <ToggleLeft className="h-4 w-4 text-muted-foreground" />
+                    )}
+                    <span className="text-sm">{showAfterTax ? 'After Tax' : 'Pre-Tax'}</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-[250px]">
+                  <p className="text-sm">
+                    {showAfterTax
+                      ? `Showing potential profit after ${taxRate}% income tax`
+                      : `Toggle to see potential profit after ${taxRate}% income tax`}
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+          <div className="bg-muted/50 px-4 py-2 rounded-full text-sm font-medium text-muted-foreground">
+            {currentDate}
+          </div>
         </div>
       </div>
 
@@ -191,11 +229,11 @@ export default function Home() {
           variant="success"
         />
         <StatsCard
-          title="Potental Profit"
-          value={formatCurrencyValue(analytics.totalPotentialProfit)}
+          title={showAfterTax ? 'After-Tax Profit' : 'Potential Profit'}
+          value={formatCurrencyValue(showAfterTax ? afterTaxPotentialProfit : analytics.totalPotentialProfit)}
           description={`Avg Margin: ${formatPercentage(analytics.averageMargin)}`}
           icon={TrendingUp}
-          variant={analytics.totalPotentialProfit >= 0 ? "purple" : "danger"}
+          variant={(showAfterTax ? afterTaxPotentialProfit : analytics.totalPotentialProfit) >= 0 ? "purple" : "danger"}
         />
         <StatsCard
           title="Total Cost"
