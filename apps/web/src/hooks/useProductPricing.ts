@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import type { PricingMethod } from '@/hooks/useProducts';
+import { calculateProfitFromPrice as _calculateProfitFromPrice } from '@/utils/profitCalculations';
 
 export function useProductPricing() {
 
@@ -19,11 +20,9 @@ export function useProductPricing() {
         }
     }, []);
 
+    // Delegates to the shared utility so edge-case guards (price <= 0, cost < 0) are consistent.
     const calculateProfitFromPrice = useCallback((price: number, cost: number) => {
-        const profit = price - cost;
-        const margin = price > 0 ? (profit / price) * 100 : 0;
-        const markup = cost > 0 ? (profit / cost) * 100 : 0;
-
+        const { profit, margin, markup } = _calculateProfitFromPrice(price, cost);
         return { profit, margin, markup };
     }, []);
 

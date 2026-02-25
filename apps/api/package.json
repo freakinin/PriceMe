@@ -9,7 +9,9 @@
     "start": "node dist/server.js",
     "lint": "eslint .",
     "type-check": "tsc --noEmit",
-    "reset-password": "node scripts/reset-user-password.js"
+    "reset-password": "node scripts/reset-user-password.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
@@ -33,6 +35,7 @@
     "@typescript-eslint/parser": "^6.19.1",
     "eslint": "^8.56.0",
     "tsx": "^4.7.1",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "vitest": "^3.2.4"
   }
 }

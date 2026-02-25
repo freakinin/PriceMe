@@ -240,13 +240,14 @@ export const calculateProductMetrics = async (product: any) => {
   // Calculate total cost per product
   const productCost = totalMaterialsCost + totalLaborCostPerProduct + totalOtherCostsPerProduct;
 
-  // Calculate profit and profit margin
+  // Calculate profit and profit margin.
+  // Note: profit is valid even when productCost === 0 (e.g. digital goods, found objects).
   const targetPrice = product.target_price ? Number(product.target_price) : null;
-  const profit = targetPrice && productCost > 0 ? targetPrice - productCost : null;
-  const profitMargin = targetPrice && productCost > 0 && targetPrice > 0
+  const profit = targetPrice !== null ? targetPrice - productCost : null;
+  const profitMargin = targetPrice !== null && targetPrice > 0
     ? ((targetPrice - productCost) / targetPrice) * 100
     : null;
-  const costsPercentage = targetPrice && productCost > 0 && targetPrice > 0
+  const costsPercentage = targetPrice !== null && targetPrice > 0
     ? (productCost / targetPrice) * 100
     : null;
 

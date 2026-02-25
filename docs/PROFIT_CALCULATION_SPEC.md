@@ -1,432 +1,366 @@
 # Profit Calculation Methods Specification
 
+**Last Updated**: 2026-02-24
+**Status**: Current — all Phase 1 & 2 calculations implemented.
+
+---
+
 ## Overview
 
-This document specifies the different methods for calculating and viewing profit predictions in the PriceMe application. The system supports multiple calculation approaches to help users determine optimal pricing strategies based on different business goals.
+PriceMe supports two modes of profit calculation:
 
-## Current Implementation
+1. **Simple mode** — price, margin, markup, and profit calculated directly from product cost with no platform overhead.
+2. **Fee-aware mode** — same calculations, but accounting for platform fees (Etsy, etc.), shipping, VAT on fees, and income tax.
 
-### Forward Calculation (Price → Profit)
-- **Status**: ✅ Currently Implemented
-- **Input**: Target Price + Product Cost
-- **Output**: Profit & Profit Margin
-- **Formula**: 
-  - `Profit = Target Price - Product Cost`
-  - `Profit Margin = (Profit / Target Price) × 100%`
-- **Use Case**: Testing different prices to see resulting profit
-- **Question Answered**: "If I sell at $X, what's my profit?"
+All utility functions live in `apps/web/src/utils/profitCalculations.ts`.
+Product cost aggregation lives in `apps/api/src/controllers/productController.ts` (`calculateProductMetrics`).
+Frontend hooks wire these together in `apps/web/src/hooks/useProductsPageState.ts`.
 
 ---
 
-## Alternative Calculation Methods
+## Part 1 — Simple Calculations (No Fees)
 
-### 1. Margin-Based Pricing (Reverse Calculation)
+### 1.1 Forward: Price → Profit
 
-**Status**: 🚧 To Be Implemented
+**Status**: ✅ Implemented
+**Function**: `calculateProfitFromPrice(price, cost)` → `ProfitMetrics`
 
-**Description**: Calculate the required selling price based on a desired profit margin percentage.
-
-**Input**: 
-- Desired Profit Margin % (0-100)
-- Product Cost
-
-**Output**: 
-- Required Selling Price
-- Calculated Profit Amount
-- Calculated Markup %
-
-**Formulas**: 
 ```
-Selling Price = Product Cost / (1 - Desired Margin %)
-Profit = Selling Price - Product Cost
-Markup % = (Profit / Product Cost) × 100%
+profit = price - cost
+margin = (profit / price) × 100     [if price > 0, else 0]
+markup = (profit / cost) × 100      [if cost > 0, else 0]
 ```
 
-**Example**: 
-- Product Cost = $10.00
-- Desired Margin = 30%
-- Calculation: `Price = $10 / (1 - 0.30) = $10 / 0.70 = $14.29`
-- Result: Profit = $4.29, Margin = 30%, Markup = 42.9%
+Edge cases:
+- Returns `{ profit: 0, margin: 0, markup: 0 }` when `price <= 0` or `cost < 0`.
+- Handles negative profit correctly (selling below cost).
+- All results rounded to 2 decimal places.
 
-**Use Case**: When you have an industry-standard margin goal or want to maintain consistent margins across products.
-
-**Question Answered**: "I want 30% margin, what price should I charge?"
-
-**UI Behavior**:
-- User inputs desired margin percentage
-- System calculates and displays required price
-- Shows all related metrics (profit, markup) for comparison
-- Real-time updates as margin changes
+**Example**: Price $20, Cost $8 → Profit $12, Margin 60%, Markup 150%
 
 ---
 
-### 2. Markup-Based Pricing
+### 1.2 Reverse: Margin % → Price
 
-**Status**: 🚧 To Be Implemented
+**Status**: ✅ Implemented
+**Function**: `calculatePriceFromMargin(marginPercent, cost)` → `ProfitMetrics`
 
-**Description**: Calculate the required selling price based on a markup percentage applied to cost.
-
-**Input**: 
-- Markup % (applied to cost)
-- Product Cost
-
-**Output**: 
-- Required Selling Price
-- Calculated Profit Amount
-- Calculated Profit Margin %
-
-**Formulas**: 
 ```
-Selling Price = Product Cost × (1 + Markup %)
-Profit = Selling Price - Product Cost
-Profit Margin % = (Profit / Selling Price) × 100%
+price = cost / (1 - margin% / 100)
+profit = price - cost
+markup = (profit / cost) × 100      [if cost > 0]
 ```
 
-**Example**: 
-- Product Cost = $10.00
-- Markup = 50%
-- Calculation: `Price = $10 × 1.50 = $15.00`
-- Result: Profit = $5.00, Margin = 33.3%, Markup = 50%
+Edge cases:
+- `marginPercent` clamped to `[0, 99.99]` to prevent division by zero.
+- At 0% margin: returns `price = cost`, `profit = 0`.
+- At `cost = 0`: returns `price = 0` (cannot derive a price from zero cost via margin alone).
+- Returns zeros when `cost < 0`.
 
-**Important Note**: 
-- Markup % ≠ Margin %
-- Markup is calculated on cost: `Markup = (Price - Cost) / Cost × 100%`
-- Margin is calculated on price: `Margin = (Price - Cost) / Price × 100%`
-- Example: 50% markup = 33.3% margin
-
-**Use Case**: Cost-plus pricing strategy where you apply a standard markup to all products.
-
-**Question Answered**: "I want 50% markup, what price should I charge?"
-
-**UI Behavior**:
-- User inputs markup percentage
-- System calculates and displays required price
-- Shows all related metrics (profit, margin) for comparison
-- Real-time updates as markup changes
+**Example**: Cost $10, Margin 30% → Price $14.29, Profit $4.29, Markup 42.9%
 
 ---
 
-### 3. Target Profit Amount
+### 1.3 Reverse: Markup % → Price
 
-**Status**: 🚧 To Be Implemented
+**Status**: ✅ Implemented
+**Function**: `calculatePriceFromMarkup(markupPercent, cost)` → `ProfitMetrics`
 
-**Description**: Calculate the required selling price to achieve a specific profit amount.
-
-**Input**: 
-- Desired Profit Amount ($)
-- Product Cost
-
-**Output**: 
-- Required Selling Price
-- Calculated Profit Margin %
-- Calculated Markup %
-
-**Formulas**: 
 ```
-Selling Price = Product Cost + Desired Profit
-Profit Margin % = (Desired Profit / Selling Price) × 100%
-Markup % = (Desired Profit / Product Cost) × 100%
+price = cost × (1 + markup% / 100)
+profit = price - cost
+margin = (profit / price) × 100     [if price > 0]
 ```
 
-**Example**: 
-- Product Cost = $10.00
-- Desired Profit = $5.00
-- Calculation: `Price = $10 + $5 = $15.00`
-- Result: Margin = 33.3%, Markup = 50%
+Important: Markup % ≠ Margin %. 50% markup = 33.3% margin.
 
-**Use Case**: When you have a specific profit goal per unit, regardless of percentage.
+Edge cases:
+- Returns zeros when `cost < 0` or `markupPercent < 0`.
+- At `cost = 0`: returns `price = 0`.
 
-**Question Answered**: "I want $5 profit per unit, what price should I charge?"
-
-**UI Behavior**:
-- User inputs desired profit amount
-- System calculates and displays required price
-- Shows all related metrics (margin, markup) for comparison
-- Real-time updates as profit amount changes
+**Example**: Cost $15, Markup 100% → Price $30, Profit $15, Margin 50%
 
 ---
 
-### 4. Break-Even Analysis
+### 1.4 Reverse: Target Profit $ → Price
 
-**Status**: 🚧 To Be Implemented (Future Enhancement)
+**Status**: ✅ Implemented
+**Function**: `calculatePriceFromProfit(profitAmount, cost)` → `ProfitMetrics`
 
-**Description**: Calculate the minimum price required to break even (profit = $0).
-
-**Input**: 
-- Product Cost
-
-**Output**: 
-- Break-Even Price (minimum price)
-- Profit = $0
-- Margin = 0%
-- Markup = 0%
-
-**Formulas**: 
 ```
-Break-Even Price = Product Cost
-Profit = $0
-Margin = 0%
-Markup = 0%
+price = cost + desiredProfit
+margin = (profit / price) × 100     [if price > 0]
+markup = (profit / cost) × 100      [if cost > 0]
 ```
 
-**Use Case**: Risk analysis - understanding the absolute minimum price before losing money.
+Edge cases:
+- Returns zeros when `cost < 0` or `profitAmount < 0`.
+- At `cost = 0`: `price = profit`, `margin = 100%`, markup = 0 (undefined → 0).
 
-**Question Answered**: "What's the lowest price I can charge without losing money?"
-
-**UI Behavior**:
-- Automatically calculated from product cost
-- Displayed as reference information
-- Shows warning if current price is below break-even
+**Example**: Cost $25, Desired Profit $20 → Price $45, Margin 44.4%, Markup 80%
 
 ---
 
-### 5. ROI-Based Pricing
+### 1.5 Break-Even Price
 
-**Status**: 🚧 To Be Implemented (Future Enhancement)
+**Status**: ✅ Implemented
+**Function**: `calculateBreakEvenPrice(cost)` → `number`
 
-**Description**: Calculate selling price based on desired return on investment percentage.
-
-**Input**: 
-- Desired ROI % (return on cost)
-- Product Cost
-
-**Output**: 
-- Required Selling Price
-- Calculated Profit Amount
-- Calculated Profit Margin %
-
-**Formulas**: 
 ```
-Selling Price = Product Cost × (1 + ROI %)
-Profit = Product Cost × ROI %
-Profit Margin % = (ROI % / (1 + ROI %)) × 100%
+breakEvenPrice = max(0, cost)
 ```
 
-**Example**: 
-- Product Cost = $10.00
-- ROI = 100%
-- Calculation: `Price = $10 × 2.00 = $20.00`
-- Result: Profit = $10.00, Margin = 50%
-
-**Note**: ROI % is mathematically equivalent to Markup %, but framed differently for investment-focused businesses.
-
-**Use Case**: Investment-focused pricing where ROI is the primary metric.
-
-**Question Answered**: "I want 100% ROI, what price should I charge?"
+Returns the minimum price to avoid a loss (profit = $0). Negative cost is clamped to $0.
 
 ---
 
-## Comparison Matrix
+## Part 2 — Fee-Aware Calculations
 
-| Method | Input | Primary Output | Secondary Metrics | Best For |
-|--------|-------|---------------|-------------------|----------|
-| **Price View** (Current) | Price + Cost | Profit & Margin | Markup | Testing different prices |
-| **Margin View** | Margin % + Cost | Price | Profit, Markup | Industry-standard margins |
-| **Markup View** | Markup % + Cost | Price | Profit, Margin | Cost-plus pricing |
-| **Profit Goal View** | Profit $ + Cost | Price | Margin, Markup | Specific profit targets |
-| **Break-Even View** | Cost | Min Price | All metrics = 0 | Risk analysis |
-| **ROI View** | ROI % + Cost | Price | Profit, Margin | Investment focus |
+Fee-aware mode accounts for all platform overhead so users know their **actual take-home profit**.
 
----
+### 2.1 Platform Fee Config
 
-## Implementation Plan
+**Interface**: `PlatformFeeConfig` (in `profitCalculations.ts`)
 
-### Phase 1: Core Views (Current Sprint)
-1. ✅ **Price View** - Already implemented
-2. 🚧 **Margin View** - Calculate price from margin %
-3. 🚧 **Markup View** - Calculate price from markup %
-4. 🚧 **Profit Goal View** - Calculate price from profit amount
-
-### Phase 2: Enhanced Views (Future)
-5. **Break-Even View** - Show minimum viable price
-6. **ROI View** - Investment-focused pricing
-
-### Phase 3: Advanced Features (Future)
-- Multi-view comparison (side-by-side)
-- Historical price tracking
-- Price sensitivity analysis
-- Bulk pricing calculations
+| Field | Type | Description |
+|-------|------|-------------|
+| `listing_fee_usd` | number | Flat per-sale fee (e.g. Etsy $0.20) |
+| `transaction_fee_pct` | number | % of fee base (e.g. Etsy 6.5%) |
+| `payment_processing_pct` | number | % of fee base for payment processing |
+| `payment_processing_flat` | number | Flat per-transaction payment fee |
+| `offsite_ads_enabled` | boolean | Whether offsite ads fee applies |
+| `offsite_ads_pct` | number | % fee for offsite ad sales |
+| `currency_conversion_pct` | number | % fee for currency conversion |
+| `vat_on_fees_pct` | number | VAT on all platform fees (UK=20, AU=10, others=0) |
+| `fees_apply_to_shipping` | boolean | Whether fees apply to shipping amount too (Etsy=true) |
 
 ---
 
-## UI/UX Design
+### 2.2 Shipping — Pass-Through Model
 
-### View Selector
-- Location: Top of Products table
-- Type: Tabs or Segmented Control
-- Options: 
-  - "Price View" (current)
-  - "Margin View"
-  - "Markup View"
-  - "Profit Goal View"
+PriceMe treats shipping as a **pass-through**: the seller charges the buyer exactly what they pay to ship. The net effect on profit is zero, but the platform charges fees on the shipping amount (when `fees_apply_to_shipping = true`), which does reduce profit.
 
-### Table Columns (Dynamic Based on View)
+The fee calculation makes this explicit:
 
-#### Price View (Current)
-- Product Name
-- SKU
-- **Desired Price** (editable)
-- Product Cost
-- Profit
-- Profit Margin
-- Costs (%)
-- Qty Sold
-- Profit (Qty)
+```
+feeBase = price + (fees_apply_to_shipping ? shippingCost : 0)
 
-#### Margin View
-- Product Name
-- SKU
-- **Desired Margin %** (editable)
-- Product Cost
-- **Calculated Price** (computed)
-- Profit
-- Markup %
-- Qty Sold
-- Profit (Qty)
-
-#### Markup View
-- Product Name
-- SKU
-- **Desired Markup %** (editable)
-- Product Cost
-- **Calculated Price** (computed)
-- Profit
-- Profit Margin %
-- Qty Sold
-- Profit (Qty)
-
-#### Profit Goal View
-- Product Name
-- SKU
-- **Desired Profit $** (editable)
-- Product Cost
-- **Calculated Price** (computed)
-- Profit Margin %
-- Markup %
-- Qty Sold
-- Profit (Qty)
-
-### Real-Time Updates
-- All calculations update immediately when input values change
-- Related metrics recalculate automatically
-- Visual indicators for profitable vs. unprofitable scenarios
-- Color coding: Green for positive, Red for negative
-
-### Data Persistence
-- Each view's input values saved per product
-- Switching views preserves user inputs
-- API updates when user edits values
-- Optimistic UI updates for better UX
-
----
-
-## Technical Implementation
-
-### Calculation Utilities
-
-```typescript
-// Price → Profit (Current)
-function calculateProfitFromPrice(price: number, cost: number): {
-  profit: number;
-  margin: number;
-  markup: number;
-}
-
-// Margin → Price
-function calculatePriceFromMargin(marginPercent: number, cost: number): {
-  price: number;
-  profit: number;
-  markup: number;
-}
-
-// Markup → Price
-function calculatePriceFromMarkup(markupPercent: number, cost: number): {
-  price: number;
-  profit: number;
-  margin: number;
-}
-
-// Profit → Price
-function calculatePriceFromProfit(profitAmount: number, cost: number): {
-  price: number;
-  margin: number;
-  markup: number;
-}
+netRevenue = price + shippingCost - totalPlatformFees
+netProfitPreTax = netRevenue - productCost - shippingCost
+               = price - totalPlatformFees - productCost   [shipping cancels out]
 ```
 
-### State Management
-- View mode stored in component state
-- Per-product input values stored locally
-- API sync on blur/save
-- Optimistic updates for immediate feedback
-
-### Validation Rules
-- Margin: 0-100% (cannot exceed 100%)
-- Markup: 0+% (no upper limit)
-- Profit: Must be >= 0 (can be 0 for break-even)
-- Price: Must be > 0
-
-### Error Handling
-- Invalid inputs show validation errors
-- Negative values prevented where applicable
-- Division by zero protection
-- Clear error messages for edge cases
+The breakdown is shown transparently in the UI tooltip:
+- **+ Shipping Collected** (from buyer)
+- **─ Shipping Paid** (to carrier) — cancels the above
 
 ---
 
-## Examples
+### 2.3 Forward: Price → Net Profit (with fees)
 
-### Example 1: Margin-Based Pricing
-**Scenario**: Etsy seller wants 40% margin on handmade candles
+**Status**: ✅ Implemented
+**Function**: `calculateNetProfitWithFees(price, productCost, shippingCost, fees, incomeTaxPct)` → `FeeBreakdown`
 
-- Product Cost: $8.00
-- Desired Margin: 40%
-- **Calculated Price**: $13.33
-- Profit: $5.33
-- Markup: 66.6%
+Full computation:
 
-### Example 2: Markup-Based Pricing
-**Scenario**: Retailer applies 100% markup to all products
+```
+feeBase = price + (fees_apply_to_shipping ? shippingCost : 0)
 
-- Product Cost: $15.00
-- Markup: 100%
-- **Calculated Price**: $30.00
-- Profit: $15.00
-- Margin: 50%
+listingFee              = listing_fee_usd
+transactionFee          = feeBase × (transaction_fee_pct / 100)
+paymentProcessingFee    = feeBase × (payment_processing_pct / 100) + payment_processing_flat
+offsiteAdsFee           = offsite_ads_enabled ? feeBase × (offsite_ads_pct / 100) : 0
+currencyConversionFee   = feeBase × (currency_conversion_pct / 100)
 
-### Example 3: Profit Goal Pricing
-**Scenario**: Business needs $20 profit per unit to cover overhead
+subtotalPlatformFees = listingFee + transactionFee + paymentProcessingFee
+                     + offsiteAdsFee + currencyConversionFee
+vatOnFees            = subtotalPlatformFees × (vat_on_fees_pct / 100)
+totalPlatformFees    = subtotalPlatformFees + vatOnFees
 
-- Product Cost: $25.00
-- Desired Profit: $20.00
-- **Calculated Price**: $45.00
-- Margin: 44.4%
-- Markup: 80%
+netRevenue        = price + shippingCost - totalPlatformFees
+netProfitPreTax   = netRevenue - productCost - shippingCost
+taxAmount         = max(0, netProfitPreTax) × (incomeTaxPct / 100)
+takeHomeProfit    = netProfitPreTax - taxAmount
 
----
+netMarginPreTax   = (netProfitPreTax / price) × 100   [if price > 0]
+takeHomeMargin    = (takeHomeProfit / price) × 100     [if price > 0]
+```
 
-## Future Enhancements
+Notes:
+- Income tax only applies to positive profit — losses generate no tax credit.
+- All monetary values rounded to 2 decimal places.
+- `transactionFeePct` is included in `FeeBreakdown` at the actual rate for display purposes.
 
-1. **Multi-Product Comparison**: Compare pricing strategies across multiple products
-2. **Price Sensitivity Analysis**: Show profit at different price points
-3. **Bulk Pricing**: Calculate prices for different quantity tiers
-4. **Historical Tracking**: Track price changes over time
-5. **Export Reports**: Export pricing analysis to PDF/CSV
-6. **Pricing Templates**: Save and reuse pricing strategies
-7. **Market Comparison**: Compare against competitor pricing (if data available)
-
----
-
-## Notes
-
-- All calculations should handle edge cases (zero costs, extreme percentages)
-- Rounding should be consistent (2 decimal places for currency)
-- Performance: Calculations should be instant (no noticeable delay)
-- Accessibility: All inputs should be keyboard navigable
-- Mobile: Views should work well on mobile devices
+**Example** (Etsy US, $20 item, $8 cost, no shipping, no tax):
+- Transaction fee: $20 × 6.5% = $1.30
+- Payment processing: $20 × 3.0% + $0.25 = $0.85
+- Listing fee: $0.20
+- Total fees: $2.35
+- Net revenue: $17.65
+- Net profit (pre-tax): $9.65
 
 ---
 
-**Last Updated**: 2024-01-XX
-**Status**: Specification Complete, Implementation In Progress
+### 2.4 Reverse: Target Net Profit → Price
 
+**Status**: ✅ Implemented
+**Function**: `calculatePriceForTargetNetProfit(targetNetProfitPreTax, productCost, shippingCost, fees, incomeTaxPct)` → `FeeBreakdown`
+
+Solves `targetNetProfit = price - totalFees(price) - productCost` in closed form.
+
+Since fees are linear in price: `totalFees(price) = flatFees + price × variablePct`
+
+```
+vatMult          = 1 + vat_on_fees_pct / 100
+shippingBase     = fees_apply_to_shipping ? shippingCost : 0
+
+variablePctOfPrice =
+  (transaction_fee_pct + payment_processing_pct
+   + [offsite_ads_pct if enabled] + currency_conversion_pct) / 100 × vatMult
+
+flatFees =
+  (listing_fee_usd + payment_processing_flat
+   + shippingBase × (transaction_fee_pct + payment_processing_pct
+                     + [offsite_ads_pct if enabled] + currency_conversion_pct) / 100) × vatMult
+
+price = (targetNetProfit + productCost + flatFees) / (1 - variablePctOfPrice)
+```
+
+If `denominator ≤ 0` (fees exceed 100% of price — impossible scenario), returns `price = 0`.
+
+---
+
+### 2.5 Reverse: Target Net Margin % → Price
+
+**Status**: ✅ Implemented
+**Function**: `calculatePriceForTargetNetMargin(targetMarginPct, productCost, shippingCost, fees, incomeTaxPct)` → `FeeBreakdown`
+
+Solves `targetMargin = (price - totalFees(price) - productCost) / price` in closed form.
+
+```
+targetMarginFrac = clamp(targetMarginPct / 100, 0, 0.9999)
+denominator = 1 - variablePctOfPrice - targetMarginFrac
+price = (productCost + flatFees) / denominator
+```
+
+If `denominator ≤ 0` (margin + fees exceed 100%), returns `price = 0`.
+
+---
+
+## Part 3 — Product Cost Aggregation
+
+**Status**: ✅ Implemented
+**Function**: `calculateProductMetrics(product)` in `apps/api/src/controllers/productController.ts`
+
+### Materials
+
+Material `total_cost` is stored at creation time:
+```
+total_cost = (quantity × price_per_unit) / units_made
+```
+
+At metrics time, all material `total_cost` values are summed directly:
+```
+totalMaterialsCost = sum(material.total_cost)
+```
+
+### Labor
+
+Each labor entry has `per_unit` flag:
+```
+total_cost (DB) = (time_spent_minutes / 60) × hourly_rate
+
+laborPerUnit = sum(total_cost where per_unit = true)
+laborPerBatch = sum(total_cost where per_unit = false)
+totalLaborPerProduct = laborPerUnit + (batch_size > 0 ? laborPerBatch / batch_size : 0)
+```
+
+### Other Costs
+
+Each other cost entry has `per_unit` flag:
+```
+total_cost (DB) = quantity × cost
+
+otherCostsPerUnit = sum(total_cost where per_unit = true)
+otherCostsPerBatch = sum(total_cost where per_unit = false)
+totalOtherPerProduct = otherCostsPerUnit + (batch_size > 0 ? otherCostsPerBatch / batch_size : 0)
+```
+
+### Total and Profit
+
+```
+productCost = totalMaterialsCost + totalLaborPerProduct + totalOtherPerProduct
+
+profit      = targetPrice - productCost              [null if no target_price]
+profitMargin = ((targetPrice - productCost) / targetPrice) × 100  [null if no target_price or targetPrice = 0]
+costsPercentage = (productCost / targetPrice) × 100  [null if no target_price or targetPrice = 0]
+```
+
+Note: `profit` is calculated even when `productCost = 0` (e.g. digital goods). The old guard `productCost > 0` was a bug — see fix in commit history.
+
+---
+
+## Part 4 — Sales Discount Calculations
+
+**Status**: ✅ Implemented
+**Location**: `apps/api/src/controllers/salesController.ts` (`createSale`)
+
+When a sale is created, the caller provides either `discount_amount` OR `discount_percentage` (not both). The missing field is derived:
+
+```
+totalValue = unit_price × quantity
+
+if discount_amount > 0 and discount_percentage == 0:
+    discount_percentage = (discount_amount / totalValue) × 100   [rounded to 2dp]
+
+if discount_percentage > 0 and discount_amount == 0:
+    discount_amount = totalValue × (discount_percentage / 100)   [rounded to 2dp]
+```
+
+Edge case: when `totalValue = 0`, percentage stays at 0 (no division by zero).
+
+---
+
+## Etsy Fee Defaults by Country
+
+Configured in `apps/api/src/controllers/platformFeesController.ts`:
+
+| Country | Payment % | Payment Flat | VAT on Fees |
+|---------|-----------|--------------|-------------|
+| US, CA  | 3.0%      | $0.25        | 0%          |
+| GB      | 4.0%      | £0.20        | 20%         |
+| AU      | 3.0%      | $0.25        | 10%         |
+| DE, FR, IT, ES, NL | 4.0% | €0.30 | 0%        |
+
+All countries: Listing fee $0.20, Transaction fee 6.5%, `fees_apply_to_shipping = true`.
+Optional: Offsite ads 15% (disabled by default).
+
+---
+
+## Running the Tests
+
+Unit tests cover all functions in this spec. Run them with:
+
+```bash
+# All unit tests (web + api)
+npm run test:unit
+
+# Watch mode (web only)
+npm run test:watch --workspace=apps/web
+```
+
+Test files:
+- `apps/web/src/utils/__tests__/profitCalculations.test.ts` — all profit/fee calculations
+- `apps/web/src/utils/__tests__/productCalculations.test.ts` — material/labor/other cost helpers + aggregation logic
+- `apps/api/src/__tests__/salesDiscount.test.ts` — discount bidirectional conversion
+
+---
+
+## Future Enhancements (Not Yet Implemented)
+
+- **Take-home profit reverse calculation** — given a target *after-tax* profit, solve for price (currently only pre-tax target is supported)
+- **Break-Even Analysis UI** — show the break-even price as a reference line on the products table
+- **ROI-Based Pricing** — mathematically equivalent to markup, but framed for investment-focused sellers
+- **Price Sensitivity Analysis** — show profit at a range of price points
+- **Multi-product comparison** — side-by-side pricing strategy view
+- **Bulk pricing tiers** — quantity-based pricing breaks

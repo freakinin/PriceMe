@@ -159,15 +159,16 @@ export interface FeeBreakdown {
   shippingCost: number;
   listingFee: number;
   transactionFee: number;
+  transactionFeePct: number;  // actual rate from fee profile (for display)
   paymentProcessingFee: number;
   offsiteAdsFee: number;
   currencyConversionFee: number;
   subtotalPlatformFees: number;
   vatOnFees: number;
   totalPlatformFees: number;
-  netRevenue: number;
+  netRevenue: number;         // grossPrice + shippingCost - totalPlatformFees
   productCost: number;
-  netProfitPreTax: number;
+  netProfitPreTax: number;    // netRevenue - productCost - shippingCost
   incomeTaxPct: number;
   taxAmount: number;
   takeHomeProfit: number;
@@ -198,8 +199,15 @@ function computeFees(
   const vatOnFees = subtotalPlatformFees * (fees.vat_on_fees_pct / 100);
   const totalPlatformFees = subtotalPlatformFees + vatOnFees;
 
-  const netRevenue = price - totalPlatformFees;
-  const netProfitPreTax = netRevenue - productCost;
+  // Shipping is treated as a pass-through: the seller collects shippingCost from the buyer
+  // and pays the same amount to ship. The platform may charge fees on the shipping amount
+  // (already included in feeBase above). Net revenue and net profit both reflect this:
+  //   netRevenue = price + shippingCost - totalPlatformFees
+  //   netProfitPreTax = netRevenue - productCost - shippingCost
+  //                   = price - totalPlatformFees - productCost  (shipping cancels out)
+  // Showing both sides makes the breakdown honest and the math visible in the UI.
+  const netRevenue = price + shippingCost - totalPlatformFees;
+  const netProfitPreTax = netRevenue - productCost - shippingCost;
   const taxAmount = Math.max(0, netProfitPreTax) * (incomeTaxPct / 100);
   const takeHomeProfit = netProfitPreTax - taxAmount;
 
@@ -208,6 +216,7 @@ function computeFees(
     shippingCost: r2(shippingCost),
     listingFee: r2(listingFee),
     transactionFee: r2(transactionFee),
+    transactionFeePct: fees.transaction_fee_pct,
     paymentProcessingFee: r2(paymentProcessingFee),
     offsiteAdsFee: r2(offsiteAdsFee),
     currencyConversionFee: r2(currencyConversionFee),
