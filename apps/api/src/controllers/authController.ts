@@ -48,6 +48,17 @@ export const register = async (req: Request, res: Response) => {
 
     const user = Array.isArray(result) ? result[0] : result.rows?.[0] || result;
 
+    // Provision a free subscription for the new user
+    try {
+      await db`
+        INSERT INTO subscriptions (user_id, plan, status)
+        VALUES (${user.id}, 'free', 'active')
+        ON CONFLICT (user_id) DO NOTHING
+      `;
+    } catch (subError: any) {
+      console.error('Failed to create subscription for new user:', subError.message);
+    }
+
     // Generate JWT token
     const token = jwt.sign(
       { userId: user.id, email: user.email },

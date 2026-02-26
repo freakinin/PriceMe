@@ -1,3 +1,23 @@
+// Subscription / Plan types
+export type PlanName = 'free' | 'starter' | 'pro' | 'business';
+
+export interface PlanLimits {
+  products: number;    // -1 = unlimited
+  competitors: number; // -1 = unlimited
+}
+
+export interface SubscriptionInfo {
+  plan: PlanName;
+  status: 'active' | 'trialing' | 'canceled' | 'past_due';
+  limits: PlanLimits;
+  usage: {
+    products: number;
+    competitors: number;
+  };
+  current_period_end?: string | null;
+  trial_ends_at?: string | null;
+}
+
 // User types
 export interface User {
   id: number;

@@ -1,5 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
+import type { SubscriptionInfo } from '@priceme/shared';
+
+export type { SubscriptionInfo };
 
 export interface UserSettings {
   currency: string;
@@ -10,6 +13,7 @@ export interface UserSettings {
   units?: string[];
   seller_country?: string;
   default_platform_profile_id?: number | null;
+  subscription?: SubscriptionInfo;
 }
 
 const defaultSettings: UserSettings = {
@@ -45,6 +49,7 @@ export function useSettings() {
               : defaultSettings.units,
             seller_country: data.seller_country || 'US',
             default_platform_profile_id: data.default_platform_profile_id ?? null,
+            subscription: data.subscription ?? undefined,
           } as UserSettings;
           console.log('Mapped settings:', mappedSettings);
           return mappedSettings;

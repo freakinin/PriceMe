@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { db } from '../utils/db.js';
 import { createProductSchema, bulkDeleteSchema, bulkUpdateStatusSchema, bulkUpdateCategorySchema } from '@priceme/shared';
 import { AuthRequest } from '../middleware/auth.js';
+import { checkProductLimit } from '../utils/subscription.js';
 
 export const createProduct = async (req: AuthRequest, res: Response) => {
   try {
@@ -9,6 +10,17 @@ export const createProduct = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({
         status: 'error',
         message: 'Unauthorized',
+      });
+    }
+
+    // Check plan limit before creating
+    const limitCheck = await checkProductLimit(req.userId);
+    if (!limitCheck.allowed) {
+      return res.status(403).json({
+        status: 'error',
+        code: 'PLAN_LIMIT_REACHED',
+        message: `You've reached your plan limit of ${limitCheck.limit} products. Upgrade your plan to add more.`,
+        data: { limit: limitCheck.limit, current: limitCheck.current, resource: 'products' },
       });
     }
 

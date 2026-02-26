@@ -2,6 +2,7 @@
 import { Request, Response } from 'express';
 import { AIService } from '../services/ai.service.js';
 import { db } from '../utils/db.js';
+import { checkCompetitorLimit } from '../utils/subscription.js';
 
 /**
  * Track a new competitor product from a URL.
@@ -17,6 +18,17 @@ export const trackCompetitorProduct = async (req: Request, res: Response): Promi
 
         if (!userId) {
             return res.status(401).json({ error: 'Unauthorized' });
+        }
+
+        // Check plan limit before running the (expensive) AI analysis
+        const limitCheck = await checkCompetitorLimit(userId);
+        if (!limitCheck.allowed) {
+            return res.status(403).json({
+                status: 'error',
+                code: 'PLAN_LIMIT_REACHED',
+                message: `You've reached your plan limit of ${limitCheck.limit} tracked competitor products. Upgrade your plan to track more.`,
+                data: { limit: limitCheck.limit, current: limitCheck.current, resource: 'competitors' },
+            });
         }
 
         console.log(`Starting tracking for URL: ${url} (User: ${userId})`);
