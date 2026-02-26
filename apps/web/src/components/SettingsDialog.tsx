@@ -24,6 +24,7 @@ import { MeasurementSettings } from './settings/MeasurementSettings';
 import { PlatformFeesSettings } from './settings/PlatformFeesSettings';
 import { ShippingSettings } from './settings/ShippingSettings';
 import { ComingSoonSection } from './settings/ComingSoonSection';
+import { ProfileSettings } from './settings/ProfileSettings';
 import { SubscriptionSettings } from './settings/SubscriptionSettings';
 import { UsageSettings } from './settings/UsageSettings';
 
@@ -67,8 +68,7 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
         id: 'profile',
         label: 'Profile',
         icon: User,
-        comingSoon: true,
-        description: 'Manage your account profile, email, and password.',
+        description: 'Manage your account profile and password.',
       },
       {
         id: 'billing',
@@ -118,6 +118,8 @@ export function SettingsDialog({ open, onOpenChange, initialSection }: SettingsD
         return <SubscriptionSettings />;
       case 'usage':
         return <UsageSettings onViewSubscription={() => setActiveSection('subscription')} />;
+      case 'profile':
+        return <ProfileSettings />;
       default:
         return (
           <ComingSoonSection
