@@ -4,9 +4,12 @@
 
 ### High Priority (Next Up)
 
-1. **Billing & Subscription**
-   - Plan and subscription management (Track data usage by plan limits)
-   - Payment for subscription
+1. **Billing & Subscription — Phase 2 (Stripe)**
+   - Stripe Checkout for upgrading plans (Starter / Pro / Business)
+   - Stripe Billing Portal for self-service downgrades & cancellations
+   - Webhook handler to sync plan/status on Stripe lifecycle events
+   - Annual billing option (Starter $10/mo billed $120/yr)
+   - Note: DB schema is already Stripe-ready (stripe_subscription_id, stripe_customer_id, period dates)
 
 2. **Integration Features**
    - Etsy integration
@@ -106,6 +109,20 @@
 ## Completed Features ✅
 
 ### Recently Completed
+
+- ✅ **Subscription & Usage Plans — Phase 1**
+  - 4-tier plan system: Free (10 products / 2 competitors), Starter ($12/mo), Pro ($19/mo), Business ($49/mo unlimited)
+  - `subscriptions` DB table with Stripe-ready columns (nullable until Phase 2)
+  - Hard limit enforcement: product creation and competitor tracking gated at API level (HTTP 403 `PLAN_LIMIT_REACHED`)
+  - Settings → Subscription: plan comparison grid, usage bars, self-service plan switching
+  - Settings → Usage: usage-only view with near-limit upgrade prompt
+  - Header warning indicator when any limit is reached
+  - Near-limit toast (80%+) and at-limit toast after successful creates, with "Upgrade" action
+  - Upgrade prompt dialog on hard limit hit, links to Subscription settings
+  - Signup page redesigned as marketing landing with hero, pricing grid, and sign-up form
+  - QA mode (`QA_MODE=true`): Free tier reduced to 4 products / 1 competitor for easy testing
+  - Bug fix: orphaned `tracked_products` from deleted products no longer inflate competitor usage count; FK changed to `ON DELETE CASCADE`
+  - See plan spec in `.claude/plans/shimmering-marinating-cosmos.md`
 
 - ✅ **Bulk Operations** (Edit, Delete, Update Pricing)
 - ✅ **Export to CSV/Excel**

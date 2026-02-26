@@ -126,11 +126,13 @@ app.use('/api/export', exportRoutes);
 import notificationRoutes from './routes/notifications.js';
 import platformFeesRoutes from './routes/platformFees.js';
 import shippingMethodsRoutes from './routes/shippingMethods.js';
+import subscriptionRoutes from './routes/subscription.js';
 import { PriceMonitorJob } from './jobs/priceMonitor.js';
 
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/platform-fees', platformFeesRoutes);
 app.use('/api/shipping-methods', shippingMethodsRoutes);
+app.use('/api/subscription', subscriptionRoutes);
 
 // API info route
 app.get('/api', (_req, res) => {

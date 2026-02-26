@@ -6,6 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Plus, ExternalLink, RefreshCw, AlertCircle, TrendingUp, TrendingDown, Package, DollarSign, Layers, Tag, Edit, AlertTriangle, Trash2, Sparkles, Lightbulb, Shield, Target, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import api from '@/lib/api';
+import { UpgradePrompt } from '@/components/subscription/UpgradePrompt';
+import { ToastAction } from '@/components/ui/toast';
+import { openSettingsAt } from '@/lib/openSettings';
+import { useSubscription } from '@/hooks/useSubscription';
 import { formatCurrency } from '@/utils/currency';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -74,6 +78,7 @@ interface CompetitiveInsights {
 
 export function MarketAnalysisPanel({ product, currency }: MarketAnalysisPanelProps) {
     const { toast } = useToast();
+    const { subscription, invalidate: invalidateSubscription } = useSubscription();
     const [urlInput, setUrlInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [isTracking, setIsTracking] = useState(false);
@@ -95,6 +100,7 @@ export function MarketAnalysisPanel({ product, currency }: MarketAnalysisPanelPr
     const [insights, setInsights] = useState<CompetitiveInsights | null>(null);
     const [isLoadingInsights, setIsLoadingInsights] = useState(false);
     const [insightsExpanded, setInsightsExpanded] = useState(true);
+    const [upgradePrompt, setUpgradePrompt] = useState<{ open: boolean; limit: number }>({ open: false, limit: 0 });
 
     const productId = product.id;
     const currentPrice = Number(product.target_price || 0);
@@ -180,12 +186,32 @@ export function MarketAnalysisPanel({ product, currency }: MarketAnalysisPanelPr
                 linkedProductId: productId
             });
 
+            invalidateSubscription();
+
+            const limit = subscription?.limits.competitors ?? -1;
+            const newCount = (subscription?.usage.competitors ?? 0) + 1;
+            const atLimit = limit !== -1 && newCount >= limit;
+            const nearLimit = limit !== -1 && !atLimit && newCount / limit >= 0.8;
+
             // Check for warning in response
             if (response.data.warning) {
                 toast({
                     title: 'Product Tracked with Warning',
                     description: response.data.warning,
                     variant: 'default'
+                });
+            } else if (atLimit) {
+                toast({
+                    variant: 'destructive',
+                    title: 'Competitor limit reached',
+                    description: `You've used all ${limit} competitor slots on your plan.`,
+                    action: <ToastAction altText="Upgrade" onClick={() => openSettingsAt('subscription')}>Upgrade</ToastAction>,
+                });
+            } else if (nearLimit) {
+                toast({
+                    title: 'Almost at your competitor limit',
+                    description: `${newCount} of ${limit} competitor slots used.`,
+                    action: <ToastAction altText="View Plans" onClick={() => openSettingsAt('subscription')}>View Plans</ToastAction>,
                 });
             } else {
                 toast({
@@ -200,13 +226,13 @@ export function MarketAnalysisPanel({ product, currency }: MarketAnalysisPanelPr
 
         } catch (err: any) {
             console.error('Failed to track url', err);
-            const msg = err.response?.data?.error || err.message || 'Failed to track product';
-            toast({
-                title: 'Error',
-                description: msg,
-                variant: 'destructive'
-            });
-            setError(msg);
+            if (err.response?.data?.code === 'PLAN_LIMIT_REACHED') {
+                setUpgradePrompt({ open: true, limit: err.response.data.data?.limit ?? 0 });
+            } else {
+                const msg = err.response?.data?.error || err.message || 'Failed to track product';
+                toast({ title: 'Error', description: msg, variant: 'destructive' });
+                setError(msg);
+            }
         } finally {
             setIsTracking(false);
         }
@@ -811,6 +837,14 @@ export function MarketAnalysisPanel({ product, currency }: MarketAnalysisPanelPr
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            <UpgradePrompt
+                open={upgradePrompt.open}
+                onOpenChange={(open) => setUpgradePrompt((p) => ({ ...p, open }))}
+                resource="competitors"
+                currentLimit={upgradePrompt.limit}
+                onViewPlans={() => openSettingsAt('subscription')}
+            />
         </div>
     );
 }

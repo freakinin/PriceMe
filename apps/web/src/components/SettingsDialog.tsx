@@ -24,6 +24,8 @@ import { MeasurementSettings } from './settings/MeasurementSettings';
 import { PlatformFeesSettings } from './settings/PlatformFeesSettings';
 import { ShippingSettings } from './settings/ShippingSettings';
 import { ComingSoonSection } from './settings/ComingSoonSection';
+import { SubscriptionSettings } from './settings/SubscriptionSettings';
+import { UsageSettings } from './settings/UsageSettings';
 
 type Section =
   | 'financial'
@@ -79,14 +81,12 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
         id: 'usage',
         label: 'Usage',
         icon: BarChart3,
-        comingSoon: true,
         description: 'Track your usage statistics and limits.',
       },
       {
         id: 'subscription',
         label: 'Subscription',
         icon: Layers,
-        comingSoon: true,
         description: 'Manage your subscription plan and features.',
       },
     ],
@@ -96,10 +96,11 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
 interface SettingsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  initialSection?: Section;
 }
 
-export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
-  const [activeSection, setActiveSection] = useState<Section>('financial');
+export function SettingsDialog({ open, onOpenChange, initialSection }: SettingsDialogProps) {
+  const [activeSection, setActiveSection] = useState<Section>(initialSection ?? 'financial');
 
   const activeItem = NAV_GROUPS.flatMap((g) => g.items).find((item) => item.id === activeSection);
 
@@ -113,6 +114,10 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
         return <PlatformFeesSettings />;
       case 'shipping':
         return <ShippingSettings />;
+      case 'subscription':
+        return <SubscriptionSettings />;
+      case 'usage':
+        return <UsageSettings onViewSubscription={() => setActiveSection('subscription')} />;
       default:
         return (
           <ComingSoonSection

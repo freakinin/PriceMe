@@ -18,7 +18,11 @@ import {
 import { Settings2, BarChart2 } from 'lucide-react';
 import { useSidebar } from '@/components/ui/sidebar';
 import api from '@/lib/api';
+import { UpgradePrompt } from '@/components/subscription/UpgradePrompt';
+import { ToastAction } from '@/components/ui/toast';
+import { openSettingsAt } from '@/lib/openSettings';
 import { useSettings } from '@/hooks/useSettings';
+import { useSubscription } from '@/hooks/useSubscription';
 import { formatCurrency, getCurrencySymbol } from '@/utils/currency';
 import { useToast } from '@/components/ui/use-toast';
 
@@ -69,6 +73,7 @@ export default function CreateProduct() {
   const { setOpen } = useSidebar();
   const { settings } = useSettings();
   const { toast } = useToast();
+  const { subscription, invalidate: invalidateSubscription } = useSubscription();
   const { createProduct, updateProduct } = useProducts();
 
   // Helper used for display calculations, similar to Products page, but here we calculate on the fly
@@ -76,6 +81,7 @@ export default function CreateProduct() {
 
   const [variants, setVariants] = useState<Variant[]>([]);
   const [isVariationsModalOpen, setIsVariationsModalOpen] = useState(false);
+  const [upgradePrompt, setUpgradePrompt] = useState<{ open: boolean; limit: number }>({ open: false, limit: 0 });
 
   const [templates, setTemplates] = useState<any[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
@@ -332,13 +338,36 @@ export default function CreateProduct() {
         toast({ variant: 'success', title: 'Success', description: 'Product updated successfully' });
       } else {
         await createProduct(productData);
-        toast({ variant: 'success', title: 'Success', description: 'Product created successfully' });
+        invalidateSubscription();
+
+        const limit = subscription?.limits.products ?? -1;
+        const newCount = (subscription?.usage.products ?? 0) + 1;
+        if (limit !== -1 && newCount >= limit) {
+          toast({
+            variant: 'destructive',
+            title: 'Product limit reached',
+            description: `You've used all ${limit} product slots on your plan.`,
+            action: <ToastAction altText="Upgrade" onClick={() => openSettingsAt('subscription')}>Upgrade</ToastAction>,
+          });
+        } else if (limit !== -1 && newCount / limit >= 0.8) {
+          toast({
+            title: 'Almost at your product limit',
+            description: `${newCount} of ${limit} product slots used.`,
+            action: <ToastAction altText="View Plans" onClick={() => openSettingsAt('subscription')}>View Plans</ToastAction>,
+          });
+        } else {
+          toast({ variant: 'success', title: 'Success', description: 'Product created successfully' });
+        }
       }
       navigate('/products');
 
     } catch (error: any) {
       console.error('Submit error:', error);
-      toast({ variant: 'destructive', title: 'Error', description: error.message || `Failed to ${isEditMode ? 'update' : 'create'} product` });
+      if (error.response?.data?.code === 'PLAN_LIMIT_REACHED') {
+        setUpgradePrompt({ open: true, limit: error.response.data.data?.limit ?? 0 });
+      } else {
+        toast({ variant: 'destructive', title: 'Error', description: error.message || `Failed to ${isEditMode ? 'update' : 'create'} product` });
+      }
     }
   };
 
@@ -551,6 +580,14 @@ export default function CreateProduct() {
           </div>
         </div>
       </div>
+
+      <UpgradePrompt
+        open={upgradePrompt.open}
+        onOpenChange={(open) => setUpgradePrompt((p) => ({ ...p, open }))}
+        resource="products"
+        currentLimit={upgradePrompt.limit}
+        onViewPlans={() => openSettingsAt('subscription')}
+      />
     </div>
   );
 }

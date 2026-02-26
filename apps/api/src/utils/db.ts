@@ -812,6 +812,62 @@ export async function initializeDatabase() {
       console.log('Note: Index creation for notifications:', e.message);
     }
 
+    // Create subscriptions table
+    await sql`
+      CREATE TABLE IF NOT EXISTS subscriptions (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE UNIQUE NOT NULL,
+        plan VARCHAR(20) NOT NULL DEFAULT 'free'
+          CHECK (plan IN ('free', 'starter', 'pro', 'business')),
+        status VARCHAR(20) NOT NULL DEFAULT 'active'
+          CHECK (status IN ('active', 'trialing', 'canceled', 'past_due')),
+        stripe_subscription_id VARCHAR(255),
+        stripe_customer_id VARCHAR(255),
+        current_period_start TIMESTAMP,
+        current_period_end TIMESTAMP,
+        trial_ends_at TIMESTAMP,
+        canceled_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+
+    // Back-fill: give every existing user a free subscription row
+    try {
+      await sql`
+        INSERT INTO subscriptions (user_id, plan, status)
+        SELECT id, 'free', 'active'
+        FROM users
+        WHERE id NOT IN (SELECT user_id FROM subscriptions)
+      `;
+    } catch (e: any) {
+      console.log('Note: Subscription back-fill:', e.message);
+    }
+
+    try {
+      await sql`CREATE INDEX IF NOT EXISTS idx_subscriptions_user_id ON subscriptions(user_id)`;
+      await sql`CREATE INDEX IF NOT EXISTS idx_subscriptions_stripe_sub_id ON subscriptions(stripe_subscription_id)`;
+    } catch (e: any) {
+      console.log('Note: Index creation for subscriptions:', e.message);
+    }
+
+    // Migration: fix tracked_products.linked_product_id FK from SET NULL → CASCADE.
+    // Orphaned rows (linked_product_id IS NULL) inflate competitor usage counts; clean them up too.
+    try {
+      // 1. Remove orphaned tracked_products left over from deleted products.
+      await sql`DELETE FROM tracked_products WHERE linked_product_id IS NULL`;
+
+      // 2. Re-create the FK with ON DELETE CASCADE so future product deletes cascade automatically.
+      await sql`ALTER TABLE tracked_products DROP CONSTRAINT IF EXISTS tracked_products_linked_product_id_fkey`;
+      await sql`
+        ALTER TABLE tracked_products
+        ADD CONSTRAINT tracked_products_linked_product_id_fkey
+        FOREIGN KEY (linked_product_id) REFERENCES products(id) ON DELETE CASCADE
+      `;
+    } catch (e: any) {
+      console.log('Note: tracked_products linked_product_id FK migration:', e.message);
+    }
+
     console.log('✅ Database tables initialized successfully');
   } catch (error) {
     console.error('❌ Error initializing database:', error);

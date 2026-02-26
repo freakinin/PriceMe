@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { db } from '../utils/db.js';
 import { z } from 'zod';
 import { AuthRequest } from '../middleware/auth.js';
+import { getUserSubscription, getUserUsage, getEffectiveLimits } from '../utils/subscription.js';
 
 const numericPreprocess = (val: unknown) => {
   if (val === null || val === undefined || val === '') return undefined;
@@ -30,15 +31,27 @@ export const getSettings = async (req: AuthRequest, res: Response) => {
     }
 
     try {
-      const settingsResult = await db`
-        SELECT currency, tax_percentage, revenue_goal, labor_hourly_cost, unit_system, units,
-               seller_country, default_platform_profile_id
-        FROM user_settings
-        WHERE user_id = ${req.userId}
-      `;
+      const [settingsResult, subscription, usage] = await Promise.all([
+        db`
+          SELECT currency, tax_percentage, revenue_goal, labor_hourly_cost, unit_system, units,
+                 seller_country, default_platform_profile_id
+          FROM user_settings
+          WHERE user_id = ${req.userId}
+        `,
+        getUserSubscription(req.userId),
+        getUserUsage(req.userId),
+      ]);
 
       const settingsList = Array.isArray(settingsResult) ? settingsResult : (settingsResult.rows || []);
       const settings = settingsList && settingsList.length > 0 ? settingsList[0] : null;
+      const limits = getEffectiveLimits(subscription);
+
+      const subscriptionBlock = {
+        plan: subscription.plan,
+        status: subscription.status,
+        limits,
+        usage,
+      };
 
       // Default units based on system
       const defaultMetricUnits = ['ml', 'L', 'g', 'kg', 'mm', 'cm', 'm', 'm²', 'pcs'];
@@ -57,6 +70,7 @@ export const getSettings = async (req: AuthRequest, res: Response) => {
             units: defaultMetricUnits,
             seller_country: 'US',
             default_platform_profile_id: null,
+            subscription: subscriptionBlock,
           },
         });
       }
@@ -75,6 +89,7 @@ export const getSettings = async (req: AuthRequest, res: Response) => {
             : (settings.unit_system === 'imperial' ? defaultImperialUnits : defaultMetricUnits),
           seller_country: settings.seller_country || 'US',
           default_platform_profile_id: settings.default_platform_profile_id ? Number(settings.default_platform_profile_id) : null,
+          subscription: subscriptionBlock,
         },
       });
     } catch (dbError: any) {
