@@ -1,4 +1,18 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import type { ShopSnapshot, CoachProfile, CoachChatMessage, ReportType } from '@priceme/shared';
+
+// Tough-love system instruction used on every Coach prompt
+const COACH_SYSTEM = `You are Coach, a no-nonsense business advisor for small makers who sell handmade goods on Etsy, Shopify, and at markets. You speak plainly, never pad responses with filler, and always reference the seller's actual product names, real dollar amounts, and specific numbers from their data. You do not say "great question" or "I understand your concern." You say exactly what needs to change and why. If their margins are bad, you say so. If a product is a money pit, you name it. Your job is to help them build a profitable business, not to make them feel good about bad decisions.`;
+
+interface GeneratedInsight {
+    headline: string;
+    body: string;
+    action: string;
+    impact_estimate: string | null;
+    priority: number;
+    category: string;
+    related_product_name: string | null;
+}
 
 interface AnalysisResult {
     title: string;
@@ -242,6 +256,156 @@ Return valid JSON only, no markdown wrapping.`;
                 risks: 'Insufficient data to identify specific threats.',
                 action_items: ['Add detailed notes to competitors', 'Ensure all prices are set', 'Try regenerating insights', 'Check API key configuration']
             };
+        }
+    }
+
+    static async generateInsightFeed(data: {
+        snapshot: ShopSnapshot;
+        profile: CoachProfile;
+        limit: number;
+    }): Promise<GeneratedInsight[]> {
+        const model = this.getAnalysisModel();
+        const { snapshot, profile, limit } = data;
+        const currency = snapshot.currency;
+
+        const productLines = snapshot.products.slice(0, 25).map(p =>
+            `- "${p.name}" | status:${p.status} | price:${p.target_price != null ? `${currency}${p.target_price}` : 'unset'} | cost:${currency}${p.product_cost.toFixed(2)} | margin:${p.profit_margin != null ? `${p.profit_margin}%` : '?'} | sold_90d:${p.units_sold_90d}u/${currency}${p.revenue_90d.toFixed(2)} | competitors:${p.competitor_count}${p.avg_competitor_price != null ? ` (avg ${currency}${p.avg_competitor_price.toFixed(2)})` : ''}`
+        ).join('\n');
+
+        const prompt = `${COACH_SYSTEM}
+
+You are generating an insight feed for a ${profile.craft_type} maker who sells on ${profile.sales_channels.join(', ')}.
+Their primary challenge: "${profile.primary_challenge}". Experience: ${profile.experience_years}.
+Monthly revenue goal: ${snapshot.revenue_goal != null ? `${currency}${snapshot.revenue_goal}` : 'not set'}.
+
+SHOP SUMMARY:
+- Active products: ${snapshot.active_product_count} / ${snapshot.product_count} total
+- Average margin (active products): ${snapshot.avg_margin != null ? `${snapshot.avg_margin}%` : 'unknown'}
+- 90-day revenue: ${currency}${snapshot.sales_summary.total_revenue_90d.toFixed(2)}
+- Best seller: ${snapshot.sales_summary.best_selling_product_name ?? 'none'}
+- Top platforms: ${snapshot.sales_summary.platform_breakdown.map(p => `${p.platform} (${currency}${p.revenue.toFixed(0)})`).join(', ') || 'none'}
+
+PRODUCTS (sorted by 90-day revenue):
+${productLines}
+
+Generate exactly ${limit} prioritized insight cards. Each MUST reference specific product names and dollar amounts. No generic advice.
+
+Return a JSON array. Each element:
+{
+  "headline": "max 80 chars — direct, specific, uses product name if relevant",
+  "body": "2-3 sentences max. Reference specific numbers. No filler.",
+  "action": "One concrete action sentence starting with a verb.",
+  "impact_estimate": "e.g. '+${currency}240/mo if you raise X by $5' — or null if genuinely uncertain",
+  "priority": 1-10 (1=most urgent),
+  "category": one of "margin" or "pricing" or "mix" or "velocity" or "cost",
+  "related_product_name": "exact product name from the list above, or null"
+}
+
+Return valid JSON array only. No markdown.`;
+
+        try {
+            const result = await model.generateContent(prompt);
+            const response = await result.response;
+            let text = response.text();
+            text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+            const parsed = JSON.parse(text) as GeneratedInsight[];
+            return Array.isArray(parsed) ? parsed.slice(0, limit) : [];
+        } catch (error: any) {
+            console.error('Error generating insight feed:', error);
+            return [];
+        }
+    }
+
+    static async sendChat(data: {
+        snapshot: ShopSnapshot;
+        profile: CoachProfile;
+        history: Pick<CoachChatMessage, 'role' | 'content'>[];
+        userMessage: string;
+    }): Promise<string> {
+        const model = this.getAnalysisModel();
+        const { snapshot, profile, history, userMessage } = data;
+        const currency = snapshot.currency;
+
+        const productTable = snapshot.products.slice(0, 20).map(p =>
+            `${p.name} | ${p.status} | ${p.target_price != null ? `${currency}${p.target_price}` : 'no price'} | cost ${currency}${p.product_cost.toFixed(2)} | margin ${p.profit_margin != null ? `${p.profit_margin}%` : '?'} | sold ${p.units_sold_90d}u last 90d`
+        ).join('\n');
+
+        const historyText = history.slice(-20).map(m =>
+            `[${m.role.toUpperCase()}]: ${m.content}`
+        ).join('\n');
+
+        const prompt = `${COACH_SYSTEM}
+
+SELLER CONTEXT:
+Craft: ${profile.craft_type} | Channels: ${profile.sales_channels.join(', ')} | Experience: ${profile.experience_years}
+Primary challenge: ${profile.primary_challenge}
+Revenue goal: ${snapshot.revenue_goal != null ? `${currency}${snapshot.revenue_goal}/mo` : 'not set'}
+Average margin: ${snapshot.avg_margin != null ? `${snapshot.avg_margin}%` : 'unknown'}
+90-day revenue: ${currency}${snapshot.sales_summary.total_revenue_90d.toFixed(2)}
+
+PRODUCT SNAPSHOT:
+${productTable}
+
+Answer the seller's question using the data above. Be direct. Reference specific products and numbers. Keep replies under 200 words unless a detailed breakdown is genuinely needed.
+
+${historyText ? `CONVERSATION HISTORY:\n${historyText}\n` : ''}[USER]: ${userMessage}
+[ASSISTANT]:`;
+
+        try {
+            const result = await model.generateContent(prompt);
+            const response = await result.response;
+            return response.text().trim();
+        } catch (error: any) {
+            console.error('Error in coach chat:', error);
+            return 'I ran into an issue processing that. Try rephrasing your question.';
+        }
+    }
+
+    static async generateReport(data: {
+        snapshot: ShopSnapshot;
+        profile: CoachProfile;
+        report_type: ReportType;
+    }): Promise<string> {
+        const model = this.getAnalysisModel();
+        const { snapshot, profile, report_type } = data;
+        const currency = snapshot.currency;
+
+        const productLines = snapshot.products.slice(0, 30).map(p =>
+            `- "${p.name}" | ${p.status} | price:${p.target_price != null ? `${currency}${p.target_price}` : 'unset'} | cost:${currency}${p.product_cost.toFixed(2)} | margin:${p.profit_margin != null ? `${p.profit_margin}%` : '?'} | sold:${p.units_sold_90d}u / ${currency}${p.revenue_90d.toFixed(2)} rev 90d | competitors:${p.competitor_count}${p.avg_competitor_price != null ? ` avg ${currency}${p.avg_competitor_price.toFixed(2)}` : ''}`
+        ).join('\n');
+
+        const reportPrompts: Record<ReportType, string> = {
+            portfolio_analysis: `Rank every product by profitability and sales performance. Clearly categorize each as "Keep & Scale", "Fix It", or "Cut It" with specific reasons and numbers. Be brutal. Name names.`,
+            pricing_audit: `Review every product's price. Flag any underpriced vs competitors (by name if data available), any below 30% margin, any with no sales despite being on sale. Give a specific recommended price for each flagged product.`,
+            cost_reduction: `Identify the top cost drivers across all products. Which materials, labor activities, or overhead items are eating margin? Call out any products where cost exceeds 70% of price. Give specific, actionable cost-reduction moves — not generic advice.`,
+            revenue_goal_path: `The seller's goal is ${snapshot.revenue_goal != null ? `${currency}${snapshot.revenue_goal}/mo` : 'not set'}. Current 90-day revenue is ${currency}${snapshot.sales_summary.total_revenue_90d.toFixed(2)} (${currency}${(snapshot.sales_summary.total_revenue_90d / 3).toFixed(0)}/mo avg). Calculate the gap and give exactly 3 ranked scenarios to close it, with specific product names, units needed, and price adjustments.`,
+        };
+
+        const prompt = `${COACH_SYSTEM}
+
+Seller: ${profile.craft_type} maker | Channels: ${profile.sales_channels.join(', ')} | Experience: ${profile.experience_years}
+Challenge: ${profile.primary_challenge}
+
+SHOP DATA:
+Active products: ${snapshot.active_product_count}/${snapshot.product_count}
+Avg margin: ${snapshot.avg_margin != null ? `${snapshot.avg_margin}%` : 'unknown'}
+90-day revenue: ${currency}${snapshot.sales_summary.total_revenue_90d.toFixed(2)}
+Best seller: ${snapshot.sales_summary.best_selling_product_name ?? 'none'}
+
+PRODUCTS:
+${productLines}
+
+TASK: ${reportPrompts[report_type]}
+
+Format your response as markdown with ## section headers. Be specific — reference product names and dollar amounts throughout. Length: 400–800 words.`;
+
+        try {
+            const result = await model.generateContent(prompt);
+            const response = result.response;
+            return response.text().trim();
+        } catch (error: any) {
+            console.error('Error generating coach report:', error);
+            return `## Error\n\nFailed to generate report. Please try again.\n\n_Error: ${error.message}_`;
         }
     }
 }

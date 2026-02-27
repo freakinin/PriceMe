@@ -1,4 +1,4 @@
-import { Home, PlusCircle, Package, Settings, LogOut, Box, Map, ShoppingCart, Tag, ChartScatter } from 'lucide-react';
+import { Home, PlusCircle, Package, Settings, LogOut, Box, Map, ShoppingCart, Tag, ChartScatter, BrainCircuit } from 'lucide-react';
 import {
   Sidebar,
   SidebarContent,
@@ -85,6 +85,7 @@ export function AppSidebar({ onSettingsOpen }: AppSidebarProps) {
               <SidebarSeparator className="my-2 bg-white/10" />
 
               {[
+                { title: 'Coach', url: '/coach', icon: BrainCircuit },
                 { title: 'On Sale', url: '/on-sale', icon: ShoppingCart },
                 { title: 'Products', url: '/products', icon: Package },
                 { title: 'Materials', url: '/materials', icon: Box },

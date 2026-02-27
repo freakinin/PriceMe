@@ -11,6 +11,7 @@ import OnSale from './pages/OnSale';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import MarketAnalysis from './pages/MarketAnalysis';
+import Coach from './pages/Coach';
 import { useAuth } from './hooks/useAuth';
 import './index.css';
 
@@ -152,6 +153,16 @@ function App() {
             <ProtectedRoute>
               <AppLayout>
                 <MarketAnalysis />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/coach"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <Coach />
               </AppLayout>
             </ProtectedRoute>
           }

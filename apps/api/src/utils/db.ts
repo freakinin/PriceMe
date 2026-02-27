@@ -868,6 +868,87 @@ export async function initializeDatabase() {
       console.log('Note: tracked_products linked_product_id FK migration:', e.message);
     }
 
+    // Create coach_profiles table
+    await sql`
+      CREATE TABLE IF NOT EXISTS coach_profiles (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE UNIQUE NOT NULL,
+        craft_type VARCHAR(100) NOT NULL,
+        sales_channels TEXT[] DEFAULT ARRAY[]::TEXT[],
+        experience_years VARCHAR(20) NOT NULL,
+        primary_challenge VARCHAR(100) NOT NULL,
+        monthly_revenue_goal DECIMAL(12,2),
+        completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+
+    // Create coach_insights table
+    await sql`
+      CREATE TABLE IF NOT EXISTS coach_insights (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+        headline VARCHAR(255) NOT NULL,
+        body TEXT NOT NULL,
+        action TEXT NOT NULL,
+        impact_estimate VARCHAR(100),
+        priority INTEGER NOT NULL DEFAULT 5,
+        category VARCHAR(20) NOT NULL,
+        related_product_id INTEGER REFERENCES products(id) ON DELETE SET NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'unread',
+        generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+
+    try {
+      await sql`CREATE INDEX IF NOT EXISTS idx_coach_insights_user_id ON coach_insights(user_id)`;
+      await sql`CREATE INDEX IF NOT EXISTS idx_coach_insights_status ON coach_insights(status)`;
+    } catch (e: any) {
+      console.log('Note: Index creation for coach_insights:', e.message);
+    }
+
+    // Create coach_chat_messages table
+    await sql`
+      CREATE TABLE IF NOT EXISTS coach_chat_messages (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+        role VARCHAR(15) NOT NULL,
+        content TEXT NOT NULL,
+        session_id VARCHAR(36) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+
+    try {
+      await sql`CREATE INDEX IF NOT EXISTS idx_coach_chat_user_id ON coach_chat_messages(user_id)`;
+    } catch (e: any) {
+      console.log('Note: Index creation for coach_chat_messages:', e.message);
+    }
+
+    // Create coach_reports table
+    await sql`
+      CREATE TABLE IF NOT EXISTS coach_reports (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+        report_type VARCHAR(50) NOT NULL,
+        content TEXT NOT NULL,
+        generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, report_type)
+      );
+    `;
+
+    // Create coach_daily_usage table
+    await sql`
+      CREATE TABLE IF NOT EXISTS coach_daily_usage (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+        usage_date DATE NOT NULL DEFAULT CURRENT_DATE,
+        chat_messages_sent INTEGER NOT NULL DEFAULT 0,
+        UNIQUE(user_id, usage_date)
+      );
+    `;
+
     console.log('✅ Database tables initialized successfully');
   } catch (error) {
     console.error('❌ Error initializing database:', error);
