@@ -25,7 +25,6 @@ export default function Coach() {
     isGeneratingInsights,
     updateInsightStatus,
     chatHistory,
-    isChatHistoryLoading,
     sendChat,
     isSendingChat,
     sendChatError,
@@ -131,12 +130,11 @@ export default function Coach() {
         <div className="flex flex-col border-l overflow-hidden" style={{ flex: '0 0 45%' }}>
           <ChatPanel
             history={chatHistory}
-            isLoading={isChatHistoryLoading}
             isSending={isSendingChat}
-            sendError={sendChatError}
+            error={sendChatError}
             onSend={sendChat}
-            dailyUsed={chatDailyUsed}
-            dailyLimit={planChatPerDay}
+            chatDailyUsed={chatDailyUsed}
+            chatPerDayLimit={planChatPerDay}
           />
         </div>
       </div>
