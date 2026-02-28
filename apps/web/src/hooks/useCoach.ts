@@ -38,6 +38,9 @@ export function useCoach() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['coach', 'profile'] });
+      // Profile change invalidates derived data — user should re-analyze
+      queryClient.removeQueries({ queryKey: ['coach', 'insights'] });
+      queryClient.removeQueries({ queryKey: ['coach', 'health-score'] });
     },
   });
 
