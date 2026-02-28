@@ -43,6 +43,9 @@ export const upsertProfile = async (req: AuthRequest, res: Response): Promise<Re
         monthly_revenue_goal = EXCLUDED.monthly_revenue_goal,
         updated_at = NOW()
     `;
+    // Clear stale analysis data so re-analysis uses the new profile
+    await db`DELETE FROM coach_insights WHERE user_id = ${req.userId!} AND status IN ('unread', 'read')`;
+    await db`DELETE FROM coach_reports WHERE user_id = ${req.userId!}`;
     return res.json({ status: 'success', message: 'Profile saved' });
   } catch (error: any) {
     if (error.name === 'ZodError') {
