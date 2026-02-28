@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BrainCircuit, RefreshCw, FileText } from 'lucide-react';
+import { BrainCircuit, RefreshCw, FileText, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useCoach } from '@/hooks/useCoach';
@@ -12,6 +12,7 @@ import { ReportsPanel } from '@/components/coach/ReportsPanel';
 
 export default function Coach() {
   const [showReports, setShowReports] = useState(false);
+  const [editingProfile, setEditingProfile] = useState(false);
 
   const {
     profile,
@@ -73,6 +74,15 @@ export default function Coach() {
               profile.experience_years === '1-3years' ? '1–3 years exp.' : '3+ years exp.'
             }
           </span>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 text-muted-foreground hover:text-foreground"
+            title="Edit profile"
+            onClick={() => setEditingProfile(true)}
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </Button>
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -97,6 +107,22 @@ export default function Coach() {
           </Button>
         </div>
       </div>
+
+      {/* Edit profile modal */}
+      {editingProfile && (
+        <CoachOnboarding
+          initialValues={{
+            craft_type: profile.craft_type,
+            sales_channels: profile.sales_channels,
+            experience_years: profile.experience_years,
+            primary_challenge: profile.primary_challenge,
+            monthly_revenue_goal: profile.monthly_revenue_goal ?? undefined,
+          }}
+          onComplete={async (data) => { await upsertProfile(data); }}
+          isSubmitting={isUpsertingProfile}
+          onCancel={() => setEditingProfile(false)}
+        />
+      )}
 
       {/* Reports panel — smooth slide-down using CSS grid-rows trick */}
       <div

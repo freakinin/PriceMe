@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ChevronRight, ChevronLeft, BrainCircuit } from 'lucide-react';
+import { ChevronRight, ChevronLeft, BrainCircuit, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,6 +11,8 @@ import { coachProfileSchema, type CoachProfileInput } from '@priceme/shared';
 interface CoachOnboardingProps {
   onComplete: (data: CoachProfileInput) => Promise<void>;
   isSubmitting: boolean;
+  initialValues?: CoachProfileInput; // present in edit mode
+  onCancel?: () => void;             // present in edit mode
 }
 
 const CRAFT_TYPES = [
@@ -37,12 +39,13 @@ const CHALLENGES = [
 
 const TOTAL_STEPS = 5;
 
-export function CoachOnboarding({ onComplete, isSubmitting }: CoachOnboardingProps) {
+export function CoachOnboarding({ onComplete, isSubmitting, initialValues, onCancel }: CoachOnboardingProps) {
   const [step, setStep] = useState(0);
+  const isEditing = !!initialValues;
 
   const form = useForm<CoachProfileInput>({
     resolver: zodResolver(coachProfileSchema),
-    defaultValues: {
+    defaultValues: initialValues ?? {
       craft_type: '',
       sales_channels: [],
       experience_years: '<1year',
@@ -60,13 +63,14 @@ export function CoachOnboarding({ onComplete, isSubmitting }: CoachOnboardingPro
       case 1: return values.sales_channels.length > 0;
       case 2: return !!values.experience_years;
       case 3: return !!values.primary_challenge;
-      case 4: return true; // revenue goal is optional
+      case 4: return true;
       default: return false;
     }
   };
 
   const onSubmit = handleSubmit(async (data) => {
     await onComplete(data);
+    onCancel?.(); // close modal after successful save in edit mode
   });
 
   const toggleChannel = (channel: string) => {
@@ -198,6 +202,7 @@ export function CoachOnboarding({ onComplete, isSubmitting }: CoachOnboardingPro
           min={0}
           placeholder="e.g. 2000"
           className="text-base"
+          defaultValue={initialValues?.monthly_revenue_goal ?? ''}
           onChange={(e) => {
             const val = parseFloat(e.target.value);
             setValue('monthly_revenue_goal', isNaN(val) ? undefined : val);
@@ -218,10 +223,15 @@ export function CoachOnboarding({ onComplete, isSubmitting }: CoachOnboardingPro
           <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
             <BrainCircuit className="h-5 w-5 text-primary" />
           </div>
-          <div>
-            <p className="font-semibold text-sm">Set up Coach</p>
+          <div className="flex-1">
+            <p className="font-semibold text-sm">{isEditing ? 'Edit Coach Profile' : 'Set up Coach'}</p>
             <p className="text-xs text-muted-foreground">Step {step + 1} of {TOTAL_STEPS}</p>
           </div>
+          {isEditing && onCancel && (
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onCancel}>
+              <X className="h-4 w-4" />
+            </Button>
+          )}
         </div>
 
         {/* Progress bar */}
@@ -265,7 +275,7 @@ export function CoachOnboarding({ onComplete, isSubmitting }: CoachOnboardingPro
                 size="sm"
                 disabled={isSubmitting}
               >
-                {isSubmitting ? 'Setting up…' : 'Start Coaching'}
+                {isSubmitting ? 'Saving…' : isEditing ? 'Save Changes' : 'Start Coaching'}
                 {!isSubmitting && <ChevronRight className="h-4 w-4 ml-1" />}
               </Button>
             )}
