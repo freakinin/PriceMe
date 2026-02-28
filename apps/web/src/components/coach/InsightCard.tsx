@@ -41,7 +41,7 @@ export function InsightCard({ insight, onStatusChange }: InsightCardProps) {
 
   const handleDone = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!isDone) onStatusChange({ id: insight.id, status: 'done' });
+    onStatusChange({ id: insight.id, status: isDone ? 'read' : 'done' });
   };
 
   const handleDismiss = (e: React.MouseEvent) => {

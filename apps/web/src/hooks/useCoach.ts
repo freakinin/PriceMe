@@ -110,19 +110,31 @@ export function useCoach() {
       if (response.data.status === 'success') return response.data.data as CoachChatMessage;
       throw new Error(response.data.message || 'Failed to send message');
     },
-    onSuccess: (assistantMessage, { message, session_id }) => {
-      // Optimistically append user message + assistant reply
-      queryClient.setQueryData<CoachChatMessage[]>(['coach', 'chat-history'], (old) => {
-        const userMsg: CoachChatMessage = {
-          id: Date.now(),
-          user_id: assistantMessage.user_id,
-          role: 'user',
-          content: message,
-          session_id,
-          created_at: new Date(),
-        };
-        return [...(old ?? []), userMsg, assistantMessage];
-      });
+    onMutate: async ({ message, session_id }) => {
+      // Show the user's message immediately — don't wait for the AI response
+      const optimisticUserMsg: CoachChatMessage = {
+        id: Date.now(),
+        user_id: 0,
+        role: 'user',
+        content: message,
+        session_id,
+        created_at: new Date(),
+      };
+      queryClient.setQueryData<CoachChatMessage[]>(['coach', 'chat-history'], (old) => [
+        ...(old ?? []),
+        optimisticUserMsg,
+      ]);
+    },
+    onSuccess: (assistantMessage) => {
+      // Append the assistant reply — user message is already in the cache
+      queryClient.setQueryData<CoachChatMessage[]>(['coach', 'chat-history'], (old) => [
+        ...(old ?? []),
+        assistantMessage,
+      ]);
+    },
+    onError: () => {
+      // Roll back the optimistic user message on failure
+      queryClient.invalidateQueries({ queryKey: ['coach', 'chat-history'] });
     },
   });
 

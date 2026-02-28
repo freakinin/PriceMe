@@ -6,6 +6,7 @@ import { ChatMessage, ChatThinkingBubble } from './ChatMessage';
 import { CoachGate } from './CoachGate';
 import { cn } from '@/lib/utils';
 import type { CoachChatMessage } from '@/hooks/useCoach';
+
 interface ChatPanelProps {
   history: CoachChatMessage[];
   onSend: (args: { message: string; session_id: string }) => Promise<CoachChatMessage>;
@@ -28,9 +29,13 @@ export function ChatPanel({
 }: ChatPanelProps) {
   const [input, setInput] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
+  // Scroll to bottom whenever messages change or while sending
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    container.scrollTop = container.scrollHeight;
   }, [history, isSending]);
 
   if (chatPerDayLimit === 0) {
@@ -60,7 +65,7 @@ export function ChatPanel({
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full min-h-0">
       {/* Header */}
       <div className="px-4 py-3 border-b flex items-center justify-between flex-shrink-0">
         <p className="text-sm font-medium">Chat with Coach</p>
@@ -71,8 +76,11 @@ export function ChatPanel({
         )}
       </div>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 min-h-0">
+      {/* Messages — takes all remaining height, scrolls internally */}
+      <div
+        ref={scrollContainerRef}
+        className="flex-1 overflow-y-auto px-4 py-4 space-y-3 min-h-0"
+      >
         {history.length === 0 && (
           <div className="text-center py-8">
             <p className="text-sm text-muted-foreground">Ask anything about your shop.</p>
@@ -90,7 +98,7 @@ export function ChatPanel({
 
       {/* Error */}
       {error && (
-        <p className="px-4 pb-1 text-xs text-red-500">{error}</p>
+        <p className="px-4 pb-1 text-xs text-red-500 flex-shrink-0">{error}</p>
       )}
 
       {/* Input */}

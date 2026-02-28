@@ -62,7 +62,7 @@ export default function Coach() {
   }
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="flex flex-col overflow-hidden" style={{ height: 'calc(100vh - 4rem)' }}>
       {/* Top action bar */}
       <div className="flex items-center justify-between px-6 py-3 border-b bg-background flex-shrink-0">
         <div className="flex items-center gap-2">
@@ -112,7 +112,7 @@ export default function Coach() {
       )}
 
       {/* Main two-column body */}
-      <div className="flex-1 flex gap-0 overflow-hidden">
+      <div className="flex-1 flex gap-0 overflow-hidden min-h-0">
         {/* Left column: Health score + Insight feed */}
         <div className="flex flex-col gap-5 p-6 overflow-y-auto" style={{ flex: '0 0 55%' }}>
           <HealthScoreWidget score={healthScore} />
