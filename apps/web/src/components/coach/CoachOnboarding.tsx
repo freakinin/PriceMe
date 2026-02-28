@@ -264,6 +264,7 @@ export function CoachOnboarding({ onComplete, isSubmitting, initialValues, onCan
 
             {step < TOTAL_STEPS - 1 ? (
               <Button
+                key="next"
                 type="button"
                 size="sm"
                 onClick={() => setStep(s => s + 1)}
@@ -274,6 +275,7 @@ export function CoachOnboarding({ onComplete, isSubmitting, initialValues, onCan
               </Button>
             ) : (
               <Button
+                key="submit"
                 type="submit"
                 size="sm"
                 disabled={isSubmitting}
