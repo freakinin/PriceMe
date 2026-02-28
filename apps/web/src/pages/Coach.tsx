@@ -98,9 +98,12 @@ export default function Coach() {
         </div>
       </div>
 
-      {/* Reports panel (full-width, collapsible) */}
-      {showReports && (
-        <div className="px-6 pt-4 flex-shrink-0">
+      {/* Reports panel — smooth slide-down using CSS grid-rows trick */}
+      <div
+        className="flex-shrink-0 overflow-hidden transition-[grid-template-rows] duration-300 ease-in-out"
+        style={{ display: 'grid', gridTemplateRows: showReports ? '1fr' : '0fr' }}
+      >
+        <div className="min-h-0 overflow-hidden">
           <ReportsPanel
             reports={reports}
             onGenerate={generateReport}
@@ -109,7 +112,7 @@ export default function Coach() {
             reportsPerMonthLimit={reportsPerMonthLimit}
           />
         </div>
-      )}
+      </div>
 
       {/* Main two-column body */}
       <div className="flex-1 flex gap-0 overflow-hidden min-h-0">
