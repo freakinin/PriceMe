@@ -84,9 +84,9 @@ export function useCoach() {
     onSuccess: (_data, { id, status }) => {
       queryClient.setQueryData<CoachInsight[]>(['coach', 'insights'], (old) =>
         old
-          ? status === 'dismissed' || status === 'done'
-            ? old.filter((i) => i.id !== id)
-            : old.map((i) => (i.id === id ? { ...i, status } : i))
+          ? status === 'dismissed'
+            ? old.filter((i) => i.id !== id)          // dismissed → remove
+            : old.map((i) => (i.id === id ? { ...i, status } : i)) // done/read → update in place
           : old
       );
     },

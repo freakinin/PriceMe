@@ -69,9 +69,13 @@ export function InsightFeed({
     );
   }
 
+  const active = insights.filter((i) => i.status !== 'done');
+  const done = insights.filter((i) => i.status === 'done');
+  const sorted = [...active, ...done];
+
   return (
-    <div className="space-y-3">
-      {insights.map((insight) => (
+    <div className="space-y-2">
+      {sorted.map((insight) => (
         <InsightCard
           key={insight.id}
           insight={insight}
