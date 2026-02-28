@@ -182,7 +182,7 @@ export const getInsights = async (req: AuthRequest, res: Response): Promise<Resp
       FROM coach_insights ci
       LEFT JOIN products p ON p.id = ci.related_product_id
       WHERE ci.user_id = ${req.userId!}
-        AND ci.status NOT IN ('dismissed', 'done')
+        AND ci.status != 'dismissed'
       ORDER BY ci.priority ASC, ci.generated_at DESC
     `;
     const rows = Array.isArray(result) ? result : result.rows || [];
@@ -197,11 +197,11 @@ export const updateInsightStatus = async (req: AuthRequest, res: Response): Prom
   try {
     const { id } = req.params;
     const { status } = insightStatusSchema.parse(req.body);
-    await db`
-      UPDATE coach_insights
-      SET status = ${status}
-      WHERE id = ${Number(id)} AND user_id = ${req.userId!}
-    `;
+    if (status === 'dismissed') {
+      await db`DELETE FROM coach_insights WHERE id = ${Number(id)} AND user_id = ${req.userId!}`;
+    } else {
+      await db`UPDATE coach_insights SET status = ${status} WHERE id = ${Number(id)} AND user_id = ${req.userId!}`;
+    }
     return res.json({ status: 'success', message: 'Insight updated' });
   } catch (error: any) {
     if (error.name === 'ZodError') {
