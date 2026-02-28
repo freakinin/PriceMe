@@ -28,7 +28,7 @@ if (process.env.VERCEL !== '1') {
     }
 
     console.log('Loading env from:', envPath);
-    const result = dotenv.config({ path: envPath });
+    const result = dotenv.config({ path: envPath, override: true }); // .env.local always wins over .env.custom
     if (result.error) console.error('Dotenv Error:', result.error);
     console.log('Dotenv Parsed Keys:', result.parsed ? Object.keys(result.parsed).join(', ') : 'None');
     console.log('GEMINI_API_KEY in process.env:', process.env.GEMINI_API_KEY ? 'Yes' : 'No');
@@ -128,6 +128,7 @@ import platformFeesRoutes from './routes/platformFees.js';
 import shippingMethodsRoutes from './routes/shippingMethods.js';
 import subscriptionRoutes from './routes/subscription.js';
 import profileRoutes from './routes/profile.js';
+import coachRoutes from './routes/coach.js';
 import { PriceMonitorJob } from './jobs/priceMonitor.js';
 
 app.use('/api/notifications', notificationRoutes);
@@ -135,6 +136,7 @@ app.use('/api/platform-fees', platformFeesRoutes);
 app.use('/api/shipping-methods', shippingMethodsRoutes);
 app.use('/api/subscription', subscriptionRoutes);
 app.use('/api/profile', profileRoutes);
+app.use('/api/coach', coachRoutes);
 
 // API info route
 app.get('/api', (_req, res) => {

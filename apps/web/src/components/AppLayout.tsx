@@ -26,6 +26,7 @@ const getPageTitle = (pathname: string): string => {
     '/on-sale': 'On Sale',
     '/roadmap': 'Roadmap',
     '/market-analysis': 'Market Analysis',
+    '/coach': 'Coach',
   };
   return titles[pathname] || 'PriceMe';
 };

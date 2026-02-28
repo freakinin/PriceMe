@@ -3,10 +3,10 @@ import type { PlanName, PlanLimits } from '@priceme/shared';
 export type { PlanName, PlanLimits };
 
 export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
-  free:     { products: 10,  competitors: 2  },
-  starter:  { products: 50,  competitors: 10 },
-  pro:      { products: 200, competitors: 30 },
-  business: { products: -1,  competitors: -1 },
+  free:     { products: 10,  competitors: 2,  coachInsights: 3,   coachChatPerDay: 0,  coachReportsPerMonth: 0  },
+  starter:  { products: 50,  competitors: 10, coachInsights: 10,  coachChatPerDay: 10, coachReportsPerMonth: 2  },
+  pro:      { products: 200, competitors: 30, coachInsights: -1,  coachChatPerDay: 50, coachReportsPerMonth: 5  },
+  business: { products: -1,  competitors: -1, coachInsights: -1,  coachChatPerDay: -1, coachReportsPerMonth: -1 },
 };
 
 export interface PlanDisplay {

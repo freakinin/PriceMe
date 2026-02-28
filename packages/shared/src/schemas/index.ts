@@ -211,3 +211,4 @@ export interface ShippingMethod extends ShippingMethodInput {
 export * from './template.js';
 export * from './sales.js';
 export * from './category.js';
+export * from './coach.js';

@@ -2,8 +2,11 @@
 export type PlanName = 'free' | 'starter' | 'pro' | 'business';
 
 export interface PlanLimits {
-  products: number;    // -1 = unlimited
-  competitors: number; // -1 = unlimited
+  products: number;             // -1 = unlimited
+  competitors: number;          // -1 = unlimited
+  coachInsights: number;        // -1 = unlimited; 0 = no access
+  coachChatPerDay: number;      // -1 = unlimited; 0 = no access
+  coachReportsPerMonth: number; // -1 = unlimited; 0 = no access
 }
 
 export interface SubscriptionInfo {
@@ -73,6 +76,95 @@ export interface PricingData {
   calculation_method?: string;
   calculation_data?: Record<string, unknown>;
   updated_at: Date;
+}
+
+// Coach types
+export type ReportType = 'portfolio_analysis' | 'pricing_audit' | 'cost_reduction' | 'revenue_goal_path';
+
+export interface CoachProfile {
+  id: number;
+  user_id: number;
+  craft_type: string;
+  sales_channels: string[];
+  experience_years: string;
+  primary_challenge: string;
+  monthly_revenue_goal: number | null;
+  completed_at: Date;
+  updated_at: Date;
+}
+
+export interface CoachInsight {
+  id: number;
+  user_id: number;
+  headline: string;
+  body: string;
+  action: string;
+  impact_estimate: string | null;
+  priority: number;
+  category: string;
+  related_product_id: number | null;
+  related_product_name: string | null;
+  status: 'unread' | 'read' | 'dismissed' | 'done';
+  generated_at: Date;
+}
+
+export interface CoachChatMessage {
+  id: number;
+  user_id: number;
+  role: 'user' | 'assistant';
+  content: string;
+  session_id: string;
+  created_at: Date;
+}
+
+export interface CoachReport {
+  id: number;
+  user_id: number;
+  report_type: ReportType;
+  content: string;
+  generated_at: Date;
+}
+
+export interface HealthScore {
+  overall: number;
+  margin_health: number;
+  pricing_confidence: number;
+  product_mix: number;
+  sales_velocity: number;
+  computed_at: string;
+}
+
+export interface ShopSnapshotProduct {
+  id: number;
+  name: string;
+  status: string;
+  batch_size: number;
+  target_price: number | null;
+  product_cost: number;
+  profit_margin: number | null;
+  pricing_method: string | null;
+  category: string | null;
+  units_sold_90d: number;
+  revenue_90d: number;
+  competitor_count: number;
+  avg_competitor_price: number | null;
+}
+
+export interface ShopSnapshot {
+  currency: string;
+  revenue_goal: number | null;
+  labor_hourly_cost: number | null;
+  seller_country: string | null;
+  products: ShopSnapshotProduct[];
+  product_count: number;
+  active_product_count: number;
+  avg_margin: number | null;
+  sales_summary: {
+    total_revenue_90d: number;
+    total_units_90d: number;
+    best_selling_product_name: string | null;
+    platform_breakdown: { platform: string; revenue: number }[];
+  };
 }
 
 // Variant types

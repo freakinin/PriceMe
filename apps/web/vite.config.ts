@@ -8,7 +8,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
-      '@priceme/shared': path.resolve(__dirname, '../../packages/shared/src/index.ts')
+      '@priceme/shared': path.resolve(__dirname, '../../packages/shared/dist/index.js')
     },
   },
 })
