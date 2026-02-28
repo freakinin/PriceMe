@@ -57,7 +57,6 @@ function renderMarkdown(md: string): string {
 export function ReportsPanel({
   reports,
   onGenerate,
-  isGenerating,
   onClose,
   reportsPerMonthLimit,
 }: ReportsPanelProps) {
@@ -111,7 +110,6 @@ export function ReportsPanel({
             const meta = REPORT_META[type];
             const report = getReport(type);
             const Icon = meta.icon;
-            const isGeneratingThis = generating === type;
             const isActive = activeType === type;
 
             return (

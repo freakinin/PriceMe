@@ -114,7 +114,7 @@ export default function Coach() {
           initialValues={{
             craft_type: profile.craft_type,
             sales_channels: profile.sales_channels,
-            experience_years: profile.experience_years,
+            experience_years: profile.experience_years as '<1year' | '1-3years' | '3+years',
             primary_challenge: profile.primary_challenge,
             monthly_revenue_goal: profile.monthly_revenue_goal ?? undefined,
           }}
