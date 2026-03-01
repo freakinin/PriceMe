@@ -112,6 +112,7 @@ import exportRoutes from './routes/export.js';
 
 import categoryRoutes from './routes/categories.js';
 import competitorRoutes from './routes/competitors.js';
+import supplierRoutes from './routes/suppliers.js';
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/settings', settingsRoutes);
@@ -121,6 +122,7 @@ app.use('/api/templates', templateRoutes);
 app.use('/api/sales', salesRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/competitors', competitorRoutes);
+app.use('/api/suppliers', supplierRoutes);
 app.use('/api/export', exportRoutes);
 
 import notificationRoutes from './routes/notifications.js';

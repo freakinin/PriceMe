@@ -530,6 +530,97 @@ export async function initializeDatabase() {
       console.log('Note: Migration check for last_purchased_quantity column:', error.message);
     }
 
+    // Create suppliers table (centralized supplier database per user)
+    await sql`
+      CREATE TABLE IF NOT EXISTS suppliers (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        name VARCHAR(255) NOT NULL,
+        link VARCHAR(500),
+        phone VARCHAR(100),
+        email VARCHAR(255),
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, name)
+      );
+    `;
+
+    // Add phone column to suppliers if it doesn't exist (migration)
+    try {
+      const phoneExists = await sql`
+        SELECT column_name FROM information_schema.columns
+        WHERE table_name='suppliers' AND column_name='phone'
+      `;
+      const phoneRows = Array.isArray(phoneExists) ? phoneExists : phoneExists.rows || [];
+      if (phoneRows.length === 0) {
+        await sql`ALTER TABLE suppliers ADD COLUMN phone VARCHAR(100)`;
+        console.log('✅ Added phone column to suppliers');
+      }
+    } catch (error: any) {
+      console.log('Note: Migration check for suppliers.phone:', error.message);
+    }
+
+    // Add email column to suppliers if it doesn't exist (migration)
+    try {
+      const emailExists = await sql`
+        SELECT column_name FROM information_schema.columns
+        WHERE table_name='suppliers' AND column_name='email'
+      `;
+      const emailRows = Array.isArray(emailExists) ? emailExists : emailExists.rows || [];
+      if (emailRows.length === 0) {
+        await sql`ALTER TABLE suppliers ADD COLUMN email VARCHAR(255)`;
+        console.log('✅ Added email column to suppliers');
+      }
+    } catch (error: any) {
+      console.log('Note: Migration check for suppliers.email:', error.message);
+    }
+
+    // Add supplier_id column to user_materials if it doesn't exist (migration)
+    try {
+      const supplierIdExists = await sql`
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_name='user_materials' AND column_name='supplier_id'
+      `;
+      const supplierIdRows = Array.isArray(supplierIdExists) ? supplierIdExists : supplierIdExists.rows || [];
+      if (supplierIdRows.length === 0) {
+        console.log('Adding supplier_id column to user_materials table...');
+        await sql`ALTER TABLE user_materials ADD COLUMN supplier_id INTEGER REFERENCES suppliers(id) ON DELETE SET NULL`;
+        console.log('✅ Added supplier_id column');
+
+        // Data migration: create supplier records from existing free-text supplier fields
+        console.log('Migrating existing supplier text data to suppliers table...');
+        const existingSuppliers = await sql`
+          SELECT DISTINCT user_id, supplier, supplier_link
+          FROM user_materials
+          WHERE supplier IS NOT NULL AND supplier != ''
+        `;
+        const supplierRows = Array.isArray(existingSuppliers) ? existingSuppliers : existingSuppliers.rows || [];
+        for (const row of supplierRows) {
+          try {
+            await sql`
+              INSERT INTO suppliers (user_id, name, link)
+              VALUES (${row.user_id}, ${row.supplier}, ${row.supplier_link || null})
+              ON CONFLICT (user_id, name) DO NOTHING
+            `;
+            await sql`
+              UPDATE user_materials
+              SET supplier_id = (
+                SELECT id FROM suppliers WHERE user_id = ${row.user_id} AND name = ${row.supplier}
+              )
+              WHERE user_id = ${row.user_id} AND supplier = ${row.supplier} AND supplier_id IS NULL
+            `;
+          } catch (innerError: any) {
+            console.log(`Note: Could not migrate supplier "${row.supplier}":`, innerError.message);
+          }
+        }
+        console.log(`✅ Migrated ${supplierRows.length} supplier(s) from existing materials`);
+      }
+    } catch (error: any) {
+      console.log('Note: Migration check for supplier_id column:', error.message);
+    }
+
     // Create roadmap_features table
     await sql`
       CREATE TABLE IF NOT EXISTS roadmap_features (

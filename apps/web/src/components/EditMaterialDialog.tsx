@@ -33,6 +33,9 @@ import { useToast } from '@/components/ui/use-toast';
 import { Info } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { CategoryCombobox } from '@/components/CategoryCombobox';
+import { SupplierCombobox } from '@/components/SupplierCombobox';
+import { useSuppliers } from '@/hooks/useSuppliers';
+import { ExternalLink } from 'lucide-react';
 
 // Helper function to format numbers for display (remove trailing zeros)
 const formatNumberForInput = (val: number | null | undefined): string => {
@@ -97,6 +100,7 @@ const materialSchema = z.object({
   ),
   category: z.string().optional(),
   is_percentage_type: z.boolean().default(false).optional(),
+  supplier_id: z.number().int().positive().optional().nullable(),
 });
 
 type MaterialFormValues = z.infer<typeof materialSchema>;
@@ -126,6 +130,7 @@ export default function EditMaterialDialog({
   const { settings } = useSettings();
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
+  const { suppliers, createSupplier } = useSuppliers();
 
   const form = useForm<MaterialFormValues>({
     resolver: zodResolver(materialSchema),
@@ -138,6 +143,7 @@ export default function EditMaterialDialog({
       details: '',
       supplier: '',
       supplier_link: '',
+      supplier_id: null,
       reorder_point: 0,
       last_purchased_date: '',
       last_purchased_price: undefined,
@@ -166,6 +172,7 @@ export default function EditMaterialDialog({
         details: material.details || '',
         supplier: material.supplier || '',
         supplier_link: material.supplier_link || '',
+        supplier_id: material.supplier_id || null,
         reorder_point: material.reorder_point || 0,
         last_purchased_date: material.last_purchased_date || '',
         last_purchased_price: material.last_purchased_price || undefined,
@@ -184,6 +191,7 @@ export default function EditMaterialDialog({
         details: '',
         supplier: '',
         supplier_link: '',
+        supplier_id: null,
         reorder_point: 0,
         last_purchased_date: '',
         last_purchased_price: undefined,
@@ -214,6 +222,7 @@ export default function EditMaterialDialog({
           details: data.details,
           supplier: data.supplier,
           supplier_link: data.supplier_link,
+          supplier_id: data.supplier_id,
           reorder_point: data.reorder_point,
           last_purchased_date: data.last_purchased_date,
           last_purchased_price: data.last_purchased_price,
@@ -574,10 +583,22 @@ export default function EditMaterialDialog({
                 name="last_purchased_date"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Last Purchased</FormLabel>
+                    <FormLabel className="inline-flex items-center gap-1">
+                      Last Purchased
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-xs">
+                            <p>Date you last restocked this material. Auto-filled when you use Add Stock.</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </FormLabel>
                     <FormControl>
-                      <Input 
-                        type="date" 
+                      <Input
+                        type="date"
                         {...field}
                         value={field.value ? (typeof field.value === 'string' ? field.value.split('T')[0] : new Date(field.value).toISOString().split('T')[0]) : ''}
                         onChange={(e) => {
@@ -594,7 +615,19 @@ export default function EditMaterialDialog({
                 name="last_purchased_price"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Last Price ({getCurrencySymbol(settings.currency)})</FormLabel>
+                    <FormLabel className="inline-flex items-center gap-1">
+                      Last Price ({getCurrencySymbol(settings.currency)})
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-xs">
+                            <p>Price per unit you paid on last purchase. Helps spot price changes vs. your current cost.</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </FormLabel>
                     <FormControl>
                       <Input
                         type="number"
@@ -646,34 +679,42 @@ export default function EditMaterialDialog({
             {/* Supplier Section */}
             <div className="mt-4 p-4 border rounded-lg bg-muted/30">
               <h4 className="text-sm font-medium mb-3 text-muted-foreground">Supplier</h4>
-              <div className="grid grid-cols-2 gap-4 items-end">
-                <FormField
-                  control={form.control}
-                  name="supplier"
-                  render={({ field }) => (
+              <FormField
+                control={form.control}
+                name="supplier_id"
+                render={({ field }) => {
+                  const selectedLink = form.watch('supplier_link');
+                  return (
                     <FormItem>
-                      <FormLabel>Supplier Name</FormLabel>
+                      <FormLabel>Supplier</FormLabel>
                       <FormControl>
-                        <Input {...field} placeholder="Supplier name" />
+                        <SupplierCombobox
+                          value={field.value}
+                          onChange={(id, name, link) => {
+                            field.onChange(id);
+                            form.setValue('supplier', name);
+                            form.setValue('supplier_link', link);
+                          }}
+                          suppliers={suppliers}
+                          onCreateSupplier={(data) => createSupplier(data)}
+                        />
                       </FormControl>
                       <FormMessage />
+                      {selectedLink && (
+                        <a
+                          href={selectedLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-xs text-primary hover:underline mt-1"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          {selectedLink}
+                        </a>
+                      )}
                     </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="supplier_link"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Supplier Link</FormLabel>
-                      <FormControl>
-                        <Input {...field} placeholder="https://..." type="url" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+                  );
+                }}
+              />
             </div>
             </div>
 
