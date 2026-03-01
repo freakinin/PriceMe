@@ -22,6 +22,7 @@ const createMaterialSchema = z.object({
   details: z.string().optional(),
   supplier: z.string().optional(),
   supplier_link: z.string().url().optional().or(z.literal('')),
+  supplier_id: z.preprocess(numericPreprocess, z.number().int().positive().optional().nullable()),
   stock_level: z.preprocess(numericPreprocess, z.number().optional()), // Allow negative for oversold situations
   reorder_point: z.preprocess(numericPreprocess, z.number().nonnegative().optional()),
   last_purchased_date: z.string().optional(),
@@ -43,6 +44,7 @@ const updateMaterialSchema = z.object({
   details: z.string().optional(),
   supplier: z.string().optional(),
   supplier_link: z.string().url().optional().or(z.literal('')),
+  supplier_id: z.preprocess(numericPreprocess, z.number().int().positive().optional().nullable()),
   stock_level: z.preprocess(numericPreprocess, z.number().optional()), // Allow negative for oversold situations
   reorder_point: z.preprocess(numericPreprocess, z.number().nonnegative().optional()),
   last_purchased_date: z.string().optional(),
@@ -84,6 +86,7 @@ export const createMaterial = async (req: AuthRequest, res: Response) => {
       details,
       supplier,
       supplier_link,
+      supplier_id,
       stock_level,
       reorder_point,
       last_purchased_date,
@@ -95,13 +98,13 @@ export const createMaterial = async (req: AuthRequest, res: Response) => {
     const result = await db`
       INSERT INTO user_materials (
         user_id, name, price, quantity, unit, price_per_unit, width, length, details,
-        supplier, supplier_link, stock_level, reorder_point,
+        supplier, supplier_link, supplier_id, stock_level, reorder_point,
         last_purchased_date, last_purchased_price, category, is_percentage_type
       )
       VALUES (
         ${req.userId}, ${name}, ${price}, ${quantity || 0}, ${unit}, ${price_per_unit},
         ${width || null}, ${length || null}, ${details || null}, ${supplier || null}, ${supplier_link || null},
-        ${stock_level || 0}, ${reorder_point || 0},
+        ${supplier_id ?? null}, ${stock_level || 0}, ${reorder_point || 0},
         ${last_purchased_date || null}, ${last_purchased_price || null}, ${category || null}, ${is_percentage_type || false}
       )
       RETURNING *
@@ -421,6 +424,7 @@ export const updateMaterial = async (req: AuthRequest, res: Response) => {
       details: validatedData.details !== undefined ? validatedData.details : current.details,
       supplier: validatedData.supplier !== undefined ? validatedData.supplier : current.supplier,
       supplier_link: validatedData.supplier_link !== undefined ? validatedData.supplier_link : current.supplier_link,
+      supplier_id: validatedData.supplier_id !== undefined ? validatedData.supplier_id : (current.supplier_id ? Number(current.supplier_id) : null),
       stock_level: validatedData.stock_level !== undefined ? validatedData.stock_level : Number(current.stock_level || 0),
       reorder_point: validatedData.reorder_point !== undefined ? validatedData.reorder_point : Number(current.reorder_point || 0),
       last_purchased_date: validatedData.last_purchased_date !== undefined ? validatedData.last_purchased_date : current.last_purchased_date,
@@ -432,7 +436,7 @@ export const updateMaterial = async (req: AuthRequest, res: Response) => {
 
     const finalResult = await db`
       UPDATE user_materials
-      SET 
+      SET
         name = ${mergedData.name},
         price = ${mergedData.price},
         quantity = ${mergedData.quantity},
@@ -443,6 +447,7 @@ export const updateMaterial = async (req: AuthRequest, res: Response) => {
         details = ${mergedData.details || null},
         supplier = ${mergedData.supplier || null},
         supplier_link = ${mergedData.supplier_link || null},
+        supplier_id = ${mergedData.supplier_id},
         stock_level = ${mergedData.stock_level},
         reorder_point = ${mergedData.reorder_point},
         last_purchased_date = ${mergedData.last_purchased_date || null},

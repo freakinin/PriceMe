@@ -47,6 +47,33 @@ export const createMaterialSchema = z.object({
 
 export const updateMaterialSchema = createMaterialSchema.partial();
 
+// Supplier schemas
+export const createSupplierSchema = z.object({
+  name: z.string().min(1),
+  link: z.string().url().optional().or(z.literal('')),
+  phone: z.string().optional(),
+  email: z.string().email().optional().or(z.literal('')),
+  notes: z.string().optional(),
+});
+
+export const updateSupplierSchema = createSupplierSchema.partial();
+
+export type CreateSupplierInput = z.infer<typeof createSupplierSchema>;
+export type UpdateSupplierInput = z.infer<typeof updateSupplierSchema>;
+
+export interface Supplier {
+  id: number;
+  user_id: number;
+  name: string;
+  link?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  notes?: string | null;
+  material_count?: number;
+  created_at: string;
+  updated_at: string;
+}
+
 // User Material schemas (for centralized materials library)
 export const createUserMaterialSchema = z.object({
   name: z.string().min(1),
@@ -59,6 +86,7 @@ export const createUserMaterialSchema = z.object({
   details: z.string().optional(),
   supplier: z.string().optional(),
   supplier_link: z.string().url().optional().or(z.literal('')),
+  supplier_id: z.number().int().positive().optional().nullable(),
   stock_level: z.number().nonnegative().optional(),
   reorder_point: z.number().nonnegative().optional(),
   last_purchased_date: z.string().optional(),
