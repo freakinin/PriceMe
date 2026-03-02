@@ -19,6 +19,7 @@ const updateSettingsSchema = z.object({
   units: z.array(z.string()).min(1).optional(),
   seller_country: z.string().length(2).optional(),
   default_platform_profile_id: z.preprocess(numericPreprocess, z.number().int().positive().optional().nullable()),
+  onboarding_completed: z.boolean().optional(),
 });
 
 export const getSettings = async (req: AuthRequest, res: Response) => {
@@ -34,7 +35,7 @@ export const getSettings = async (req: AuthRequest, res: Response) => {
       const [settingsResult, subscription, usage] = await Promise.all([
         db`
           SELECT currency, tax_percentage, revenue_goal, labor_hourly_cost, unit_system, units,
-                 seller_country, default_platform_profile_id
+                 seller_country, default_platform_profile_id, onboarding_completed
           FROM user_settings
           WHERE user_id = ${req.userId}
         `,
@@ -70,6 +71,7 @@ export const getSettings = async (req: AuthRequest, res: Response) => {
             units: defaultMetricUnits,
             seller_country: 'US',
             default_platform_profile_id: null,
+            onboarding_completed: false,
             subscription: subscriptionBlock,
           },
         });
@@ -89,6 +91,7 @@ export const getSettings = async (req: AuthRequest, res: Response) => {
             : (settings.unit_system === 'imperial' ? defaultImperialUnits : defaultMetricUnits),
           seller_country: settings.seller_country || 'US',
           default_platform_profile_id: settings.default_platform_profile_id ? Number(settings.default_platform_profile_id) : null,
+          onboarding_completed: settings.onboarding_completed === true,
           subscription: subscriptionBlock,
         },
       });
@@ -143,7 +146,7 @@ export const updateSettings = async (req: AuthRequest, res: Response) => {
     // Validate input
     const validatedData = updateSettingsSchema.parse(req.body);
     console.log('Validated data:', validatedData);
-    const { currency, tax_percentage, revenue_goal, labor_hourly_cost, unit_system, units, seller_country, default_platform_profile_id } = validatedData;
+    const { currency, tax_percentage, revenue_goal, labor_hourly_cost, unit_system, units, seller_country, default_platform_profile_id, onboarding_completed } = validatedData;
 
     // Check if settings exist
     const existingSettings = await db`
@@ -159,7 +162,7 @@ export const updateSettings = async (req: AuthRequest, res: Response) => {
       // Update existing settings - fetch current values first, then update
       const currentSettings = await db`
         SELECT currency, tax_percentage, revenue_goal, labor_hourly_cost, unit_system, units,
-               seller_country, default_platform_profile_id
+               seller_country, default_platform_profile_id, onboarding_completed
         FROM user_settings
         WHERE user_id = ${req.userId}
       `;
@@ -174,6 +177,7 @@ export const updateSettings = async (req: AuthRequest, res: Response) => {
       const finalUnits = units !== undefined ? units : (current.units || []);
       const finalSellerCountry = seller_country !== undefined ? seller_country : (current.seller_country || 'US');
       const finalDefaultPlatformProfileId = default_platform_profile_id !== undefined ? default_platform_profile_id : current.default_platform_profile_id;
+      const finalOnboardingCompleted = onboarding_completed !== undefined ? onboarding_completed : (current.onboarding_completed === true);
 
       await db`
         UPDATE user_settings
@@ -186,6 +190,7 @@ export const updateSettings = async (req: AuthRequest, res: Response) => {
           units = ${(finalUnits as any)},
           seller_country = ${finalSellerCountry},
           default_platform_profile_id = ${finalDefaultPlatformProfileId},
+          onboarding_completed = ${finalOnboardingCompleted},
           updated_at = CURRENT_TIMESTAMP
         WHERE user_id = ${req.userId}
       `;
@@ -214,7 +219,7 @@ export const updateSettings = async (req: AuthRequest, res: Response) => {
     // Fetch updated settings
     const updatedSettings = await db`
       SELECT currency, tax_percentage, revenue_goal, labor_hourly_cost, unit_system, units,
-             seller_country, default_platform_profile_id
+             seller_country, default_platform_profile_id, onboarding_completed
       FROM user_settings
       WHERE user_id = ${req.userId}
     `;
@@ -234,6 +239,7 @@ export const updateSettings = async (req: AuthRequest, res: Response) => {
         units: settings.units && Array.isArray(settings.units) ? settings.units : [],
         seller_country: settings.seller_country || 'US',
         default_platform_profile_id: settings.default_platform_profile_id ? Number(settings.default_platform_profile_id) : null,
+        onboarding_completed: settings.onboarding_completed === true,
       },
     });
   } catch (error: any) {

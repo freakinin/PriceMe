@@ -111,6 +111,19 @@ export async function initializeDatabase() {
         await sql`ALTER TABLE user_settings ADD COLUMN default_platform_profile_id INTEGER REFERENCES platform_fee_profiles(id) ON DELETE SET NULL`;
         console.log('✅ Added default_platform_profile_id column');
       }
+
+      // Check and add onboarding_completed
+      const onboardingExists = await sql`
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_name='user_settings' AND column_name='onboarding_completed'
+      `;
+      const onboardingRows = Array.isArray(onboardingExists) ? onboardingExists : onboardingExists.rows || [];
+      if (onboardingRows.length === 0) {
+        console.log('Adding onboarding_completed column to user_settings table...');
+        await sql`ALTER TABLE user_settings ADD COLUMN onboarding_completed BOOLEAN DEFAULT false`;
+        console.log('✅ Added onboarding_completed column');
+      }
     } catch (error: any) {
       console.error('Error adding columns to user_settings table:', error.message);
       console.error('Error stack:', error.stack);

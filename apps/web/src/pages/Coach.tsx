@@ -10,6 +10,7 @@ import { HealthScoreWidget } from '@/components/coach/HealthScoreWidget';
 import { InsightFeed } from '@/components/coach/InsightFeed';
 import { ChatPanel } from '@/components/coach/ChatPanel';
 import { ReportsPanel } from '@/components/coach/ReportsPanel';
+import { useTour, COACH_TOUR_STORAGE_KEY } from '@/components/onboarding/TourContext';
 
 export default function Coach() {
   const [showReports, setShowReports] = useState(false);
@@ -35,6 +36,15 @@ export default function Coach() {
     generateReport,
     isGeneratingReport,
   } = useCoach();
+
+  // Auto-start coach tour on first visit, after onboarding is complete
+  const { startCoachTour } = useTour();
+  useEffect(() => {
+    if (profile && !localStorage.getItem(COACH_TOUR_STORAGE_KEY)) {
+      const t = setTimeout(startCoachTour, 600);
+      return () => clearTimeout(t);
+    }
+  }, [profile, startCoachTour]);
 
   const { subscription } = useSubscription();
   const limits = subscription?.limits;
@@ -73,7 +83,7 @@ export default function Coach() {
   return (
     <div className="flex flex-col overflow-hidden" style={{ height: 'calc(100vh - 4rem)' }}>
       {/* Top action bar */}
-      <div className="flex items-center justify-between px-6 py-3 border-b bg-background flex-shrink-0">
+      <div data-tour="ctour-top-bar" className="flex items-center justify-between px-6 py-3 border-b bg-background flex-shrink-0">
         <div className="flex items-center gap-2">
           <BrainCircuit className="h-5 w-5 text-primary" />
           <span className="font-semibold text-sm text-muted-foreground">
@@ -152,19 +162,23 @@ export default function Coach() {
       <div className="flex-1 flex gap-0 overflow-hidden min-h-0">
         {/* Left column: Health score + Insight feed */}
         <div className="flex flex-col gap-5 p-6 overflow-y-auto" style={{ flex: '0 0 55%' }}>
-          <HealthScoreWidget score={healthScore} />
-          <InsightFeed
-            insights={insights}
-            isLoading={isInsightsLoading}
-            isGenerating={isGeneratingInsights}
-            onGenerate={() => generateInsights()}
-            onStatusChange={updateInsightStatus}
-            planInsightLimit={planInsightLimit}
-          />
+          <div data-tour="ctour-health-score">
+            <HealthScoreWidget score={healthScore} />
+          </div>
+          <div data-tour="ctour-insight-feed">
+            <InsightFeed
+              insights={insights}
+              isLoading={isInsightsLoading}
+              isGenerating={isGeneratingInsights}
+              onGenerate={() => generateInsights()}
+              onStatusChange={updateInsightStatus}
+              planInsightLimit={planInsightLimit}
+            />
+          </div>
         </div>
 
         {/* Right column: Chat */}
-        <div className="flex flex-col border-l overflow-hidden" style={{ flex: '0 0 45%' }}>
+        <div data-tour="ctour-chat" className="flex flex-col border-l overflow-hidden" style={{ flex: '0 0 45%' }}>
           <ChatPanel
             history={chatHistory}
             isSending={isSendingChat}

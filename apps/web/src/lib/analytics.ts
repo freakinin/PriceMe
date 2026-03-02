@@ -47,13 +47,20 @@ export type SubscriptionEvent =
   | { event: 'upgrade_cta_clicked'; source: string; current_plan?: string }
   | { event: 'plan_changed'; from_plan: string; to_plan: string };
 
+// Onboarding tour
+export type OnboardingEvent =
+  | { event: 'onboarding_tour_started' }
+  | { event: 'onboarding_tour_completed' }
+  | { event: 'onboarding_tour_skipped'; step_reached: number };
+
 type AnalyticsEvent =
   | AuthEvent
   | ProductEvent
   | SaleEvent
   | MarketEvent
   | CoachEvent
-  | SubscriptionEvent;
+  | SubscriptionEvent
+  | OnboardingEvent;
 
 // ---------------------------------------------------------------------------
 // Core helpers
