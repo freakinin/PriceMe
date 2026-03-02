@@ -140,7 +140,7 @@ export default function Coach() {
         <div className="min-h-0 overflow-hidden">
           <ReportsPanel
             reports={reports}
-            onGenerate={async (...args) => { await generateReport(...args); track({ event: 'report_generated' }); }}
+            onGenerate={async (...args) => { const r = await generateReport(...args); track({ event: 'report_generated' }); return r; }}
             isGenerating={isGeneratingReport}
             onClose={() => setShowReports(false)}
             reportsPerMonthLimit={reportsPerMonthLimit}
@@ -169,7 +169,7 @@ export default function Coach() {
             history={chatHistory}
             isSending={isSendingChat}
             error={sendChatError}
-            onSend={async (msg) => { await sendChat(msg); track({ event: 'chat_message_sent', daily_count: chatDailyUsed + 1 }); }}
+            onSend={async (msg) => { const r = await sendChat(msg); track({ event: 'chat_message_sent', daily_count: chatDailyUsed + 1 }); return r; }}
             chatDailyUsed={chatDailyUsed}
             chatPerDayLimit={planChatPerDay}
           />
