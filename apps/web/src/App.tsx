@@ -11,6 +11,7 @@ import Roadmap from './pages/Roadmap';
 import OnSale from './pages/OnSale';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
+import ForgotPassword from './pages/ForgotPassword';
 import MarketAnalysis from './pages/MarketAnalysis';
 import Coach from './pages/Coach';
 import { useAuth } from './hooks/useAuth';
@@ -63,6 +64,14 @@ function App() {
           element={
             <PublicRoute>
               <Signup />
+            </PublicRoute>
+          }
+        />
+        <Route
+          path="/forgot-password"
+          element={
+            <PublicRoute>
+              <ForgotPassword />
             </PublicRoute>
           }
         />

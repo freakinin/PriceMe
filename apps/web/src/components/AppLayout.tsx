@@ -57,23 +57,23 @@ export function AppLayout({ children }: AppLayoutProps) {
     <SidebarProvider defaultOpen={defaultOpen}>
       <AppSidebar onSettingsOpen={() => setSettingsOpen(true)} />
       <main className="flex flex-1 flex-col overflow-hidden">
-        <div className="flex h-16 items-center gap-4 border-b border-border bg-background px-6">
-          <SidebarTrigger />
-          <div id="header-title" className="flex-1 flex items-center">
+        <div className="flex h-14 items-center gap-3 border-b border-border bg-background/90 backdrop-blur-sm px-5 sticky top-0 z-20">
+          <SidebarTrigger className="text-muted-foreground hover:text-foreground transition-colors shrink-0" />
+          <div id="header-title" className="flex-1 flex items-center min-w-0">
             {location.pathname !== '/market-analysis' && !location.pathname.includes('/edit') && location.pathname !== '/products/add' && (
-              <h1 className="text-xl font-semibold">{pageTitle}</h1>
+              <h1 className="text-sm font-semibold text-foreground/80 truncate">{pageTitle}</h1>
             )}
           </div>
-          <div id="header-actions" className="ml-auto flex items-center gap-2">
+          <div id="header-actions" className="flex items-center gap-2">
           </div>
-          <div className="flex items-center gap-2 pl-2">
+          <div className="flex items-center gap-2">
             {hasLimitReached && (
               <button
                 onClick={() => openSettingsAt('subscription')}
-                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded-md hover:bg-muted"
               >
-                <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
-                <span>Plan limit reached</span>
+                <AlertTriangle className="h-3.5 w-3.5 text-destructive shrink-0" />
+                <span className="hidden sm:inline">Plan limit reached</span>
               </button>
             )}
             <NotificationBell />

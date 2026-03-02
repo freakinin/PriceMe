@@ -4,34 +4,47 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 13.3%;
+    /* ─── Backgrounds & Surfaces ─── */
+    --background: 38 30% 96%;        /* warm cream #F5F1E9 */
+    --foreground: 25 25% 12%;        /* warm near-black #1C1610 */
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 13.3%;
+    --card-foreground: 25 25% 12%;
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 13.3%;
-    --primary: 212 93% 23%;
+    --popover-foreground: 25 25% 12%;
+
+    /* ─── Brand Colors ─── */
+    --primary: 155 40% 30%;          /* deep sage green #2D7A58 */
     --primary-foreground: 0 0% 100%;
-    --secondary: 18 90% 72%;
-    --secondary-foreground: 222 47% 11%;
-    --muted: 18 50% 96%;
-    --muted-foreground: 215 16% 47%;
-    --accent: 18 50% 96%;
-    --accent-foreground: 215 16% 47%;
-    --destructive: 350 48% 47%;
+    --secondary: 22 68% 52%;         /* warm terracotta #D4693A */
+    --secondary-foreground: 0 0% 100%;
+
+    /* ─── Neutral Tones ─── */
+    --muted: 38 22% 92%;             /* warm light gray #EAE5DC */
+    --muted-foreground: 25 10% 48%;  /* warm medium gray #837A6E */
+    --accent: 38 22% 92%;
+    --accent-foreground: 25 25% 12%;
+
+    /* ─── Semantic Colors ─── */
+    --destructive: 3 63% 48%;
     --destructive-foreground: 0 0% 100%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 212 93% 23%;
-    --radius: 0.5rem;
-    --sidebar-background: 220 13% 10%;
-    --sidebar-foreground: 0 0% 98%;
-    --sidebar-primary: 220 13% 16%;
+
+    /* ─── Borders & Inputs ─── */
+    --border: 35 18% 87%;            /* warm beige #DED8CC */
+    --input: 35 18% 87%;
+    --ring: 155 40% 30%;
+
+    /* ─── Shape ─── */
+    --radius: 0.75rem;
+
+    /* ─── Sidebar — Warm Dark Walnut ─── */
+    --sidebar-background: 25 32% 10%;       /* #1B1109 */
+    --sidebar-foreground: 35 15% 88%;       /* warm off-white */
+    --sidebar-primary: 25 25% 15%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 220 13% 16%;
-    --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 220 13% 14%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-accent: 25 28% 18%;           /* slightly lighter walnut for hover/active */
+    --sidebar-accent-foreground: 35 20% 96%;
+    --sidebar-border: 25 18% 14%;
+    --sidebar-ring: 22 68% 52%;
   }
 
   .dark {
@@ -72,5 +85,83 @@
 
   body {
     @apply bg-background text-foreground;
+    font-family: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Prettier scrollbars */
+  ::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 10px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.35);
+  }
+
+  /* Text selection */
+  ::selection {
+    background-color: hsl(var(--primary) / 0.12);
+    color: hsl(var(--foreground));
+  }
+}
+
+/* ─── Keyframe Animations ─── */
+@keyframes slide-up-fade {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: 'Playfair Display', Georgia, serif;
+  }
+
+  .animate-slide-up {
+    animation: slide-up-fade 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  .animate-scale-in {
+    animation: scale-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  /* Staggered card entrance */
+  .stagger-1 { animation-delay: 0s;     opacity: 0; }
+  .stagger-2 { animation-delay: 0.07s;  opacity: 0; }
+  .stagger-3 { animation-delay: 0.14s;  opacity: 0; }
+  .stagger-4 { animation-delay: 0.21s;  opacity: 0; }
+
+  /* Glass card effect */
+  .glass-card {
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
   }
 }
