@@ -145,7 +145,7 @@ export function ProfileSettings() {
         <div>
           <h2 className="text-base font-semibold mb-0.5">Display Name</h2>
           <p className="text-sm text-muted-foreground mb-4">
-            Used to personalise your experience within PriceMe.
+            Used to personalise your experience within Cravio.
           </p>
           <Form {...nameForm}>
             <form onSubmit={nameForm.handleSubmit(onSaveName)} className="max-w-sm space-y-4">

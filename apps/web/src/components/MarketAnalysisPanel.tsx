@@ -640,7 +640,7 @@ export function MarketAnalysisPanel({ product, currency }: MarketAnalysisPanelPr
                                 }
                             }}
                             disabled={isLoadingInsights}
-                            className="w-full py-4 px-5 rounded-xl border-2 border-dashed border-primary/20 hover:border-primary/40 bg-gradient-to-r from-primary/5 to-violet-500/5 hover:from-primary/10 hover:to-violet-500/10 transition-all duration-300 flex items-center justify-center gap-3 group cursor-pointer disabled:opacity-70"
+                            className="w-full py-4 px-5 rounded-xl border-2 border-dashed border-primary/20 hover:border-primary/40 bg-gradient-to-r from-primary/5 to-brand-900/5 hover:from-primary/10 hover:to-brand-900/10 transition-all duration-300 flex items-center justify-center gap-3 group cursor-pointer disabled:opacity-70"
                         >
                             {isLoadingInsights ? (
                                 <RefreshCw className="h-5 w-5 text-primary animate-spin" />

@@ -7,9 +7,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import {
-  Check, ArrowRight, ChartScatter, ArrowLeft,
+  Check, ArrowRight, ArrowLeft,
   Sprout, TrendingUp, Zap, Star,
 } from 'lucide-react';
+import { CravioIcon } from '@/components/CravioIcon';
 import api from '@/lib/api';
 import { PLAN_ORDER, PLAN_DISPLAY, PLAN_LIMITS } from '@/config/plans';
 import type { PlanName } from '@/config/plans';
@@ -46,10 +47,10 @@ const PLAN_STYLE: Record<PlanName, {
 }> = {
   free: {
     icon: Sprout,
-    topBorder:    'border-t-zinc-300',
-    iconBg:       'bg-zinc-100',
-    iconColor:    'text-zinc-500',
-    selectedRing: 'ring-zinc-400 border-zinc-400',
+    topBorder:    'border-t-warm-200',
+    iconBg:       'bg-warm-100',
+    iconColor:    'text-warm-500',
+    selectedRing: 'ring-warm-500 border-warm-500',
     cta:          'Get started free',
   },
   starter: {
@@ -62,18 +63,18 @@ const PLAN_STYLE: Record<PlanName, {
   },
   pro: {
     icon: Zap,
-    topBorder:    'border-t-violet-500',
-    iconBg:       'bg-violet-50',
-    iconColor:    'text-violet-600',
-    selectedRing: 'ring-violet-400 border-violet-400',
+    topBorder:    'border-t-brand-500',
+    iconBg:       'bg-brand-100',
+    iconColor:    'text-brand-500',
+    selectedRing: 'ring-brand-500 border-brand-500',
     cta:          'Start Pro',
   },
   business: {
     icon: Star,
-    topBorder:    'border-t-amber-500',
-    iconBg:       'bg-amber-50',
-    iconColor:    'text-amber-600',
-    selectedRing: 'ring-amber-400 border-amber-400',
+    topBorder:    'border-t-brand-900',
+    iconBg:       'bg-brand-100',
+    iconColor:    'text-brand-900',
+    selectedRing: 'ring-brand-900 border-brand-900',
     cta:          'Start Business',
   },
 };
@@ -90,8 +91,8 @@ function PlanStep({ onSelect }: { onSelect: (p: PlanName) => void }) {
       <header className="border-b border-border bg-background/90 backdrop-blur-sm sticky top-0 z-10">
         <div className="max-w-5xl mx-auto px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <ChartScatter className="h-5 w-5 text-primary" />
-            <span className="font-display text-lg font-semibold text-foreground tracking-tight">PriceMe</span>
+            <CravioIcon size={20} />
+            <span className="font-display text-lg font-semibold text-foreground tracking-tight">Cravio</span>
           </div>
           <Link to="/login" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
             Already have an account?{' '}
@@ -355,19 +356,16 @@ function FormStep({
       {/* ── Left: plan summary + craft illustration ── */}
       <div
         className="hidden lg:flex lg:w-[55%] relative overflow-hidden flex-col"
-        style={{ background: 'linear-gradient(148deg, #2a6b4a 0%, #1e5038 55%, #153826 100%)' }}
+        style={{ background: 'linear-gradient(148deg, #ea580c 0%, #c2410c 40%, #7c2d12 100%)' }}
       >
         <CraftSvg />
 
         <div className="relative z-10 flex flex-col h-full p-14 justify-between">
           {/* Logo */}
           <div className="flex items-center gap-2.5">
-            <div className="h-9 w-9 rounded-xl flex items-center justify-center"
-              style={{ background: 'rgba(255,255,255,0.13)' }}>
-              <ChartScatter className="h-5 w-5 text-white" />
-            </div>
+            <CravioIcon size={28} color="white" />
             <span className="font-display text-2xl font-semibold text-white tracking-tight">
-              PriceMe
+              Cravio
             </span>
           </div>
 
@@ -423,8 +421,8 @@ function FormStep({
 
         {/* Mobile logo */}
         <div className="lg:hidden flex items-center gap-2 mb-8">
-          <ChartScatter className="h-6 w-6 text-primary" />
-          <span className="font-display text-xl font-semibold text-foreground">PriceMe</span>
+          <CravioIcon size={24} />
+          <span className="font-display text-xl font-semibold text-foreground">Cravio</span>
         </div>
 
         <div className="w-full max-w-[360px] space-y-6">

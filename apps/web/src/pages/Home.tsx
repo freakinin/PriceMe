@@ -331,11 +331,11 @@ export default function Home() {
                   {analytics.sortedCategories.map(([name, count], index) => {
                     const pct = Math.round((count / analytics.totalProducts) * 100);
                     const colors = [
-                      { bar: 'bg-violet-400', text: 'text-violet-700' },
-                      { bar: 'bg-sky-400', text: 'text-sky-700' },
+                      { bar: 'bg-brand-700', text: 'text-brand-900' },
+                      { bar: 'bg-sky-400',   text: 'text-sky-700' },
                       { bar: 'bg-emerald-400', text: 'text-emerald-700' },
-                      { bar: 'bg-amber-400', text: 'text-amber-700' },
-                      { bar: 'bg-zinc-400', text: 'text-zinc-700' },
+                      { bar: 'bg-brand-300', text: 'text-brand-700' },
+                      { bar: 'bg-warm-500',  text: 'text-warm-700' },
                     ];
                     const c = colors[index] ?? colors[4];
                     return (

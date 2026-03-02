@@ -82,7 +82,7 @@ export default function Roadmap() {
     <div className="p-6">
       <div className="mb-6">
         <p className="text-muted-foreground">
-          Vote on features you'd like to see in PriceMe
+          Vote on features you'd like to see in Cravio
         </p>
       </div>
 

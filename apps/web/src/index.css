@@ -5,46 +5,46 @@
 @layer base {
   :root {
     /* ─── Backgrounds & Surfaces ─── */
-    --background: 38 30% 96%;        /* warm cream #F5F1E9 */
-    --foreground: 25 25% 12%;        /* warm near-black #1C1610 */
+    --background: 37 50% 96%;        /* warm cream #faf6f0 */
+    --foreground: 26 50% 11%;        /* warm near-black #2a1a0e */
     --card: 0 0% 100%;
-    --card-foreground: 25 25% 12%;
+    --card-foreground: 26 50% 11%;
     --popover: 0 0% 100%;
-    --popover-foreground: 25 25% 12%;
+    --popover-foreground: 26 50% 11%;
 
     /* ─── Brand Colors ─── */
-    --primary: 155 40% 30%;          /* deep sage green #2D7A58 */
+    --primary: 18 88% 40%;           /* rust orange #c2410c */
     --primary-foreground: 0 0% 100%;
-    --secondary: 22 68% 52%;         /* warm terracotta #D4693A */
-    --secondary-foreground: 0 0% 100%;
+    --secondary: 36 40% 90%;         /* warm cream #f0e8dc — chip / secondary button bg */
+    --secondary-foreground: 28 44% 29%; /* warm brown #6b4a2a — text on cream */
 
     /* ─── Neutral Tones ─── */
-    --muted: 38 22% 92%;             /* warm light gray #EAE5DC */
-    --muted-foreground: 25 10% 48%;  /* warm medium gray #837A6E */
-    --accent: 38 22% 92%;
-    --accent-foreground: 25 25% 12%;
+    --muted: 36 40% 90%;             /* warm card cream #f0e8dc */
+    --muted-foreground: 30 25% 50%;  /* warm muted text #a08060 */
+    --accent: 36 40% 90%;
+    --accent-foreground: 26 50% 11%;
 
     /* ─── Semantic Colors ─── */
-    --destructive: 3 63% 48%;
+    --destructive: 0 72% 51%;        /* #dc2626 */
     --destructive-foreground: 0 0% 100%;
 
     /* ─── Borders & Inputs ─── */
-    --border: 35 18% 87%;            /* warm beige #DED8CC */
-    --input: 35 18% 87%;
-    --ring: 155 40% 30%;
+    --border: 34 37% 81%;            /* warm border #e0d0bc */
+    --input: 34 37% 81%;
+    --ring: 18 88% 40%;              /* rust orange ring */
 
     /* ─── Shape ─── */
     --radius: 0.75rem;
 
-    /* ─── Sidebar — Warm Dark Walnut ─── */
-    --sidebar-background: 25 32% 10%;       /* #1B1109 */
-    --sidebar-foreground: 35 15% 88%;       /* warm off-white */
-    --sidebar-primary: 25 25% 15%;
+    /* ─── Sidebar — Dark Rust Brown ─── */
+    --sidebar-background: 22 55% 8%;        /* very dark rust-brown */
+    --sidebar-foreground: 34 25% 87%;       /* warm off-white */
+    --sidebar-primary: 22 45% 13%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 25 28% 18%;           /* slightly lighter walnut for hover/active */
-    --sidebar-accent-foreground: 35 20% 96%;
-    --sidebar-border: 25 18% 14%;
-    --sidebar-ring: 22 68% 52%;
+    --sidebar-accent: 22 40% 17%;           /* slightly lighter for hover/active */
+    --sidebar-accent-foreground: 34 20% 95%;
+    --sidebar-border: 22 30% 12%;
+    --sidebar-ring: 18 88% 40%;             /* rust orange ring */
   }
 
   .dark {

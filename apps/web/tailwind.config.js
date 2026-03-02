@@ -8,6 +8,23 @@ export default {
 	theme: {
 		extend: {
 			colors: {
+				// ── Cravio brand palette ──────────────────────────
+				brand: {
+					900: '#7c2d12',   // deep rust / mahogany
+					700: '#c2410c',   // ⭐ main brand color
+					500: '#ea580c',   // hover / CTAs
+					300: '#fdba74',   // highlights / tags
+					100: '#fff7ed',   // background tints
+				},
+				warm: {
+					900: '#2a1a0e',   // primary text
+					700: '#6b4a2a',   // secondary text
+					500: '#a08060',   // muted labels
+					200: '#e0d0bc',   // borders / dividers
+					100: '#f0e8dc',   // card backgrounds
+					50:  '#faf6f0',   // page background
+				},
+				// ── shadcn semantic tokens ────────────────────────
 				border: 'hsl(var(--border))',
 				input: 'hsl(var(--input))',
 				ring: 'hsl(var(--ring))',
