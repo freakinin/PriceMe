@@ -51,14 +51,15 @@ export default {
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
 				},
-				borderRadius: {
-					lg: 'var(--radius)',
-					md: 'calc(var(--radius) - 2px)',
-					sm: 'calc(var(--radius) - 4px)'
-				},
-				fontFamily: {
-					sans: ['Dongle', 'sans-serif'],
-				}
+			},
+			borderRadius: {
+				lg: 'var(--radius)',
+				md: 'calc(var(--radius) - 2px)',
+				sm: 'calc(var(--radius) - 4px)',
+			},
+			fontFamily: {
+				sans: ['Figtree', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+				display: ['"Playfair Display"', 'Georgia', 'serif'],
 			},
 		},
 	},

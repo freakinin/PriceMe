@@ -1,10 +1,24 @@
-import { Home, PlusCircle, Package, Settings, LogOut, Box, Map, ShoppingCart, Tag, ChartScatter, BrainCircuit, Truck } from 'lucide-react';
+import {
+  Home,
+  PlusCircle,
+  Package,
+  Settings,
+  LogOut,
+  Box,
+  Map,
+  ShoppingCart,
+  Tag,
+  ChartScatter,
+  BrainCircuit,
+  Truck,
+} from 'lucide-react';
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
@@ -19,90 +33,129 @@ interface AppSidebarProps {
   onSettingsOpen: () => void;
 }
 
+const mainNavItems = [
+  { title: 'Home', url: '/', icon: Home },
+  { title: 'Coach', url: '/coach', icon: BrainCircuit },
+  { title: 'On Sale', url: '/on-sale', icon: ShoppingCart },
+];
+
+const manageNavItems = [
+  { title: 'Products', url: '/products', icon: Package },
+  { title: 'Materials', url: '/materials', icon: Box },
+  { title: 'Suppliers', url: '/suppliers', icon: Truck },
+  { title: 'Categories', url: '/categories', icon: Tag },
+];
+
 export function AppSidebar({ onSettingsOpen }: AppSidebarProps) {
   const { user, logout } = useAuth();
   const location = useLocation();
   const { state } = useSidebar();
   const isCollapsed = state === 'collapsed';
 
+  const initials = (user?.email || user?.name || 'PM')
+    .substring(0, 2)
+    .toUpperCase();
+
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader className="border-b border-sidebar-border">
+      {/* ── Logo ── */}
+      <SidebarHeader className="border-b border-sidebar-border px-3 py-4">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton
-              size="lg"
-              asChild
-              tooltip="PriceMe"
-              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground group/logo"
-            >
+            <SidebarMenuButton size="lg" asChild tooltip="PriceMe">
               <Link to="/">
-                <div className="flex h-8 w-8 items-center justify-center">
-                  <ChartScatter className="size-6" style={{ color: 'hsl(var(--secondary))' }} />
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+                  style={{ background: 'hsl(22 68% 52% / 0.18)' }}>
+                  <ChartScatter className="size-5" style={{ color: 'hsl(22 68% 52%)' }} />
                 </div>
-                <div className="grid flex-1 text-left leading-tight text-sidebar-foreground" style={{ color: 'hsl(0 0% 98%)' }}>
-                  <span className="truncate font-bold text-2xl tracking-tight text-sidebar-foreground pt-1">PriceMe</span>
+                <div className="flex flex-col gap-0 leading-none">
+                  <span className="font-bold text-lg tracking-tight"
+                    style={{ color: 'hsl(35 15% 94%)', fontFamily: '"Playfair Display", Georgia, serif' }}>
+                    PriceMe
+                  </span>
+                  <span className="text-[9px] uppercase tracking-[0.15em]"
+                    style={{ color: 'hsl(35 10% 60%)' }}>
+                    Pricing Studio
+                  </span>
                 </div>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
+
+        {/* ── Add Product CTA ── */}
+        <SidebarMenu className="mt-3">
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              asChild
+              isActive={location.pathname === '/products/add'}
+              tooltip="Add Product"
+              className="font-semibold transition-all"
+              style={{
+                background: 'hsl(22 68% 52%)',
+                color: '#fff',
+                borderRadius: '0.5rem',
+              }}
+            >
+              <Link to="/products/add">
+                <PlusCircle className="h-4 w-4" />
+                <span>Add Product</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarHeader>
-      <SidebarContent>
+
+      {/* ── Navigation ── */}
+      <SidebarContent className="py-2">
         <SidebarGroup>
+          <SidebarGroupLabel
+            className="px-3 text-[10px] font-semibold uppercase tracking-[0.12em]"
+            style={{ color: 'hsl(35 10% 52%)' }}
+          >
+            Navigate
+          </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  asChild
-                  isActive={location.pathname === '/'}
-                  tooltip="Home"
-                  className="text-sidebar-foreground"
-                  style={{ color: 'hsl(0 0% 98%)' }}
-                >
-                  <Link to="/" style={{ color: 'hsl(0 0% 98%)' }}>
-                    <Home className="h-4 w-4 text-sidebar-foreground" style={{ color: 'hsl(0 0% 98%)' }} />
-                    <span className="group-data-[collapsible=icon]:hidden" style={{ color: 'hsl(0 0% 98%)' }}>Home</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  asChild
-                  isActive={location.pathname === '/products/add'}
-                  tooltip="Add Product"
-                  className="text-sidebar-foreground font-medium"
-                  style={{ color: 'hsl(var(--secondary))' }}
-                >
-                  <Link to="/products/add">
-                    <PlusCircle className="h-4 w-4" style={{ color: 'hsl(var(--secondary))' }} />
-                    <span className="group-data-[collapsible=icon]:hidden" style={{ color: 'hsl(var(--secondary))' }}>Add Product</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-
-              <SidebarSeparator className="my-2 bg-white/10" />
-
-              {[
-                { title: 'Coach', url: '/coach', icon: BrainCircuit },
-                { title: 'On Sale', url: '/on-sale', icon: ShoppingCart },
-                { title: 'Products', url: '/products', icon: Package },
-                { title: 'Materials', url: '/materials', icon: Box },
-                { title: 'Suppliers', url: '/suppliers', icon: Truck },
-                { title: 'Categories', url: '/categories', icon: Tag },
-              ].map((item) => (
+              {mainNavItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     asChild
                     isActive={location.pathname === item.url}
                     tooltip={item.title}
-                    className="text-sidebar-foreground"
-                    style={{ color: 'hsl(0 0% 98%)' }}
                   >
-                    <Link to={item.url} style={{ color: 'hsl(0 0% 98%)' }}>
-                      <item.icon className="h-4 w-4 text-sidebar-foreground" style={{ color: 'hsl(0 0% 98%)' }} />
-                      <span className="group-data-[collapsible=icon]:hidden" style={{ color: 'hsl(0 0% 98%)' }}>{item.title}</span>
+                    <Link to={item.url}>
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarSeparator className="my-1" style={{ background: 'hsl(25 18% 14%)' }} />
+
+        <SidebarGroup>
+          <SidebarGroupLabel
+            className="px-3 text-[10px] font-semibold uppercase tracking-[0.12em]"
+            style={{ color: 'hsl(35 10% 52%)' }}
+          >
+            Manage
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {manageNavItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={location.pathname === item.url}
+                    tooltip={item.title}
+                  >
+                    <Link to={item.url}>
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.title}</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -111,63 +164,64 @@ export function AppSidebar({ onSettingsOpen }: AppSidebarProps) {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter className="border-t border-sidebar-border p-4">
+
+      {/* ── Footer ── */}
+      <SidebarFooter className="border-t px-3 py-3" style={{ borderColor: 'hsl(25 18% 14%)' }}>
         <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              tooltip="Settings"
-              onClick={onSettingsOpen}
-              className="text-sidebar-foreground"
-              style={{ color: 'hsl(0 0% 98%)' }}
-            >
-              <Settings className="h-4 w-4 text-sidebar-foreground" style={{ color: 'hsl(0 0% 98%)' }} />
-              <span className="group-data-[collapsible=icon]:hidden" style={{ color: 'hsl(0 0% 98%)' }}>Settings</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton
               asChild
               isActive={location.pathname === '/roadmap'}
               tooltip="Roadmap"
-              className="text-sidebar-foreground"
-              style={{ color: 'hsl(0 0% 98%)' }}
             >
-              <Link to="/roadmap" style={{ color: 'hsl(0 0% 98%)' }}>
-                <Map className="h-4 w-4 text-sidebar-foreground" style={{ color: 'hsl(0 0% 98%)' }} />
-                <span className="group-data-[collapsible=icon]:hidden" style={{ color: 'hsl(0 0% 98%)' }}>Roadmap</span>
+              <Link to="/roadmap">
+                <Map className="h-4 w-4" />
+                <span>Roadmap</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
-          <SidebarMenuItem>
-            <div className="flex w-full items-center justify-between gap-2 group-data-[collapsible=icon]:justify-center">
-              <SidebarMenuButton
-                asChild
-                tooltip="Logout"
-                className="p-0 h-auto w-auto bg-transparent hover:bg-transparent" // Make the button itself transparent for the avatar
-              >
-                <div
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground transition-all group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8 group-data-[collapsible=icon]:cursor-pointer group-data-[collapsible=icon]:hover:bg-primary/90"
-                  onClick={isCollapsed ? logout : undefined} // Only trigger logout on avatar click if collapsed
-                >
-                  {(user?.email || 'N').substring(0, 2).toUpperCase()}
-                </div>
-              </SidebarMenuButton>
 
-              {!isCollapsed && ( // Only show the logout icon button if not collapsed
-                <SidebarMenuButton
-                  onClick={logout}
-                  tooltip="Logout"
-                  className="h-8 w-8 shrink-0 text-sidebar-foreground hover:bg-sidebar-accent"
-                >
-                  <LogOut className="h-4 w-4" />
-                  <span className="sr-only">Logout</span>
-                </SidebarMenuButton>
+          <SidebarMenuItem>
+            <SidebarMenuButton tooltip="Settings" onClick={onSettingsOpen}>
+              <Settings className="h-4 w-4" />
+              <span>Settings</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+
+          {/* ── User row ── */}
+          <SidebarMenuItem>
+            <div className="flex w-full items-center gap-2.5 px-2 py-1.5 group-data-[collapsible=icon]:justify-center">
+              <div
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold cursor-default select-none"
+                style={{
+                  background: 'hsl(22 68% 52% / 0.2)',
+                  color: 'hsl(22 68% 65%)',
+                }}
+              >
+                {initials}
+              </div>
+              {!isCollapsed && (
+                <>
+                  <p className="flex-1 min-w-0 text-[11px] truncate" style={{ color: 'hsl(35 10% 60%)' }}>
+                    {user?.email}
+                  </p>
+                  <button
+                    onClick={logout}
+                    title="Logout"
+                    className="shrink-0 rounded p-0.5 transition-colors"
+                    style={{ color: 'hsl(35 10% 50%)' }}
+                    onMouseEnter={e => (e.currentTarget.style.color = 'hsl(35 15% 88%)')}
+                    onMouseLeave={e => (e.currentTarget.style.color = 'hsl(35 10% 50%)')}
+                  >
+                    <LogOut className="h-3.5 w-3.5" />
+                  </button>
+                </>
               )}
             </div>
           </SidebarMenuItem>
+
         </SidebarMenu>
       </SidebarFooter>
     </Sidebar>
   );
 }
-

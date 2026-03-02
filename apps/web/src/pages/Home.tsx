@@ -12,6 +12,9 @@ import {
   FileText,
   ToggleLeft,
   ToggleRight,
+  Tag,
+  Sparkles,
+  Box,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -27,7 +30,7 @@ import { RecentActivity } from '@/components/dashboard/RecentActivity';
 import { GrowthChart } from '@/components/dashboard/GrowthChart';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useCategories } from '@/hooks/useCategories';
-import { Tag } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 type ProductStatus = 'draft' | 'in_progress' | 'on_sale' | 'inactive';
 
@@ -81,30 +84,25 @@ export default function Home() {
     const draftProducts = products.filter(p => p.status === 'draft');
     const inProgressProducts = products.filter(p => p.status === 'in_progress');
 
-    // Calculate total potential revenue (all products with target price)
     const totalPotentialRevenue = products.reduce((sum, product) => {
       const price = product.target_price ?? 0;
       const batchSize = product.batch_size || 1;
       return sum + (price * batchSize);
     }, 0);
 
-    // Calculate total cost (all products)
     const totalCost = products.reduce((sum, product) => {
       const productCost = typeof product.product_cost === 'number' ? product.product_cost : 0;
       const batchSize = product.batch_size || 1;
       return sum + (productCost * batchSize);
     }, 0);
 
-    // Calculate total potential profit
     const totalPotentialProfit = totalPotentialRevenue - totalCost;
 
-    // Average profit margin
     const productsWithMargin = products.filter(p => p.profit_margin !== null);
     const averageMargin = productsWithMargin.length > 0
       ? productsWithMargin.reduce((sum, p) => sum + (p.profit_margin || 0), 0) / productsWithMargin.length
       : 0;
 
-    // Category distribution
     const categoryStats = products.reduce((acc, product) => {
       const catId = product.category_id;
       const catName = categories.find(c => c.id === catId)?.name || 'Uncategorized';
@@ -140,7 +138,6 @@ export default function Home() {
   };
 
   const taxRate = settings.tax_percentage || 0;
-  // Tax only applies to positive profit — losses generate no tax liability
   const afterTaxPotentialProfit = analytics.totalPotentialProfit - Math.max(0, analytics.totalPotentialProfit) * (taxRate / 100);
 
   if (!isAuthenticated) {
@@ -149,35 +146,43 @@ export default function Home() {
 
   if (loading) {
     return (
-      <div className="p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="p-8 space-y-6">
+        <div className="space-y-2">
+          <Skeleton className="h-9 w-64" />
+          <Skeleton className="h-4 w-48" />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {[1, 2, 3, 4].map((i) => (
-            <Skeleton key={i} className="h-32" />
+            <Skeleton key={i} className="h-36 rounded-xl" />
           ))}
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Skeleton className="h-64" />
-          <Skeleton className="h-64" />
+          <Skeleton className="h-72 rounded-xl" />
+          <Skeleton className="h-72 rounded-xl" />
         </div>
       </div>
     );
   }
 
-  const currentDate = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  const firstName = user?.name?.split(' ')[0] || user?.email?.split('@')[0] || '';
+  const currentDate = new Date().toLocaleDateString('en-US', {
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+  });
 
   return (
-    <div className="p-6 space-y-8 animate-in fade-in duration-500">
-      {/* Header Section */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+    <div className="p-8 space-y-8 animate-in fade-in duration-500">
+
+      {/* ── Welcome Header ── */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">
-            Welcome back{user?.name ? `, ${user.name.split(' ')[0]}` : ''}! 👋
+          <h2 className="font-display text-3xl font-semibold leading-tight tracking-tight text-foreground">
+            {firstName ? `Good to see you, ${firstName}.` : 'Welcome back.'}
           </h2>
-          <p className="text-muted-foreground mt-1">
-            Here's what's happening with your business today.
+          <p className="text-muted-foreground mt-1.5 text-sm">
+            Here's a snapshot of your pricing studio.
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           {taxRate > 0 && (
             <TooltipProvider>
               <Tooltip>
@@ -186,193 +191,231 @@ export default function Home() {
                     variant="outline"
                     size="sm"
                     onClick={() => setShowAfterTax(v => !v)}
-                    className="flex items-center gap-2 h-9"
+                    className="flex items-center gap-2 h-8 text-xs"
                   >
-                    {showAfterTax ? (
-                      <ToggleRight className="h-4 w-4 text-primary" />
-                    ) : (
-                      <ToggleLeft className="h-4 w-4 text-muted-foreground" />
-                    )}
-                    <span className="text-sm">{showAfterTax ? 'After Tax' : 'Pre-Tax'}</span>
+                    {showAfterTax
+                      ? <ToggleRight className="h-3.5 w-3.5 text-primary" />
+                      : <ToggleLeft className="h-3.5 w-3.5 text-muted-foreground" />}
+                    {showAfterTax ? 'After Tax' : 'Pre-Tax'}
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side="bottom" className="max-w-[250px]">
-                  <p className="text-sm">
+                <TooltipContent side="bottom" className="max-w-[220px]">
+                  <p className="text-xs">
                     {showAfterTax
-                      ? `Showing potential profit after ${taxRate}% income tax`
-                      : `Toggle to see potential profit after ${taxRate}% income tax`}
+                      ? `Showing profit after ${taxRate}% income tax`
+                      : `Toggle to see profit after ${taxRate}% income tax`}
                   </p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
           )}
-          <div className="bg-muted/50 px-4 py-2 rounded-full text-sm font-medium text-muted-foreground">
+          <div className="bg-muted/70 border border-border px-3 py-1.5 rounded-full text-xs text-muted-foreground">
             {currentDate}
           </div>
         </div>
       </div>
 
-      {/* Analytics Cards */}
+      {/* ── Stats Grid ── */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatsCard
-          title="Total Products"
-          value={analytics.totalProducts}
-          description={`${analytics.onSaleProducts} currently on sale`}
-          icon={Package}
-          variant="info"
-        />
-        <StatsCard
-          title="Potential Revenue"
-          value={formatCurrencyValue(analytics.totalPotentialRevenue)}
-          description="Based on current batch sizes"
-          icon={DollarSign}
-          variant="success"
-        />
-        <StatsCard
-          title={showAfterTax ? 'After-Tax Profit' : 'Potential Profit'}
-          value={formatCurrencyValue(showAfterTax ? afterTaxPotentialProfit : analytics.totalPotentialProfit)}
-          description={`Avg Margin: ${formatPercentage(analytics.averageMargin)}`}
-          icon={TrendingUp}
-          variant={(showAfterTax ? afterTaxPotentialProfit : analytics.totalPotentialProfit) >= 0 ? "purple" : "danger"}
-        />
-        <StatsCard
-          title="Total Cost"
-          value={formatCurrencyValue(analytics.totalCost)}
-          description="All products combined"
-          icon={ShoppingCart}
-          variant="orange"
-        />
+        <div className={cn("animate-slide-up stagger-1")}>
+          <StatsCard
+            title="Total Products"
+            value={analytics.totalProducts}
+            description={`${analytics.onSaleProducts} currently on sale`}
+            icon={Package}
+            variant="info"
+          />
+        </div>
+        <div className={cn("animate-slide-up stagger-2")}>
+          <StatsCard
+            title="Potential Revenue"
+            value={formatCurrencyValue(analytics.totalPotentialRevenue)}
+            description="Based on current batch sizes"
+            icon={DollarSign}
+            variant="success"
+          />
+        </div>
+        <div className={cn("animate-slide-up stagger-3")}>
+          <StatsCard
+            title={showAfterTax ? 'After-Tax Profit' : 'Potential Profit'}
+            value={formatCurrencyValue(showAfterTax ? afterTaxPotentialProfit : analytics.totalPotentialProfit)}
+            description={`Avg margin: ${formatPercentage(analytics.averageMargin)}`}
+            icon={TrendingUp}
+            variant={(showAfterTax ? afterTaxPotentialProfit : analytics.totalPotentialProfit) >= 0 ? "purple" : "danger"}
+          />
+        </div>
+        <div className={cn("animate-slide-up stagger-4")}>
+          <StatsCard
+            title="Total Cost"
+            value={formatCurrencyValue(analytics.totalCost)}
+            description="All products combined"
+            icon={ShoppingCart}
+            variant="orange"
+          />
+        </div>
       </div>
 
+      {/* ── Main Content Grid ── */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        {/* Left Column: Charts & Activity */}
+
+        {/* Left: Charts + Activity */}
         <div className="xl:col-span-2 space-y-6">
           <GrowthChart products={products} />
           <RecentActivity products={products} loading={loading} />
         </div>
 
-        {/* Right Column: Alerts & Status */}
+        {/* Right: Sidebar widgets */}
         <div className="space-y-6">
           <LowStockAlerts />
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base font-medium">Product Overview</CardTitle>
-              <CardDescription>Distribution by status</CardDescription>
+          {/* Product Status Overview */}
+          <Card className="border-border shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-semibold text-foreground">Product Status</CardTitle>
+              <CardDescription className="text-xs">Distribution across your catalog</CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50 dark:bg-gray-900/50 hover:bg-gray-100 transition-colors cursor-default">
+            <CardContent className="space-y-2">
+              {[
+                {
+                  label: 'Draft',
+                  count: analytics.draftProducts,
+                  icon: FileText,
+                  bg: 'bg-zinc-100 dark:bg-zinc-800',
+                  text: 'text-zinc-500',
+                  dot: 'bg-zinc-400',
+                },
+                {
+                  label: 'In Progress',
+                  count: analytics.inProgressProducts,
+                  icon: Clock,
+                  bg: 'bg-amber-50 dark:bg-amber-900/10',
+                  text: 'text-amber-600 dark:text-amber-400',
+                  dot: 'bg-amber-400',
+                },
+                {
+                  label: 'On Sale',
+                  count: analytics.onSaleProducts,
+                  icon: CheckCircle2,
+                  bg: 'bg-emerald-50 dark:bg-emerald-900/10',
+                  text: 'text-emerald-600 dark:text-emerald-400',
+                  dot: 'bg-emerald-500',
+                },
+              ].map(({ label, count, icon: Icon, bg, text, dot }) => (
+                <div
+                  key={label}
+                  className={cn(
+                    'flex items-center justify-between p-3 rounded-lg transition-colors',
+                    bg,
+                  )}
+                >
                   <div className="flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-full bg-gray-200 dark:bg-gray-800 flex items-center justify-center">
-                      <FileText className="h-4 w-4 text-gray-600 dark:text-gray-400" />
-                    </div>
-                    <div>
-                      <p className="font-medium text-sm">Draft</p>
-                    </div>
+                    <div className={cn('h-1.5 w-1.5 rounded-full shrink-0', dot)} />
+                    <Icon className={cn('h-3.5 w-3.5', text)} />
+                    <span className={cn('text-sm font-medium', text)}>{label}</span>
                   </div>
-                  <span className="font-bold">{analytics.draftProducts}</span>
+                  <span className={cn('text-sm font-bold tabular-nums', text)}>{count}</span>
                 </div>
-
-                <div className="flex items-center justify-between p-3 rounded-lg bg-blue-50 dark:bg-blue-900/10 hover:bg-blue-100/50 transition-colors cursor-default">
-                  <div className="flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-full bg-blue-100 dark:bg-blue-900/20 flex items-center justify-center">
-                      <Clock className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                    </div>
-                    <div>
-                      <p className="font-medium text-sm">In Progress</p>
-                    </div>
-                  </div>
-                  <span className="font-bold">{analytics.inProgressProducts}</span>
-                </div>
-
-                <div className="flex items-center justify-between p-3 rounded-lg bg-green-50 dark:bg-green-900/10 hover:bg-green-100/50 transition-colors cursor-default">
-                  <div className="flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-full bg-green-100 dark:bg-green-900/20 flex items-center justify-center">
-                      <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
-                    </div>
-                    <div>
-                      <p className="font-medium text-sm">On Sale</p>
-                    </div>
-                  </div>
-                  <span className="font-bold">{analytics.onSaleProducts}</span>
-                </div>
-              </div>
+              ))}
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base font-medium">Category Overview</CardTitle>
-              <CardDescription>Top categories by volume</CardDescription>
+          {/* Category Overview */}
+          <Card className="border-border shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-semibold text-foreground">Top Categories</CardTitle>
+              <CardDescription className="text-xs">By product volume</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {analytics.sortedCategories.length > 0 ? (
-                  analytics.sortedCategories.map(([name, count], index) => (
-                    <div key={name} className="flex items-center justify-between p-3 rounded-lg bg-gray-50 dark:bg-gray-900/50 hover:bg-gray-100 transition-colors cursor-default">
-                      <div className="flex items-center gap-3">
-                        <div className={`h-8 w-8 rounded-full flex items-center justify-center ${index === 0 ? 'bg-purple-100 text-purple-600 dark:bg-purple-900/20 dark:text-purple-400' :
-                            index === 1 ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400' :
-                              'bg-gray-200 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
-                          }`}>
-                          <Tag className="h-4 w-4" />
+              {analytics.sortedCategories.length > 0 ? (
+                <div className="space-y-2">
+                  {analytics.sortedCategories.map(([name, count], index) => {
+                    const pct = Math.round((count / analytics.totalProducts) * 100);
+                    const colors = [
+                      { bar: 'bg-violet-400', text: 'text-violet-700' },
+                      { bar: 'bg-sky-400', text: 'text-sky-700' },
+                      { bar: 'bg-emerald-400', text: 'text-emerald-700' },
+                      { bar: 'bg-amber-400', text: 'text-amber-700' },
+                      { bar: 'bg-zinc-400', text: 'text-zinc-700' },
+                    ];
+                    const c = colors[index] ?? colors[4];
+                    return (
+                      <div key={name} className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Tag className={cn('h-3 w-3', c.text)} />
+                            <span className="text-xs font-medium text-foreground truncate max-w-[120px]">{name}</span>
+                          </div>
+                          <span className="text-xs font-bold tabular-nums text-muted-foreground">{count}</span>
                         </div>
-                        <div>
-                          <p className="font-medium text-sm">{name}</p>
+                        <div className="h-1 bg-muted rounded-full overflow-hidden">
+                          <div
+                            className={cn('h-full rounded-full transition-all duration-500', c.bar)}
+                            style={{ width: `${pct}%` }}
+                          />
                         </div>
                       </div>
-                      <span className="font-bold">{count}</span>
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-center py-4 text-muted-foreground text-sm">
-                    No categories data available
-                  </div>
-                )}
-              </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-center py-6 text-sm text-muted-foreground">
+                  No categories yet
+                </p>
+              )}
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base font-medium">Quick Actions</CardTitle>
-              <CardDescription>Common tasks</CardDescription>
+          {/* Quick Actions */}
+          <Card className="border-border shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-semibold text-foreground">Quick Actions</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <Button
-                variant="outline"
-                className="w-full justify-between h-auto py-3 px-4 hover:border-black dark:hover:border-white transition-colors"
-                onClick={() => navigate('/products/add')}
-              >
-                <span className="flex items-center gap-2">
-                  <Plus className="h-4 w-4" />
-                  Add New Product
-                </span>
-                <ArrowRight className="h-4 w-4 opacity-50" />
-              </Button>
-              <Button
-                variant="outline"
-                className="w-full justify-between h-auto py-3 px-4 hover:border-black dark:hover:border-white transition-colors"
-                onClick={() => navigate('/materials')}
-              >
-                <span className="flex items-center gap-2">
-                  <Package className="h-4 w-4" />
-                  Manage Materials
-                </span>
-                <ArrowRight className="h-4 w-4 opacity-50" />
-              </Button>
-              <Button
-                variant="outline"
-                className="w-full justify-between h-auto py-3 px-4 hover:border-black dark:hover:border-white transition-colors"
-                onClick={() => navigate('/on-sale')}
-              >
-                <span className="flex items-center gap-2">
-                  <ShoppingCart className="h-4 w-4" />
-                  View On Sale
-                </span>
-                <ArrowRight className="h-4 w-4 opacity-50" />
-              </Button>
+            <CardContent className="space-y-2">
+              {[
+                {
+                  label: 'Add New Product',
+                  description: 'Set costs & target price',
+                  icon: Plus,
+                  onClick: () => navigate('/products/add'),
+                  accent: 'hover:border-primary/40 hover:bg-primary/5',
+                  iconBg: 'bg-primary/10 text-primary',
+                },
+                {
+                  label: 'Manage Materials',
+                  description: 'Track your inventory',
+                  icon: Box,
+                  onClick: () => navigate('/materials'),
+                  accent: 'hover:border-sky-300 hover:bg-sky-50',
+                  iconBg: 'bg-sky-100 text-sky-600',
+                },
+                {
+                  label: 'View On Sale',
+                  description: 'Active listings',
+                  icon: Sparkles,
+                  onClick: () => navigate('/on-sale'),
+                  accent: 'hover:border-emerald-300 hover:bg-emerald-50',
+                  iconBg: 'bg-emerald-100 text-emerald-600',
+                },
+              ].map(({ label, description, icon: Icon, onClick, accent, iconBg }) => (
+                <button
+                  key={label}
+                  onClick={onClick}
+                  className={cn(
+                    'w-full flex items-center gap-3 p-3 rounded-lg border border-border',
+                    'text-left transition-all duration-150 group',
+                    accent,
+                  )}
+                >
+                  <div className={cn('h-8 w-8 rounded-lg flex items-center justify-center shrink-0', iconBg)}>
+                    <Icon className="h-4 w-4" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground leading-none mb-0.5">{label}</p>
+                    <p className="text-xs text-muted-foreground">{description}</p>
+                  </div>
+                  <ArrowRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors shrink-0" />
+                </button>
+              ))}
             </CardContent>
           </Card>
         </div>
