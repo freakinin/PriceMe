@@ -314,11 +314,9 @@ function CraftSvg() {
 function FormStep({
   plan,
   onBack,
-  onSuccess,
 }: {
   plan: PlanName;
   onBack: () => void;
-  onSuccess: () => void;
 }) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -559,7 +557,6 @@ export default function Signup() {
     <FormStep
       plan={selectedPlan}
       onBack={() => setStep('plan')}
-      onSuccess={() => { window.location.href = '/'; }}
     />
   );
 }
