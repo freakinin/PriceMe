@@ -8,7 +8,6 @@ import {
   Map,
   ShoppingCart,
   Tag,
-  ChartScatter,
   BrainCircuit,
   Truck,
 } from 'lucide-react';
@@ -60,31 +59,15 @@ export function AppSidebar({ onSettingsOpen }: AppSidebarProps) {
     <Sidebar collapsible="icon">
       {/* ── Logo ── */}
       <SidebarHeader className="border-b border-sidebar-border px-3 py-4">
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton size="lg" asChild tooltip="PriceMe">
-              <Link to="/">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
-                  style={{ background: 'hsl(22 68% 52% / 0.18)' }}>
-                  <ChartScatter className="size-5" style={{ color: 'hsl(22 68% 52%)' }} />
-                </div>
-                <div className="flex flex-col gap-0 leading-none">
-                  <span className="font-bold text-lg tracking-tight"
-                    style={{ color: 'hsl(35 15% 94%)', fontFamily: '"Playfair Display", Georgia, serif' }}>
-                    PriceMe
-                  </span>
-                  <span className="text-[9px] uppercase tracking-[0.15em]"
-                    style={{ color: 'hsl(35 10% 60%)' }}>
-                    Pricing Studio
-                  </span>
-                </div>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
+        <Link to="/" className={`flex items-center py-1 ${isCollapsed ? 'justify-center' : 'gap-2.5 px-2'}`}>
+          <img src="/cravio-favicon.svg" alt="Cravio" style={{ width: 20, height: 20, minWidth: 20 }} />
+          {!isCollapsed && (
+            <img src="/cravio-logo.svg" alt="Cravio" className="h-7 shrink-0" />
+          )}
+        </Link>
 
         {/* ── Add Product CTA ── */}
-        <SidebarMenu className="mt-3">
+        <SidebarMenu className="mt-2">
           <SidebarMenuItem>
             <SidebarMenuButton
               asChild
@@ -92,7 +75,7 @@ export function AppSidebar({ onSettingsOpen }: AppSidebarProps) {
               tooltip="Add Product"
               className="font-semibold transition-all"
               style={{
-                background: 'hsl(22 68% 52%)',
+                background: 'hsl(18 88% 40%)',
                 color: '#fff',
                 borderRadius: '0.5rem',
               }}
@@ -194,8 +177,8 @@ export function AppSidebar({ onSettingsOpen }: AppSidebarProps) {
               <div
                 className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold cursor-default select-none"
                 style={{
-                  background: 'hsl(22 68% 52% / 0.2)',
-                  color: 'hsl(22 68% 65%)',
+                  background: 'hsl(18 88% 40% / 0.2)',
+                  color: 'hsl(18 88% 65%)',
                 }}
               >
                 {initials}

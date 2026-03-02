@@ -28,7 +28,7 @@ const getPageTitle = (pathname: string): string => {
     '/market-analysis': 'Market Analysis',
     '/coach': 'Coach',
   };
-  return titles[pathname] || 'PriceMe';
+  return titles[pathname] || 'Cravio';
 };
 
 export function AppLayout({ children }: AppLayoutProps) {

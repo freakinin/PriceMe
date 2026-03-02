@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { ChartScatter } from 'lucide-react';
+import { CravioIcon } from '@/components/CravioIcon';
 import api from '@/lib/api';
 
 const loginSchema = z.object({
@@ -48,7 +48,7 @@ export default function Login() {
       {/* ── Left panel: craft illustration ── */}
       <div
         className="hidden lg:flex lg:w-[55%] relative overflow-hidden flex-col"
-        style={{ background: 'linear-gradient(148deg, #2a6b4a 0%, #1e5038 55%, #153826 100%)' }}
+        style={{ background: 'linear-gradient(148deg, #ea580c 0%, #c2410c 40%, #7c2d12 100%)' }}
       >
         {/* SVG craft motifs */}
         <svg
@@ -203,12 +203,9 @@ export default function Login() {
         <div className="relative z-10 flex flex-col h-full p-14 justify-between">
           {/* Logo */}
           <div className="flex items-center gap-2.5">
-            <div className="h-9 w-9 rounded-xl flex items-center justify-center"
-              style={{ background: 'rgba(255,255,255,0.14)' }}>
-              <ChartScatter className="h-5 w-5 text-white" />
-            </div>
+            <CravioIcon size={28} color="white" />
             <span className="font-display text-2xl font-semibold text-white tracking-tight">
-              PriceMe
+              Cravio
             </span>
           </div>
 
@@ -229,8 +226,8 @@ export default function Login() {
 
         {/* Mobile-only logo */}
         <div className="lg:hidden flex items-center gap-2 mb-10">
-          <ChartScatter className="h-6 w-6 text-primary" />
-          <span className="font-display text-xl font-semibold text-foreground">PriceMe</span>
+          <CravioIcon size={24} />
+          <span className="font-display text-xl font-semibold text-foreground">Cravio</span>
         </div>
 
         <div className="w-full max-w-[360px] space-y-7">
