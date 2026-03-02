@@ -31,6 +31,7 @@ import { useProducts } from '@/hooks/useProducts';
 import { useProductPricing } from '@/hooks/useProductPricing';
 import { CategorySelect } from '@/components/CategorySelect';
 import { track } from '@/lib/analytics';
+import { useTour, PRODUCT_TOUR_STORAGE_KEY } from '@/components/onboarding/TourContext';
 
 // Imported Schemas & Types
 import {
@@ -86,6 +87,15 @@ export default function CreateProduct() {
 
   const [templates, setTemplates] = useState<any[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
+
+  // Auto-start product form tour on first visit to Add Product (not edit)
+  const { startProductTour } = useTour();
+  useEffect(() => {
+    if (!isEditMode && !localStorage.getItem(PRODUCT_TOUR_STORAGE_KEY)) {
+      const t = setTimeout(startProductTour, 600);
+      return () => clearTimeout(t);
+    }
+  }, [isEditMode, startProductTour]);
 
 
 
@@ -476,7 +486,7 @@ export default function CreateProduct() {
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
 
             {/* Top Section */}
-            <div className="grid grid-cols-5 gap-4 items-end">
+            <div className="grid grid-cols-5 gap-4 items-end" data-tour="ptour-top-section">
               <FormField control={control} name="name" render={({ field }) => (
                 <FormItem className="col-span-2">
                   <FormLabel>Product Name *</FormLabel>
@@ -523,36 +533,41 @@ export default function CreateProduct() {
             <div className="grid grid-cols-3 gap-6">
 
               {/* Materials */}
-              <MaterialsSection
-                control={control}
-                materials={materials || []}
-                settings={settings}
-                batchSize={batchSize}
-              />
+              <div data-tour="ptour-materials">
+                <MaterialsSection
+                  control={control}
+                  materials={materials || []}
+                  settings={settings}
+                  batchSize={batchSize}
+                />
+              </div>
 
               {/* Labor */}
-              <LaborSection
-                control={control}
-                laborCosts={laborCosts || []}
-                settings={settings}
-                batchSize={batchSize}
-              />
+              <div data-tour="ptour-labor">
+                <LaborSection
+                  control={control}
+                  laborCosts={laborCosts || []}
+                  settings={settings}
+                  batchSize={batchSize}
+                />
+              </div>
 
               {/* Other Costs */}
-              <OtherCostsSection
-                control={control}
-                otherCosts={otherCosts || []}
-                settings={settings}
-                batchSize={batchSize}
-              />
+              <div data-tour="ptour-other-costs">
+                <OtherCostsSection
+                  control={control}
+                  otherCosts={otherCosts || []}
+                  settings={settings}
+                  batchSize={batchSize}
+                />
+              </div>
             </div>
           </form>
         </Form>
       </div>
 
       {/* Bottom Bar */}
-      {/* Bottom Bar */}
-      <div className="shrink-0 bg-background border-t px-6 py-2 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
+      <div data-tour="ptour-cost-bar" className="shrink-0 bg-background border-t px-6 py-2 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
         <div className="flex items-center justify-between">
 
           {/* Left: Cost Breakdown & Total */}

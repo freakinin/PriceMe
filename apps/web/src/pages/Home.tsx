@@ -216,7 +216,7 @@ export default function Home() {
       </div>
 
       {/* ── Stats Grid ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" data-tour="tour-stats-grid">
         <div className={cn("animate-slide-up stagger-1")}>
           <StatsCard
             title="Total Products"

@@ -305,7 +305,7 @@ export function MarketAnalysisPanel({ product, currency }: MarketAnalysisPanelPr
     return (
         <div className="flex flex-col h-full bg-muted/5">
             {/* Top Insights Section */}
-            <div className="px-6 py-4 bg-background border-b-0 space-y-4">
+            <div className="px-6 py-4 bg-background border-b-0 space-y-4" data-tour="matour-stats">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <Card className="shadow-sm border bg-card">
                         <CardHeader className="p-3 pb-1">
@@ -370,7 +370,7 @@ export function MarketAnalysisPanel({ product, currency }: MarketAnalysisPanelPr
             <div className="flex-1 px-6 py-4 grid grid-cols-1 lg:grid-cols-3 gap-6 overflow-y-auto">
 
                 {/* Left Column: My Product Info */}
-                <div className="lg:col-span-1 space-y-6">
+                <div className="lg:col-span-1 space-y-6" data-tour="matour-product-details">
                     <div className="bg-card border rounded-lg p-4 space-y-3 sticky top-0 shadow-sm">
                         <div className="flex items-center gap-2 mb-2">
                             <Package className="h-4 w-4 text-primary" />
@@ -456,7 +456,7 @@ export function MarketAnalysisPanel({ product, currency }: MarketAnalysisPanelPr
                 {/* Right Column: Competitor Feed */}
                 <div className="lg:col-span-2 space-y-6">
                     {/* Add New Input */}
-                    <div className="flex items-center justify-between gap-4 mb-2">
+                    <div className="flex items-center justify-between gap-4 mb-2" data-tour="matour-add-competitor">
                         <div className="font-semibold text-sm whitespace-nowrap text-muted-foreground">Add Competitor</div>
                         <div className="flex-1 flex gap-2 max-w-xl justify-end">
                             <Input
@@ -485,7 +485,7 @@ export function MarketAnalysisPanel({ product, currency }: MarketAnalysisPanelPr
                     )}
 
                     {/* Feed List */}
-                    <div className="space-y-3">
+                    <div className="space-y-3" data-tour="matour-competitor-list">
                         {isLoading && trackedProducts.length === 0 ? (
                             <div className="text-center py-12">
                                 <RefreshCw className="h-6 w-6 animate-spin mx-auto opacity-20 mb-3" />

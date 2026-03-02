@@ -13,6 +13,7 @@ export interface UserSettings {
   units?: string[];
   seller_country?: string;
   default_platform_profile_id?: number | null;
+  onboarding_completed?: boolean;
   subscription?: SubscriptionInfo;
 }
 
@@ -25,6 +26,7 @@ const defaultSettings: UserSettings = {
   units: ['ml', 'L', 'g', 'kg', 'mm', 'cm', 'm', 'm²', 'pcs'],
   seller_country: 'US',
   default_platform_profile_id: null,
+  onboarding_completed: false,
 };
 
 export function useSettings() {
@@ -49,6 +51,7 @@ export function useSettings() {
               : defaultSettings.units,
             seller_country: data.seller_country || 'US',
             default_platform_profile_id: data.default_platform_profile_id ?? null,
+            onboarding_completed: data.onboarding_completed === true,
             subscription: data.subscription ?? undefined,
           } as UserSettings;
           console.log('Mapped settings:', mappedSettings);

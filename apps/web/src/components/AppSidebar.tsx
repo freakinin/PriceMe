@@ -68,7 +68,7 @@ export function AppSidebar({ onSettingsOpen }: AppSidebarProps) {
 
         {/* ── Add Product CTA ── */}
         <SidebarMenu className="mt-2">
-          <SidebarMenuItem>
+          <SidebarMenuItem data-tour="tour-add-product">
             <SidebarMenuButton
               asChild
               isActive={location.pathname === '/products/add'}
@@ -101,7 +101,14 @@ export function AppSidebar({ onSettingsOpen }: AppSidebarProps) {
           <SidebarGroupContent>
             <SidebarMenu>
               {mainNavItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
+                <SidebarMenuItem
+                  key={item.title}
+                  data-tour={
+                    item.title === 'Coach' ? 'tour-nav-coach'
+                    : item.title === 'On Sale' ? 'tour-nav-on-sale'
+                    : undefined
+                  }
+                >
                   <SidebarMenuButton
                     asChild
                     isActive={location.pathname === item.url}
@@ -130,7 +137,14 @@ export function AppSidebar({ onSettingsOpen }: AppSidebarProps) {
           <SidebarGroupContent>
             <SidebarMenu>
               {manageNavItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
+                <SidebarMenuItem
+                  key={item.title}
+                  data-tour={
+                    item.title === 'Products' ? 'tour-nav-products'
+                    : item.title === 'Materials' ? 'tour-nav-materials'
+                    : undefined
+                  }
+                >
                   <SidebarMenuButton
                     asChild
                     isActive={location.pathname === item.url}

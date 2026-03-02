@@ -15,7 +15,7 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/use-toast';
-import { Save, Loader2, Mail, Calendar } from 'lucide-react';
+import { Save, Loader2, Mail, Calendar, MapPin } from 'lucide-react';
 import { useProfile } from '@/hooks/useProfile';
 
 const updateProfileSchema = z.object({
@@ -175,7 +175,25 @@ export function ProfileSettings() {
 
         <Separator />
 
-        {/* Section 3: Change Password */}
+        {/* Section 3: App Tour */}
+        <div>
+          <h2 className="text-base font-semibold mb-0.5">App Tour</h2>
+          <p className="text-sm text-muted-foreground mb-4">
+            Replay the guided walkthrough to explore Cravio's key features.
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => window.dispatchEvent(new CustomEvent('start-tour'))}
+          >
+            <MapPin className="mr-2 h-4 w-4" />
+            Take a Tour
+          </Button>
+        </div>
+
+        <Separator />
+
+        {/* Section 4: Change Password */}
         <div>
           <h2 className="text-base font-semibold mb-0.5">Change Password</h2>
           <p className="text-sm text-muted-foreground mb-4">

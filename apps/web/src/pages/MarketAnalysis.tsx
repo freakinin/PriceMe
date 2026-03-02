@@ -1,6 +1,7 @@
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { track } from '@/lib/analytics';
+import { useTour, MARKET_TOUR_STORAGE_KEY } from '@/components/onboarding/TourContext';
 import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
 import { MarketAnalysisPanel } from '@/components/MarketAnalysisPanel';
@@ -14,6 +15,15 @@ export default function MarketAnalysis() {
     const navigate = useNavigate();
 
     const [headerActionsContainer, setHeaderActionsContainer] = useState<HTMLElement | null>(null);
+
+    // Auto-start market analysis tour on first visit
+    const { startMarketAnalysisTour } = useTour();
+    useEffect(() => {
+        if (!localStorage.getItem(MARKET_TOUR_STORAGE_KEY)) {
+            const t = setTimeout(startMarketAnalysisTour, 700);
+            return () => clearTimeout(t);
+        }
+    }, [startMarketAnalysisTour]);
 
     useEffect(() => {
         setHeaderActionsContainer(document.getElementById('header-actions'));
