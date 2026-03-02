@@ -1,5 +1,6 @@
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
+import { track } from '@/lib/analytics';
 import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
 import { MarketAnalysisPanel } from '@/components/MarketAnalysisPanel';
@@ -16,6 +17,9 @@ export default function MarketAnalysis() {
 
     useEffect(() => {
         setHeaderActionsContainer(document.getElementById('header-actions'));
+        if (productId) {
+            track({ event: 'market_analysis_opened', product_id: productId });
+        }
     }, []);
 
     const { data: product, isLoading, error } = useQuery({

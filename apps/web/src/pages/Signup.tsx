@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { CravioIcon } from '@/components/CravioIcon';
 import api from '@/lib/api';
+import { track, identify } from '@/lib/analytics';
 import { PLAN_ORDER, PLAN_DISPLAY, PLAN_LIMITS } from '@/config/plans';
 import type { PlanName } from '@/config/plans';
 import { cn } from '@/lib/utils';
@@ -342,6 +343,10 @@ function FormStep({
       if (response.data.user) {
         localStorage.setItem('user', JSON.stringify(response.data.user));
       }
+      if (response.data.user) {
+        identify(response.data.user.id, { email: response.data.user.email, name: response.data.user.name, plan });
+      }
+      track({ event: 'user_signed_up', plan_selected: plan });
       window.location.href = '/';
     } catch (err: any) {
       setError(err.response?.data?.message || 'Signup failed. Please try again.');

@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { BrainCircuit, RefreshCw, FileText, Pencil } from 'lucide-react';
+import { track } from '@/lib/analytics';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useCoach } from '@/hooks/useCoach';
@@ -41,6 +42,10 @@ export default function Coach() {
   const planChatPerDay = limits?.coachChatPerDay ?? 0;
   const reportsPerMonthLimit = limits?.coachReportsPerMonth ?? 0;
 
+  useEffect(() => {
+    track({ event: 'coach_opened' });
+  }, []);
+
   // While profile is loading, show a full-page skeleton
   if (isProfileLoading) {
     return (
@@ -56,7 +61,10 @@ export default function Coach() {
   if (!profile) {
     return (
       <CoachOnboarding
-        onComplete={async (data) => { await upsertProfile(data); }}
+        onComplete={async (data) => {
+          await upsertProfile(data);
+          track({ event: 'coach_onboarding_completed', craft_type: data.craft_type, experience_years: data.experience_years });
+        }}
         isSubmitting={isUpsertingProfile}
       />
     );
@@ -95,7 +103,7 @@ export default function Coach() {
           </Button>
           <Button
             size="sm"
-            onClick={() => generateInsights()}
+            onClick={() => { generateInsights(); track({ event: 'insight_generated' }); }}
             disabled={isGeneratingInsights || planInsightLimit === 0}
           >
             {isGeneratingInsights ? (
@@ -132,7 +140,7 @@ export default function Coach() {
         <div className="min-h-0 overflow-hidden">
           <ReportsPanel
             reports={reports}
-            onGenerate={generateReport}
+            onGenerate={async (...args) => { await generateReport(...args); track({ event: 'report_generated' }); }}
             isGenerating={isGeneratingReport}
             onClose={() => setShowReports(false)}
             reportsPerMonthLimit={reportsPerMonthLimit}
@@ -161,7 +169,7 @@ export default function Coach() {
             history={chatHistory}
             isSending={isSendingChat}
             error={sendChatError}
-            onSend={sendChat}
+            onSend={async (msg) => { await sendChat(msg); track({ event: 'chat_message_sent', daily_count: chatDailyUsed + 1 }); }}
             chatDailyUsed={chatDailyUsed}
             chatPerDayLimit={planChatPerDay}
           />

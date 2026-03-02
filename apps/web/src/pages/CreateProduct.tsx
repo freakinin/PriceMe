@@ -30,6 +30,7 @@ import { ProductVariationsModal, type Variant } from '@/components/products/Prod
 import { useProducts } from '@/hooks/useProducts';
 import { useProductPricing } from '@/hooks/useProductPricing';
 import { CategorySelect } from '@/components/CategorySelect';
+import { track } from '@/lib/analytics';
 
 // Imported Schemas & Types
 import {
@@ -92,6 +93,9 @@ export default function CreateProduct() {
 
   useEffect(() => {
     setOpen(false);
+    if (!isEditMode) {
+      track({ event: 'product_creation_started' });
+    }
   }, []);
 
   // Fetch templates on mount
@@ -243,6 +247,7 @@ export default function CreateProduct() {
           setVariants(variants); // Changed from setLocalVariants
         }
 
+        track({ event: 'template_loaded', template_id: templateId });
         toast({
           variant: 'success',
           title: "Template Loaded",
@@ -335,9 +340,18 @@ export default function CreateProduct() {
 
       if (isEditMode && editProductId) {
         await updateProduct({ id: Number(editProductId), data: productData });
+        track({ event: 'product_updated' });
         toast({ variant: 'success', title: 'Success', description: 'Product updated successfully' });
       } else {
         await createProduct(productData);
+        track({
+          event: 'product_created',
+          has_materials: data.materials.length > 0,
+          has_labor: data.labor_costs.length > 0,
+          has_other_costs: data.other_costs.length > 0,
+          variant_count: variants.length,
+          has_category: !!data.category_id,
+        });
         invalidateSubscription();
 
         const limit = subscription?.limits.products ?? -1;
@@ -364,6 +378,7 @@ export default function CreateProduct() {
     } catch (error: any) {
       console.error('Submit error:', error);
       if (error.response?.data?.code === 'PLAN_LIMIT_REACHED') {
+        track({ event: 'plan_limit_reached', limit_type: 'products', plan: subscription?.plan ?? 'free' });
         setUpgradePrompt({ open: true, limit: error.response.data.data?.limit ?? 0 });
       } else {
         toast({ variant: 'destructive', title: 'Error', description: error.message || `Failed to ${isEditMode ? 'update' : 'create'} product` });

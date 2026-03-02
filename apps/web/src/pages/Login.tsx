@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { CravioIcon } from '@/components/CravioIcon';
 import api from '@/lib/api';
+import { track, identify } from '@/lib/analytics';
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -33,7 +34,9 @@ export default function Login() {
       localStorage.setItem('token', response.data.token);
       if (response.data.user) {
         localStorage.setItem('user', JSON.stringify(response.data.user));
+        identify(response.data.user.id, { email: response.data.user.email, name: response.data.user.name });
       }
+      track({ event: 'user_logged_in' });
       window.location.href = '/';
     } catch (err: any) {
       setError(err.response?.data?.message || 'Login failed. Please try again.');

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { identify, reset } from '@/lib/analytics';
 
 interface User {
   id: number;
@@ -42,10 +43,9 @@ export function useAuth() {
       // Also decode JWT to get user info (simple decode, not verifying)
       const payload = parseJwt(token);
       if (payload) {
-        setUser(prev => prev || {
-          id: payload.userId,
-          email: payload.email,
-        });
+        const resolved = { id: payload.userId, email: payload.email };
+        setUser(prev => prev || resolved);
+        identify(payload.userId, { email: payload.email });
       } else {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
@@ -60,6 +60,7 @@ export function useAuth() {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     setUser(null);
+    reset();
     window.location.href = '/login';
   };
 

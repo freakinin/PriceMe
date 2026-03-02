@@ -1,5 +1,15 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { useEffect } from 'react';
+import posthog from 'posthog-js';
 import { AppLayout } from './components/AppLayout';
+
+function RouteTracker() {
+  const location = useLocation();
+  useEffect(() => {
+    posthog.capture('$pageview', { $current_url: window.location.href });
+  }, [location.pathname, location.search]);
+  return null;
+}
 import { Toaster } from './components/ui/toaster';
 import Home from './pages/Home';
 import CreateProduct from './pages/CreateProduct';
@@ -48,6 +58,7 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 function App() {
   return (
     <BrowserRouter>
+      <RouteTracker />
       <Toaster />
       <Routes>
         {/* Public routes */}

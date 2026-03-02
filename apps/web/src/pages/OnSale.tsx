@@ -32,6 +32,7 @@ import { SaleDialog } from '@/components/sales/SaleDialog';
 import { OnSaleCardView } from '@/components/sales/OnSaleCardView';
 import { usePlatformFees } from '@/hooks/usePlatformFees';
 import { calculateNetProfitWithFees, type PlatformFeeConfig } from '@/utils/profitCalculations';
+import { track } from '@/lib/analytics';
 
 export default function OnSale() {
   const { settings } = useSettings();
@@ -176,6 +177,7 @@ export default function OnSale() {
 
   const handleSaleSaved = async (data: any) => {
     await addSale(data);
+    track({ event: 'sale_recorded', quantity: data.quantity, has_discount: !!(data.discount_amount || data.discount_percentage) });
     await fetchSales(); // Refresh list to update numbers
   };
 

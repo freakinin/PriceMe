@@ -1,6 +1,7 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Zap } from 'lucide-react';
+import { track } from '@/lib/analytics';
 
 interface UpgradePromptProps {
   open: boolean;
@@ -37,6 +38,7 @@ export function UpgradePrompt({ open, onOpenChange, resource, currentLimit, onVi
           </Button>
           <Button
             onClick={() => {
+              track({ event: 'upgrade_cta_clicked', source: `limit_${resource}` });
               onOpenChange(false);
               onViewPlans();
             }}
