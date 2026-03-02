@@ -18,7 +18,7 @@ const TRANSITION = 'all 220ms cubic-bezier(0.4, 0, 0.2, 1)';
 
 export function TourSpotlight({ targetId, padding = 8, children }: TourSpotlightProps) {
   const [rect, setRect] = useState<SpotlightRect | null>(null);
-  const rafRef = useRef<number>();
+  const rafRef = useRef<number | undefined>(undefined);
 
   const measureTarget = useCallback(() => {
     if (!targetId) {
