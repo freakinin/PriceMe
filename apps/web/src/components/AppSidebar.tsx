@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/sidebar';
 import { useAuth } from '@/hooks/useAuth';
 import { Link, useLocation } from 'react-router-dom';
+import { PulseIcon } from '@/components/PulseIcon';
 
 interface AppSidebarProps {
   onSettingsOpen: () => void;
@@ -60,7 +61,7 @@ export function AppSidebar({ onSettingsOpen }: AppSidebarProps) {
       {/* ── Logo ── */}
       <SidebarHeader className="border-b border-sidebar-border px-3 py-4">
         <Link to="/" className={`flex items-center py-1 ${isCollapsed ? 'justify-center' : 'gap-2.5 px-2'}`}>
-          <img src="/cravio-favicon.svg" alt="Cravio" style={{ width: 20, height: 20, minWidth: 20 }} />
+          <PulseIcon size={20} color="#c2410c" />
           {!isCollapsed && (
             <img src="/cravio-logo.svg" alt="Cravio" className="h-7 shrink-0" />
           )}

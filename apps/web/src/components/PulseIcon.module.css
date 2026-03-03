@@ -1,0 +1,37 @@
+/* ── ECG draw-on animation — left → right ── */
+
+/* Path traces itself from left to right, like a real monitor readout. */
+@keyframes drawECG {
+  from { stroke-dashoffset: 48; }
+  to   { stroke-dashoffset: 0;  }
+}
+
+/* Each dot pops in with a spring overshoot the instant the trace arrives. */
+@keyframes dotPop {
+  0%   { opacity: 0; transform: scale(0);   }
+  60%  { opacity: 1; transform: scale(1.4); }
+  100% { opacity: 1; transform: scale(1);   }
+}
+
+/* Path — true length ≈ 45.94, dasharray padded to 48 */
+.path {
+  stroke-dasharray: 48;
+  stroke-dashoffset: 48;
+  animation: drawECG 0.75s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* Top dot (9, 3) — trace reaches it first at ~29% → 0.22s */
+.dotFirst {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: dotPop 0.28s cubic-bezier(0.34, 1.56, 0.64, 1) 0.22s forwards;
+}
+
+/* Bottom dot (15, 21) — trace reaches it second at ~71% → 0.53s */
+.dotSecond {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: dotPop 0.28s cubic-bezier(0.34, 1.56, 0.64, 1) 0.53s forwards;
+}
