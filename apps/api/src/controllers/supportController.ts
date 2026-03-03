@@ -42,11 +42,9 @@ export const submitTicket = async (req: AuthRequest, res: Response) => {
     const { subject, message, category } = parsed.data;
 
     // Fetch user details for context
-    const result = await db`SELECT name, email FROM users WHERE id = ${req.userId}`;
+    const result = await db`SELECT email FROM users WHERE id = ${req.userId}`;
     const rows = Array.isArray(result) ? result : result.rows || [];
-    const user = rows[0];
-    const userName = user?.name || 'Unknown';
-    const userEmail = user?.email || req.userEmail || 'Unknown';
+    const userEmail = rows[0]?.email || req.userEmail || 'Unknown';
 
     await getNotionClient().pages.create({
       parent: { database_id: databaseId },
