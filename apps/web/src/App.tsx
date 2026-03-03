@@ -24,6 +24,7 @@ import Signup from './pages/Signup';
 import ForgotPassword from './pages/ForgotPassword';
 import MarketAnalysis from './pages/MarketAnalysis';
 import Coach from './pages/Coach';
+import Help from './pages/Help';
 import { useAuth } from './hooks/useAuth';
 import './index.css';
 
@@ -194,6 +195,17 @@ function App() {
             <ProtectedRoute>
               <AppLayout>
                 <Coach />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/help"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <Help />
               </AppLayout>
             </ProtectedRoute>
           }

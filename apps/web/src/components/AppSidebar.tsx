@@ -10,6 +10,7 @@ import {
   Tag,
   BrainCircuit,
   Truck,
+  HelpCircle,
 } from 'lucide-react';
 import {
   Sidebar,
@@ -175,6 +176,19 @@ export function AppSidebar({ onSettingsOpen }: AppSidebarProps) {
               <Link to="/roadmap">
                 <Map className="h-4 w-4" />
                 <span>Roadmap</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              asChild
+              isActive={location.pathname === '/help'}
+              tooltip="Help"
+            >
+              <Link to="/help">
+                <HelpCircle className="h-4 w-4" />
+                <span>Help</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>

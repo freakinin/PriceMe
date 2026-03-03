@@ -53,6 +53,12 @@ export type OnboardingEvent =
   | { event: 'onboarding_tour_completed' }
   | { event: 'onboarding_tour_skipped'; step_reached: number };
 
+// Help & support
+export type HelpEvent =
+  | { event: 'help_page_opened' }
+  | { event: 'faq_searched'; query: string }
+  | { event: 'ticket_submitted'; category: string };
+
 type AnalyticsEvent =
   | AuthEvent
   | ProductEvent
@@ -60,7 +66,8 @@ type AnalyticsEvent =
   | MarketEvent
   | CoachEvent
   | SubscriptionEvent
-  | OnboardingEvent;
+  | OnboardingEvent
+  | HelpEvent;
 
 // ---------------------------------------------------------------------------
 // Core helpers

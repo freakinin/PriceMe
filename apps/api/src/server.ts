@@ -131,6 +131,7 @@ import shippingMethodsRoutes from './routes/shippingMethods.js';
 import subscriptionRoutes from './routes/subscription.js';
 import profileRoutes from './routes/profile.js';
 import coachRoutes from './routes/coach.js';
+import supportRoutes from './routes/support.js';
 import { PriceMonitorJob } from './jobs/priceMonitor.js';
 
 app.use('/api/notifications', notificationRoutes);
@@ -139,6 +140,7 @@ app.use('/api/shipping-methods', shippingMethodsRoutes);
 app.use('/api/subscription', subscriptionRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/coach', coachRoutes);
+app.use('/api/support', supportRoutes);
 
 // API info route
 app.get('/api', (_req, res) => {

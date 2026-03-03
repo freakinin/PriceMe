@@ -240,3 +240,11 @@ export * from './template.js';
 export * from './sales.js';
 export * from './category.js';
 export * from './coach.js';
+
+// Support ticket schema
+export const createTicketSchema = z.object({
+  subject: z.string().min(5, 'Subject must be at least 5 characters'),
+  message: z.string().min(20, 'Please provide at least 20 characters'),
+  category: z.enum(['bug', 'feature', 'question', 'other']),
+});
+export type CreateTicketInput = z.infer<typeof createTicketSchema>;
