@@ -35,7 +35,6 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { CategoryCombobox } from '@/components/CategoryCombobox';
 import { SupplierCombobox } from '@/components/SupplierCombobox';
 import { useSuppliers } from '@/hooks/useSuppliers';
-import { ExternalLink } from 'lucide-react';
 
 // Helper function to format numbers for display (remove trailing zeros)
 const formatNumberForInput = (val: number | null | undefined): string => {
@@ -111,6 +110,7 @@ interface EditMaterialDialogProps {
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
   existingCategories: string[];
+  onCategoryCreated?: (category: string) => void;
 }
 
 // Units that should show width/length dimensions
@@ -126,6 +126,7 @@ export default function EditMaterialDialog({
   onOpenChange,
   onSuccess,
   existingCategories,
+  onCategoryCreated,
 }: EditMaterialDialogProps) {
   const { settings } = useSettings();
   const { toast } = useToast();
@@ -318,6 +319,7 @@ export default function EditMaterialDialog({
                         existingCategories={existingCategories}
                         onCreateCategory={(newCategory) => {
                           field.onChange(newCategory);
+                          onCategoryCreated?.(newCategory);
                         }}
                       />
                     </FormControl>
@@ -682,9 +684,7 @@ export default function EditMaterialDialog({
               <FormField
                 control={form.control}
                 name="supplier_id"
-                render={({ field }) => {
-                  const selectedLink = form.watch('supplier_link');
-                  return (
+                render={({ field }) => (
                     <FormItem>
                       <FormLabel>Supplier</FormLabel>
                       <FormControl>
@@ -700,20 +700,8 @@ export default function EditMaterialDialog({
                         />
                       </FormControl>
                       <FormMessage />
-                      {selectedLink && (
-                        <a
-                          href={selectedLink}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-xs text-primary hover:underline mt-1"
-                        >
-                          <ExternalLink className="h-3 w-3" />
-                          {selectedLink}
-                        </a>
-                      )}
                     </FormItem>
-                  );
-                }}
+                )}
               />
             </div>
             </div>
