@@ -40,7 +40,6 @@ type Props = Pick<ProductsPageState,
   | 'productPricingValues'
   | 'productCategoryIds'
   | 'setProductCategoryIds'
-  | 'globalPricingMethod'
   | 'categories'
   | 'handleSaveField'
   | 'handleSavePricingValue'
@@ -77,7 +76,6 @@ export function ProductsTableView({
   productPricingValues,
   productCategoryIds,
   setProductCategoryIds,
-  globalPricingMethod,
   categories,
   handleSaveField,
   handleSavePricingValue,
@@ -293,96 +291,35 @@ export function ProductsTableView({
       cell: ({ row }) => <div className="text-left font-medium">{formatCurrencyValue(row.original.product_cost)}</div>,
     },
     {
-      id: 'markup',
-      size: 120, minSize: 100, maxSize: 200,
-      header: 'Markup %',
-      cell: ({ row }) => {
-        const product = row.original;
-        const method = productPricingMethods[product.id] || globalPricingMethod || product.pricing_method || 'price';
-        const metrics = getCalculatedMetrics(product);
-        const pricingValue = productPricingValues[product.id] ?? product.pricing_value ?? 0;
-        const markupValue = method === 'markup' ? pricingValue : metrics.markup;
-        return (
-          <div className={method !== 'markup' ? 'opacity-50 text-left' : 'text-left'}>
-            {method === 'markup' ? (
-              <EditableCell value={markupValue} onSave={async value => handleSavePricingValue(product.id, 'markup', value as number)}
-                type="number" formatDisplay={formatPercentage} className="text-left justify-start" />
-            ) : (
-              <div className="text-muted-foreground py-1">{formatPercentage(markupValue)}</div>
-            )}
-          </div>
-        );
-      },
-    },
-    {
       id: 'price',
-      size: 180, minSize: 150, maxSize: 250,
-      header: 'Planned Sales Price $',
+      size: 150, minSize: 120, maxSize: 220,
+      header: ({ column }) => (
+        <div className="flex items-center justify-start cursor-pointer hover:text-foreground text-muted-foreground gap-2 w-full"
+          onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}>
+          Price
+          {column.getIsSorted() === 'asc' ? <ArrowUp className="h-3 w-3" /> :
+           column.getIsSorted() === 'desc' ? <ArrowDown className="h-3 w-3" /> :
+           <ArrowUpDown className="h-3 w-3 opacity-50" />}
+        </div>
+      ),
+      accessorFn: row => getCalculatedMetrics(row).price,
       cell: ({ row }) => {
         const product = row.original;
-        const method = productPricingMethods[product.id] || globalPricingMethod || product.pricing_method || 'price';
         const metrics = getCalculatedMetrics(product);
-        const pricingValue = productPricingValues[product.id] ?? product.pricing_value ?? 0;
-        const priceValue = method === 'price' ? pricingValue : metrics.price;
         return (
-          <div className={method !== 'price' ? 'opacity-50 text-left' : 'text-left'}>
-            {method === 'price' ? (
-              <EditableCell value={priceValue} onSave={async value => handleSavePricingValue(product.id, 'price', value as number)}
-                type="number" formatDisplay={formatCurrencyValue} className="text-left justify-start font-medium" />
-            ) : (
-              <div className="text-muted-foreground py-1">{formatCurrencyValue(priceValue)}</div>
-            )}
-          </div>
+          <EditableCell
+            value={metrics.price}
+            onSave={async value => handleSavePricingValue(product.id, 'price', value as number)}
+            type="number"
+            formatDisplay={formatCurrencyValue}
+            className="text-left justify-start font-medium"
+          />
         );
       },
     },
     {
       id: 'profit',
-      size: 150, minSize: 120, maxSize: 200,
-      header: 'Desired Profit $',
-      cell: ({ row }) => {
-        const product = row.original;
-        const method = productPricingMethods[product.id] || globalPricingMethod || product.pricing_method || 'price';
-        const metrics = getCalculatedMetrics(product);
-        const pricingValue = productPricingValues[product.id] ?? product.pricing_value ?? 0;
-        const profitValue = method === 'profit' ? pricingValue : metrics.profit;
-        return (
-          <div className={method !== 'profit' ? 'opacity-50 text-left' : 'text-left'}>
-            {method === 'profit' ? (
-              <EditableCell value={profitValue} onSave={async value => handleSavePricingValue(product.id, 'profit', value as number)}
-                type="number" formatDisplay={formatCurrencyValue} className="text-left justify-start" />
-            ) : (
-              <div className="text-muted-foreground py-1">{formatCurrencyValue(profitValue)}</div>
-            )}
-          </div>
-        );
-      },
-    },
-    {
-      id: 'margin',
-      size: 150, minSize: 120, maxSize: 200,
-      header: 'Desired Margin %',
-      cell: ({ row }) => {
-        const product = row.original;
-        const method = productPricingMethods[product.id] || globalPricingMethod || product.pricing_method || 'price';
-        const metrics = getCalculatedMetrics(product);
-        const pricingValue = productPricingValues[product.id] ?? product.pricing_value ?? 0;
-        const marginValue = method === 'margin' ? pricingValue : metrics.margin;
-        return (
-          <div className={method !== 'margin' ? 'opacity-50 text-left' : 'text-left'}>
-            {method === 'margin' ? (
-              <EditableCell value={marginValue} onSave={async value => handleSavePricingValue(product.id, 'margin', value as number)}
-                type="number" formatDisplay={formatPercentage} className="text-left justify-start" />
-            ) : (
-              <div className="text-muted-foreground py-1">{formatPercentage(marginValue)}</div>
-            )}
-          </div>
-        );
-      },
-    },
-    {
-      id: 'calculated_profit',
-      size: 140, minSize: 110, maxSize: 220,
+      size: 140, minSize: 110, maxSize: 200,
       header: ({ column }) => (
         <div className="flex items-center justify-start cursor-pointer hover:text-foreground text-muted-foreground gap-2 w-full"
           onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}>
@@ -400,8 +337,9 @@ export function ProductsTableView({
         return getCalculatedMetrics(row).profit;
       },
       cell: ({ row }) => {
+        const product = row.original;
         if (feeAwareMode) {
-          const feeMetrics = getFeeAwareMetrics(row.original);
+          const feeMetrics = getFeeAwareMetrics(product);
           if (feeMetrics) {
             return (
               <div className="flex items-center gap-1.5">
@@ -413,21 +351,25 @@ export function ProductsTableView({
             );
           }
         }
-        const metrics = getCalculatedMetrics(row.original);
+        const metrics = getCalculatedMetrics(product);
         return (
-          <span className={metrics.profit >= 0 ? 'text-green-600' : 'text-red-600'}>
-            {formatCurrencyValue(metrics.profit)}
-          </span>
+          <EditableCell
+            value={metrics.profit}
+            onSave={async value => handleSavePricingValue(product.id, 'profit', value as number)}
+            type="number"
+            formatDisplay={v => <span className={Number(v) >= 0 ? 'text-green-600' : 'text-red-600'}>{formatCurrencyValue(v)}</span>}
+            className="text-left justify-start"
+          />
         );
       },
     },
     {
-      id: 'calculated_margin',
+      id: 'margin',
       size: 150, minSize: 120, maxSize: 220,
       header: ({ column }) => (
         <div className="flex items-center justify-start cursor-pointer hover:text-foreground text-muted-foreground gap-2 w-full"
           onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}>
-          {feeAwareMode ? 'Net Margin' : 'Profit Margin'}
+          {feeAwareMode ? 'Net Margin' : 'Margin'}
           {column.getIsSorted() === 'asc' ? <ArrowUp className="h-3 w-3" /> :
            column.getIsSorted() === 'desc' ? <ArrowDown className="h-3 w-3" /> :
            <ArrowUpDown className="h-3 w-3 opacity-50" />}
@@ -441,21 +383,51 @@ export function ProductsTableView({
         return getCalculatedMetrics(row).margin;
       },
       cell: ({ row }) => {
+        const product = row.original;
+        let marginValue: number;
         if (feeAwareMode) {
-          const feeMetrics = getFeeAwareMetrics(row.original);
-          if (feeMetrics) {
-            return (
-              <span className={feeMetrics.netMarginPreTax >= 0 ? 'text-green-600' : 'text-red-600'}>
-                {formatPercentage(feeMetrics.netMarginPreTax)}
-              </span>
-            );
-          }
+          const feeMetrics = getFeeAwareMetrics(product);
+          marginValue = feeMetrics ? feeMetrics.netMarginPreTax : getCalculatedMetrics(product).margin;
+        } else {
+          marginValue = getCalculatedMetrics(product).margin;
         }
-        const metrics = getCalculatedMetrics(row.original);
+        const dotColor =
+          marginValue >= 30 ? 'bg-green-500' :
+          marginValue >= 10 ? 'bg-amber-500' :
+          'bg-red-500';
         return (
-          <span className={metrics.margin >= 0 ? 'text-green-600' : 'text-red-600'}>
-            {formatPercentage(metrics.margin)}
-          </span>
+          <div className="flex items-center gap-1.5">
+            <div className={`h-2 w-2 rounded-full shrink-0 ${dotColor}`} title={
+              marginValue >= 30 ? 'Healthy margin' :
+              marginValue >= 10 ? 'Thin margin' :
+              'At risk'
+            } />
+            <EditableCell
+              value={marginValue}
+              onSave={async value => handleSavePricingValue(product.id, 'margin', value as number)}
+              type="number"
+              formatDisplay={v => <span className={Number(v) >= 0 ? 'text-green-600' : 'text-red-600'}>{formatPercentage(v)}</span>}
+              className="text-left justify-start"
+            />
+          </div>
+        );
+      },
+    },
+    {
+      id: 'markup',
+      size: 120, minSize: 100, maxSize: 180,
+      header: 'Markup %',
+      cell: ({ row }) => {
+        const product = row.original;
+        const metrics = getCalculatedMetrics(product);
+        return (
+          <EditableCell
+            value={metrics.markup}
+            onSave={async value => handleSavePricingValue(product.id, 'markup', value as number)}
+            type="number"
+            formatDisplay={formatPercentage}
+            className="text-left justify-start text-purple-700"
+          />
         );
       },
     },
@@ -479,7 +451,6 @@ export function ProductsTableView({
     productPricingMethods,
     productPricingValues,
     productCategoryIds,
-    globalPricingMethod,
     categories,
     updatingProductId,
     updatingCategoryProductId,

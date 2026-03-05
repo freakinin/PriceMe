@@ -28,7 +28,6 @@ import { useToast } from '@/components/ui/use-toast';
 
 import { ProductVariationsModal, type Variant } from '@/components/products/ProductVariationsModal';
 import { useProducts } from '@/hooks/useProducts';
-import { useProductPricing } from '@/hooks/useProductPricing';
 import { CategorySelect } from '@/components/CategorySelect';
 import { track } from '@/lib/analytics';
 import { useTour, PRODUCT_TOUR_STORAGE_KEY } from '@/components/onboarding/TourContext';
@@ -42,6 +41,7 @@ import {
 import { MaterialsSection } from '@/components/products/forms/MaterialsSection';
 import { LaborSection } from '@/components/products/forms/LaborSection';
 import { OtherCostsSection } from '@/components/products/forms/OtherCostsSection';
+import { PriceCalculatorPanel } from '@/components/products/PriceCalculatorPanel';
 // Imported Utils
 import {
   calculateMaterialCost,
@@ -54,11 +54,6 @@ import {
 
 // --- Helper Functions ---
 
-const formatNumberDisplay = (val: number | undefined | null): string => {
-  if (val === null || val === undefined) return '-';
-  // Fix to 2 decimal places to avoid rendering issues
-  return parseFloat(Number(val).toFixed(2)).toString();
-};
 
 
 // --- Sub-components for Adding Items ---
@@ -78,8 +73,6 @@ export default function CreateProduct() {
   const { subscription, invalidate: invalidateSubscription } = useSubscription();
   const { createProduct, updateProduct } = useProducts();
 
-  // Helper used for display calculations, similar to Products page, but here we calculate on the fly
-  const { calculateProfitFromPrice } = useProductPricing();
 
   const [variants, setVariants] = useState<Variant[]>([]);
   const [isVariationsModalOpen, setIsVariationsModalOpen] = useState(false);
@@ -294,7 +287,6 @@ export default function CreateProduct() {
   const totalOtherCost = otherCosts?.reduce((sum, o) => sum + calculateOtherCost(o, batchSize), 0) || 0;
   const totalCostPerProduct = totalMaterialsCost + totalLaborCost + totalOtherCost;
 
-  const { profit, margin, markup } = calculateProfitFromPrice(targetPrice, totalCostPerProduct);
 
   // --- Actions ---
 
@@ -304,23 +296,14 @@ export default function CreateProduct() {
   const onSubmit = async (data: ProductFormValues) => {
     try {
       console.log('Submitting data:', data);
-      // Determine pricing method and value from target_price if provided
-      let pricing_method: 'price' | undefined = undefined;
-      let pricing_value: number | undefined = undefined;
-
-      if (data.target_price) {
-        pricing_method = 'price';
-        pricing_value = data.target_price;
-      }
-
       const productData = {
         name: data.name,
         sku: data.sku || undefined,
         category_id: data.category_id || undefined,
         batch_size: data.batch_size,
         target_price: data.target_price,
-        pricing_method,
-        pricing_value,
+        pricing_method: data.pricing_method || (data.target_price ? 'price' : undefined),
+        pricing_value: data.pricing_value || data.target_price || undefined,
         materials: data.materials.map(m => ({
           ...m,
           quantity_per_item_or_batch: m.per_batch ? 'batch' : 'item',
@@ -523,13 +506,6 @@ export default function CreateProduct() {
                   <FormMessage />
                 </FormItem>
               )} />
-              <FormField control={control} name="target_price" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Target Price ({getCurrencySymbol(settings.currency)})</FormLabel>
-                  <FormControl><Input type="number" step="0.01" placeholder="0.00" {...field} value={field.value || ''} onChange={e => field.onChange(parseFloat(e.target.value) || undefined)} /></FormControl>
-                  <FormMessage />
-                </FormItem>
-              )} />
             </div>
 
             {/* 3-Column Grid: Materials, Labor, Other */}
@@ -565,45 +541,38 @@ export default function CreateProduct() {
                 />
               </div>
             </div>
+
+            {/* Pricing Panel */}
+            <div data-tour="ptour-cost-bar">
+              <PriceCalculatorPanel
+                totalCost={totalCostPerProduct}
+                currency={settings.currency}
+                initialMethod={(watch('pricing_method') as any) || 'price'}
+                initialValue={watch('pricing_value') || watch('target_price') || undefined}
+                onChange={(method, value, calculatedPrice) => {
+                  setValue('pricing_method', method);
+                  setValue('pricing_value', value);
+                  setValue('target_price', calculatedPrice);
+                }}
+              />
+            </div>
           </form>
         </Form>
       </div>
 
       {/* Bottom Bar */}
-      <div data-tour="ptour-cost-bar" className="shrink-0 bg-background border-t px-6 py-2 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
+      <div className="shrink-0 bg-background border-t px-6 py-2 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
         <div className="flex items-center justify-between">
 
-          {/* Left: Cost Breakdown & Total */}
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-4 text-xs text-muted-foreground">
-              <span>Materials: <span className="font-medium text-foreground">{formatCurrency(totalMaterialsCost, settings.currency)}</span></span>
-              <span>Labor: <span className="font-medium text-foreground">{formatCurrency(totalLaborCost, settings.currency)}</span></span>
-              <span>Other: <span className="font-medium text-foreground">{formatCurrency(totalOtherCost, settings.currency)}</span></span>
-            </div>
-            <div className="h-8 w-px bg-border my-auto" />
-            <div className="flex items-center gap-3">
-              <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Total Cost</div>
-              <div className="text-xl font-bold text-primary">{formatCurrency(totalCostPerProduct, settings.currency)}</div>
-            </div>
-          </div>
-
-          {/* Center: Circular Indicators & Design Options */}
-          {/* Center: Metrics (Minimal Design) */}
-          <div className="flex items-center gap-4">
-            <div className="flex flex-col text-right">
-              <div className="text-[9px] text-muted-foreground uppercase leading-none mb-1">Profit</div>
-              <div className={`font-bold text-sm leading-none ${profit >= 0 ? 'text-green-700' : 'text-red-700'}`}>{formatCurrency(profit, settings.currency)}</div>
-            </div>
-            <div className="w-px h-8 bg-border" />
-            <div className="flex flex-col text-right">
-              <div className="text-[9px] text-muted-foreground uppercase leading-none mb-1">Margin</div>
-              <div className={`font-bold text-sm leading-none ${margin >= 0 ? 'text-blue-700' : 'text-red-700'}`}>{formatNumberDisplay(margin)}%</div>
-            </div>
-            <div className="w-px h-8 bg-border" />
-            <div className="flex flex-col text-right">
-              <div className="text-[9px] text-muted-foreground uppercase leading-none mb-1">Markup</div>
-              <div className="font-bold text-sm text-purple-700 leading-none">{formatNumberDisplay(markup)}%</div>
-            </div>
+          {/* Left: Cost Breakdown */}
+          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+            <span>Materials: <span className="font-medium text-foreground">{formatCurrency(totalMaterialsCost, settings.currency)}</span></span>
+            <span>Labor: <span className="font-medium text-foreground">{formatCurrency(totalLaborCost, settings.currency)}</span></span>
+            <span>Other: <span className="font-medium text-foreground">{formatCurrency(totalOtherCost, settings.currency)}</span></span>
+            <div className="h-4 w-px bg-border" />
+            <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
+              Total Cost: <span className="text-base font-bold text-primary normal-case tracking-normal">{formatCurrency(totalCostPerProduct, settings.currency)}</span>
+            </span>
           </div>
 
           {/* Right: Buttons */}

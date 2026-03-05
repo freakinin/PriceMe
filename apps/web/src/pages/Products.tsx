@@ -29,7 +29,8 @@ export default function Products() {
 
   const [activeTab, setActiveTab] = useState<'table' | 'grid'>('table');
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
-  const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>({});
+  // Markup % hidden by default — accessible via Columns toggle
+  const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>({ markup: false });
 
   if (state.isLoading) {
     return (
@@ -59,8 +60,6 @@ export default function Products() {
         categories={state.categories}
         globalFilter={state.globalFilter}
         setGlobalFilter={state.setGlobalFilter}
-        globalPricingMethod={state.globalPricingMethod}
-        handleGlobalMethodChange={state.handleGlobalMethodChange}
         activeFilters={state.activeFilters}
         selectedFilterColumn={state.selectedFilterColumn}
         setSelectedFilterColumn={state.setSelectedFilterColumn}
@@ -70,7 +69,6 @@ export default function Products() {
         setFilterValue={state.setFilterValue}
         addFilter={state.addFilter}
         handleExport={state.handleExport}
-        getCalculationTypeDescription={state.getCalculationTypeDescription}
         activeTab={activeTab}
         onTabChange={setActiveTab}
         onNavigateNew={() => navigate('/products/add')}
@@ -145,7 +143,6 @@ export default function Products() {
           productPricingValues={state.productPricingValues}
           productCategoryIds={state.productCategoryIds}
           setProductCategoryIds={state.setProductCategoryIds}
-          globalPricingMethod={state.globalPricingMethod}
           categories={state.categories}
           handleSaveField={state.handleSaveField}
           handleSavePricingValue={state.handleSavePricingValue}

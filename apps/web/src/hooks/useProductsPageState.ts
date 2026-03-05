@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useProducts, type Product, type PricingMethod, type ProductStatus } from './useProducts';
 import { useCategories } from './useCategories';
 import { useProductPricing } from './useProductPricing';
@@ -46,6 +47,7 @@ export function formatNumberDisplay(val: string | number | null | undefined): st
 }
 
 export function useProductsPageState() {
+  const queryClient = useQueryClient();
   const { settings } = useSettings();
   const { toast } = useToast();
   const { setOpen: setSidebarOpen } = useSidebar();
@@ -103,12 +105,9 @@ export function useProductsPageState() {
 
   const getFeeAwareMetrics = (product: Product): FeeBreakdown | null => {
     if (!activeFeeProfile) return null;
-    const method = productPricingMethods[product.id] || globalPricingMethod || product.pricing_method || 'price';
-    const pricingValue = productPricingValues[product.id] ?? product.pricing_value ?? (product.target_price || 0);
-    let price = product.target_price || 0;
-    if (method && pricingValue !== null && pricingValue !== undefined) {
-      price = calculatePriceFromMethod(method, pricingValue, product.product_cost);
-    }
+    const method = product.pricing_method || 'price';
+    const pricingValue = product.pricing_value ?? product.target_price ?? 0;
+    const price = calculatePriceFromMethod(method, pricingValue, product.product_cost);
     const feeConfig: PlatformFeeConfig = {
       listing_fee_usd: activeFeeProfile.listing_fee_usd,
       transaction_fee_pct: activeFeeProfile.transaction_fee_pct,
@@ -196,13 +195,12 @@ export function useProductsPageState() {
   };
 
   // --- Computed metrics ---
+  // Reads directly from product data so it stays in sync with both optimistic cache
+  // updates (setQueryData) and server refetches (invalidateQueries).
   const getCalculatedMetrics = (product: Product) => {
-    const method = productPricingMethods[product.id] || globalPricingMethod || product.pricing_method || 'price';
-    const pricingValue = productPricingValues[product.id] ?? product.pricing_value ?? (product.target_price || 0);
-    let price = product.target_price || 0;
-    if (method && pricingValue !== null && pricingValue !== undefined) {
-      price = calculatePriceFromMethod(method, pricingValue, product.product_cost);
-    }
+    const method = product.pricing_method || 'price';
+    const pricingValue = product.pricing_value ?? product.target_price ?? 0;
+    const price = calculatePriceFromMethod(method, pricingValue, product.product_cost);
     const metrics = calculateProfitFromPrice(price, product.product_cost);
     return { price, profit: metrics.profit, margin: metrics.margin, markup: metrics.markup };
   };
@@ -277,10 +275,18 @@ export function useProductsPageState() {
     try {
       const product = products.find(p => p.id === productId);
       if (!product) return;
-      setProductPricingValues(prev => ({ ...prev, [productId]: value }));
       const calculatedPrice = calculatePriceFromMethod(method, value, product.product_cost);
+      // Optimistically update the query cache so the table re-renders immediately
+      queryClient.setQueryData<Product[]>(['products'], old =>
+        (old ?? []).map(p =>
+          p.id === productId ? { ...p, pricing_method: method, pricing_value: value, target_price: calculatedPrice } : p
+        )
+      );
+      setProductPricingMethods(prev => ({ ...prev, [productId]: method }));
+      setProductPricingValues(prev => ({ ...prev, [productId]: value }));
       await updateProduct({ id: productId, data: { pricing_method: method, pricing_value: value, target_price: calculatedPrice } });
     } catch (error: any) {
+      queryClient.invalidateQueries({ queryKey: ['products'] }); // roll back on error
       toast({ variant: 'destructive', title: 'Error', description: error.message || 'Failed to save pricing' });
     }
   };

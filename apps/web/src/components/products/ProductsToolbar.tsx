@@ -17,7 +17,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { type ProductsPageState } from '@/hooks/useProductsPageState';
-import { type PricingMethod } from '@/hooks/useProducts';
 
 const COLUMN_LABELS: Record<string, string> = {
   name: 'Name',
@@ -25,24 +24,20 @@ const COLUMN_LABELS: Record<string, string> = {
   status: 'Status',
   sku: 'SKU',
   product_cost: 'Cost',
-  markup: 'Markup %',
-  price: 'Planned Sales Price',
-  profit: 'Desired Profit',
-  margin: 'Desired Margin %',
-  calculated_profit: 'Profit',
-  calculated_margin: 'Profit Margin',
+  price: 'Price',
+  profit: 'Profit',
+  margin: 'Margin %',
+  markup: 'Markup % (Advanced)',
   actions: 'Actions',
 };
 
-const HIDEABLE_COLUMNS = ['name', 'category', 'status', 'sku', 'product_cost', 'markup', 'price', 'profit', 'margin', 'calculated_profit', 'calculated_margin', 'actions'];
+const HIDEABLE_COLUMNS = ['name', 'category', 'status', 'sku', 'product_cost', 'price', 'profit', 'margin', 'markup', 'actions'];
 
 type Props = Pick<ProductsPageState,
   | 'products'
   | 'categories'
   | 'globalFilter'
   | 'setGlobalFilter'
-  | 'globalPricingMethod'
-  | 'handleGlobalMethodChange'
   | 'activeFilters'
   | 'selectedFilterColumn'
   | 'setSelectedFilterColumn'
@@ -52,7 +47,6 @@ type Props = Pick<ProductsPageState,
   | 'setFilterValue'
   | 'addFilter'
   | 'handleExport'
-  | 'getCalculationTypeDescription'
 > & {
   activeTab: 'table' | 'grid';
   onTabChange: (tab: 'table' | 'grid') => void;
@@ -66,8 +60,6 @@ export function ProductsToolbar({
   categories,
   globalFilter,
   setGlobalFilter,
-  globalPricingMethod,
-  handleGlobalMethodChange,
   activeFilters,
   selectedFilterColumn,
   setSelectedFilterColumn,
@@ -77,7 +69,6 @@ export function ProductsToolbar({
   setFilterValue,
   addFilter,
   handleExport,
-  getCalculationTypeDescription,
   activeTab,
   onTabChange,
   onNavigateNew,
@@ -85,30 +76,9 @@ export function ProductsToolbar({
   onColumnVisibilityChange,
 }: Props) {
   const hasProducts = products.length > 0;
-  const description = getCalculationTypeDescription(globalPricingMethod);
 
   return (
-    <div className="mb-6 flex items-start justify-between gap-3 flex-wrap">
-
-      {/* Left: pricing method selector + description */}
-      {hasProducts && (
-        <div className="flex flex-col gap-1 min-w-[180px]">
-          <Select value={globalPricingMethod} onValueChange={v => handleGlobalMethodChange(v as PricingMethod)}>
-            <SelectTrigger className="w-[200px] h-9">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="markup">Markup %</SelectItem>
-              <SelectItem value="price">Planned Sales Price</SelectItem>
-              <SelectItem value="profit">Desired Profit</SelectItem>
-              <SelectItem value="margin">Desired Margin %</SelectItem>
-            </SelectContent>
-          </Select>
-          {description && (
-            <p className="text-xs text-muted-foreground px-1 leading-snug max-w-[260px]">{description}</p>
-          )}
-        </div>
-      )}
+    <div className="mb-6 flex items-center justify-end gap-3 flex-wrap">
 
       {/* Right: search + action icons + new */}
       <div className="flex items-center gap-2 flex-wrap">

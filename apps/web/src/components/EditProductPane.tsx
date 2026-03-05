@@ -22,6 +22,7 @@ import api from '@/lib/api';
 import { CategorySelect } from '@/components/CategorySelect';
 import { MarketAnalysisPanel } from '@/components/MarketAnalysisPanel';
 import { ProductVariationsModal, type Variant } from '@/components/products/ProductVariationsModal';
+import { PriceCalculatorPanel } from '@/components/products/PriceCalculatorPanel';
 
 import {
   productSchema,
@@ -308,9 +309,17 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
                               <FormItem><FormLabel>Batch Size</FormLabel><FormControl><Input {...field} type="number" min="1" onChange={e => field.onChange(parseInt(e.target.value) || 1)} /></FormControl><FormMessage /></FormItem>
                             )} />
                           </div>
-                          <FormField control={control} name="target_price" render={({ field }) => (
-                            <FormItem><FormLabel>Target Price ({getCurrencySymbol(settings?.currency || 'USD')})</FormLabel><FormControl><Input {...field} value={field.value || ''} type="number" step="0.01" onChange={e => field.onChange(parseFloat(e.target.value) || 0)} /></FormControl><FormMessage /></FormItem>
-                          )} />
+                          <PriceCalculatorPanel
+                            totalCost={totalCostPerProduct}
+                            currency={settings?.currency || 'USD'}
+                            initialMethod={(watch('pricing_method') as any) || 'price'}
+                            initialValue={watch('pricing_value') || watch('target_price') || undefined}
+                            onChange={(method, value, calculatedPrice) => {
+                              form.setValue('pricing_method', method);
+                              form.setValue('pricing_value', value);
+                              form.setValue('target_price', calculatedPrice);
+                            }}
+                          />
                         </TabsContent>
 
                         {/* Tab 2: Materials */}
