@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 
 import { Plus, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown, Edit, Trash2, ExternalLink, Package, Columns, X, Info, PackagePlus, AlertTriangle, Download, Table2, LayoutGrid } from 'lucide-react';
 import { useSidebar } from '@/components/ui/sidebar';
@@ -60,7 +60,17 @@ export default function Materials() {
   const { setOpen: setSidebarOpen } = useSidebar();
 
   // Use custom hook for materials
-  const { materials, isLoading: loading, updateMaterial: updateMaterialMutation, deleteMaterial: deleteMaterialMutation, bulkDeleteMaterials, bulkUpdateMaterials } = useMaterials();
+  const { materials, isLoading: loading, updateMaterial: updateMaterialMutation, deleteMaterial: deleteMaterialMutation, bulkDeleteMaterials, bulkUpdateMaterials, refetch } = useMaterials();
+
+  // Track all known material categories — only pruned on delete, not on category change
+  const [categoryMemory, setCategoryMemory] = useState<Set<string>>(new Set());
+  const categoryMemoryInitialized = useRef(false);
+  useEffect(() => {
+    if (!loading && !categoryMemoryInitialized.current) {
+      setCategoryMemory(new Set(materials.map(m => m.category).filter(Boolean) as string[]));
+      categoryMemoryInitialized.current = true;
+    }
+  }, [loading, materials]);
 
   const [activeTab, setActiveTab] = useState<'table' | 'grid'>('table');
   const [globalFilter, setGlobalFilter] = useState('');
@@ -118,6 +128,7 @@ export default function Materials() {
   const confirmDelete = async () => {
     if (!deleteConfirmMaterial) return;
     try {
+      pruneCategories([deleteConfirmMaterial.id]);
       await deleteMaterialMutation(deleteConfirmMaterial.id);
       toast({
         variant: 'success',
@@ -188,12 +199,12 @@ export default function Materials() {
     }
   };
 
-  const getCategories = () => {
-    const categories = new Set<string>();
-    materials.forEach(m => {
-      if (m.category) categories.add(m.category);
-    });
-    return Array.from(categories).sort();
+  const getCategories = () => Array.from(categoryMemory).sort();
+
+  const pruneCategories = (deletedIds: number[]) => {
+    const remaining = materials.filter(m => !deletedIds.includes(m.id));
+    const remainingCats = new Set(remaining.map(m => m.category).filter(Boolean));
+    setCategoryMemory(prev => new Set(Array.from(prev).filter(c => remainingCats.has(c))));
   };
 
   const getStockBadgeVariant = (material: Material) => {
@@ -729,7 +740,7 @@ export default function Materials() {
         </div>
       )}
 
-      <EditMaterialDialog material={editingMaterial} open={editingMaterial !== null || isAddDialogOpen} onOpenChange={(open) => { if (!open) { setEditingMaterial(null); setIsAddDialogOpen(false); } }} onSuccess={() => { setEditingMaterial(null); setIsAddDialogOpen(false); }} existingCategories={getCategories()} />
+      <EditMaterialDialog material={editingMaterial} open={editingMaterial !== null || isAddDialogOpen} onOpenChange={(open) => { if (!open) { setEditingMaterial(null); setIsAddDialogOpen(false); } }} onSuccess={() => { setEditingMaterial(null); setIsAddDialogOpen(false); refetch(); }} existingCategories={getCategories()} onCategoryCreated={(cat) => setCategoryMemory(prev => new Set([...prev, cat]))} />
 
       <Dialog open={addStockMaterial !== null} onOpenChange={(open) => { if (!open) { setAddStockMaterial(null); setAddStockQuantity(''); setAddStockPrice(''); } }}>
         <DialogContent className="sm:max-w-[425px]">
@@ -895,6 +906,7 @@ export default function Materials() {
               onClick={async () => {
                 try {
                   const ids = table.getSelectedRowModel().flatRows.map(row => row.original.id);
+                  pruneCategories(ids);
                   await bulkDeleteMaterials(ids);
                   setRowSelection({});
                   setBulkDeleteDialogOpen(false);

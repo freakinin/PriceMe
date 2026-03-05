@@ -19,7 +19,7 @@ import {
     TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-import { X, ArrowRight, ArrowLeft, Check, Plus } from 'lucide-react';
+import { X, ArrowRight, ArrowLeft, Check, Plus, Wand2, AlertTriangle } from 'lucide-react';
 
 interface VariantAttribute {
     attribute_name: string;
@@ -47,6 +47,7 @@ interface ProductVariationsModalProps {
     currency: string;
     baseCost?: number;
     basePrice?: number;
+    baseSku?: string;
 }
 
 const COMMON_VARIANT_TYPES = ['Size', 'Color', 'Material', 'Style', 'Weight', 'Dimensions'];
@@ -58,7 +59,8 @@ export function ProductVariationsModal({
     onSave,
     currency,
     baseCost = 0,
-    basePrice = 0
+    basePrice = 0,
+    baseSku = ''
 }: ProductVariationsModalProps) {
     const [definedAttributes, setDefinedAttributes] = useState<{ name: string; options: string[] }[]>([]);
     const [view, setView] = useState<'list' | 'add_type' | 'add_options'>('list');
@@ -69,6 +71,7 @@ export function ProductVariationsModal({
     const [options, setOptions] = useState<string[]>([]);
     const [currentOption, setCurrentOption] = useState('');
     const [localVariants, setLocalVariants] = useState<Variant[]>(initialVariants || []);
+    const [showSaveWarning, setShowSaveWarning] = useState(false);
 
     // Pagination State
     const [currentPage, setCurrentPage] = useState(1);
@@ -227,12 +230,13 @@ export function ProductVariationsModal({
                 };
             }
 
-            // 3. New variant
+            // 3. New variant — pre-fill price with base product price so user knows the starting point
             return {
                 tempId: crypto.randomUUID(),
                 name: comboName,
                 is_active: true,
                 stock_level: 0,
+                price_override: basePrice > 0 ? basePrice : undefined,
                 attributes: comboAttributes
             };
         });
@@ -337,7 +341,7 @@ export function ProductVariationsModal({
         setLocalVariants(updated);
     };
 
-    const handleSaveAndClose = () => {
+    const performSave = () => {
         // Sanitize variants to ensure compatibility with Zod schema (no nulls for optional fields)
         const sanitizedVariants = localVariants.map(v => ({
             ...v,
@@ -348,7 +352,31 @@ export function ProductVariationsModal({
         }));
 
         onSave(sanitizedVariants);
+        setShowSaveWarning(false);
         onOpenChange(false);
+    };
+
+    const handleSaveAndClose = () => {
+        // Warn if any active variant has no price set
+        const hasMissingPrice = localVariants.some(
+            v => v.is_active && (v.price_override == null)
+        );
+        if (hasMissingPrice) {
+            setShowSaveWarning(true);
+            return;
+        }
+        performSave();
+    };
+
+    const generateSkus = () => {
+        const prefix = baseSku ? baseSku : 'SKU';
+        const updated = localVariants.map(v => {
+            const suffix = v.attributes
+                .map(a => a.attribute_value.slice(0, 3).toUpperCase())
+                .join('-');
+            return { ...v, sku: `${prefix}-${suffix}` };
+        });
+        setLocalVariants(updated);
     };
 
     const inSetupMode = view === 'add_type' || view === 'add_options';
@@ -515,11 +543,9 @@ export function ProductVariationsModal({
                                                     </Button>
                                                 </span>
                                             </TooltipTrigger>
-                                            {!canAddMoreAttributes && (
-                                                <TooltipContent>
-                                                    <p>Maximum of 2 variation types reached</p>
-                                                </TooltipContent>
-                                            )}
+                                            <TooltipContent>
+                                                <p>{canAddMoreAttributes ? 'Add a new variation type' : 'Maximum of 2 variation types reached'}</p>
+                                            </TooltipContent>
                                         </Tooltip>
                                     </TooltipProvider>
                                 </div>
@@ -555,7 +581,29 @@ export function ProductVariationsModal({
                                                     ) : (
                                                         <th className="p-3 font-medium">Variant Name</th>
                                                     )}
-                                                    <th className="p-3 font-medium w-[100px]">SKU</th>
+                                                    <th className="p-3 font-medium w-[130px]">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span>SKU</span>
+                                                            {baseSku && (
+                                                                <span className="text-[10px] text-muted-foreground font-normal">({baseSku})</span>
+                                                            )}
+                                                            <TooltipProvider>
+                                                                <Tooltip>
+                                                                    <TooltipTrigger asChild>
+                                                                        <button
+                                                                            onClick={generateSkus}
+                                                                            className="h-4 w-4 rounded bg-primary/10 hover:bg-primary/20 flex items-center justify-center text-primary transition-colors"
+                                                                        >
+                                                                            <Wand2 className="h-2.5 w-2.5" />
+                                                                        </button>
+                                                                    </TooltipTrigger>
+                                                                    <TooltipContent>
+                                                                        <p>Auto-generate SKUs{baseSku ? ` based on "${baseSku}"` : ''}</p>
+                                                                    </TooltipContent>
+                                                                </Tooltip>
+                                                            </TooltipProvider>
+                                                        </div>
+                                                    </th>
                                                     <th className="p-3 font-medium w-[110px]">Cost ({currency})</th>
                                                     <th className="p-3 font-medium w-[110px]">Price ({currency})</th>
                                                     <th className="p-3 font-medium w-[120px]">Financials</th>
@@ -694,10 +742,27 @@ export function ProductVariationsModal({
                 </div>
 
                 {!inSetupMode && (
-                    <DialogFooter>
-                        <Button onClick={handleSaveAndClose}>
-                            Save Changes & Close
-                        </Button>
+                    <DialogFooter className="flex-col items-stretch gap-2 sm:flex-col">
+                        {showSaveWarning && (
+                            <div className="flex items-start gap-3 rounded-md border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20 p-3 text-sm">
+                                <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                                <div className="flex-1">
+                                    <p className="font-medium text-amber-800 dark:text-amber-300">Some variants have no price set</p>
+                                    <p className="text-amber-700 dark:text-amber-400 text-xs mt-0.5">Variants without a price will use the base product price. You can set per-variant prices anytime.</p>
+                                </div>
+                                <div className="flex gap-2 shrink-0">
+                                    <Button size="sm" variant="outline" onClick={() => setShowSaveWarning(false)}>Review</Button>
+                                    <Button size="sm" onClick={performSave}>Save Anyway</Button>
+                                </div>
+                            </div>
+                        )}
+                        {!showSaveWarning && (
+                            <div className="flex justify-end">
+                                <Button onClick={handleSaveAndClose}>
+                                    Save Changes & Close
+                                </Button>
+                            </div>
+                        )}
                     </DialogFooter>
                 )}
             </DialogContent>

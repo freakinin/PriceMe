@@ -480,6 +480,9 @@ export default function CreateProduct() {
           variants={variants}
           onSave={setVariants}
           currency={getCurrencySymbol(settings.currency)}
+          baseCost={totalCostPerProduct}
+          basePrice={targetPrice}
+          baseSku={watch('sku') || ''}
         />
 
         <Form {...form}>

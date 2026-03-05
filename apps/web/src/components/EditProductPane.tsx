@@ -30,6 +30,11 @@ import {
 import { MaterialsSection } from '@/components/products/forms/MaterialsSection';
 import { LaborSection } from '@/components/products/forms/LaborSection';
 import { OtherCostsSection } from '@/components/products/forms/OtherCostsSection';
+import {
+  calculateMaterialCost,
+  calculateLaborCost,
+  calculateOtherCost,
+} from '@/utils/product-calculations';
 
 // --- Helper Functions ---
 // Removed unused formatNumberDisplay
@@ -89,12 +94,19 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
   const { reset, control, handleSubmit, watch } = form;
   const currentPrice = watch('target_price') || 0;
   const watchedName = watch('name');
+  const watchedSku = watch('sku') || '';
 
   // Watch values
   const materials = watch('materials');
   const laborCosts = watch('labor_costs');
   const otherCosts = watch('other_costs');
   const batchSize = watch('batch_size') || 1;
+
+  // Live cost calculation for variant modal
+  const totalCostPerProduct =
+    (materials?.reduce((sum, m) => sum + calculateMaterialCost(m, batchSize), 0) || 0) +
+    (laborCosts?.reduce((sum, l) => sum + calculateLaborCost(l, batchSize), 0) || 0) +
+    (otherCosts?.reduce((sum, o) => sum + calculateOtherCost(o, batchSize), 0) || 0);
 
   // Reset form when product loads or changes
   useEffect(() => {
@@ -112,13 +124,13 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
         materials: product.materials?.map((m: any) => ({
           name: m.name || '',
           quantity: Number(m.quantity) || 0,
-          unit: m.unit || '',
+          unit: m.unit || 'pcs',
           price_per_unit: Number(m.price_per_unit) || 0,
           quantity_type: 'exact' as const,
           quantity_percentage: undefined,
           per_batch: m.quantity_per_item_or_batch === 'batch',
           units_made: Number(m.units_made) || 1,
-          user_material_id: m.user_material_id,
+          user_material_id: m.user_material_id != null ? Number(m.user_material_id) : undefined,
           stock_level: undefined
         })) || [],
         labor_costs: product.labor_costs?.map((l: any) => ({
@@ -365,6 +377,9 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
         variants={variants}
         onSave={setVariants}
         currency={getCurrencySymbol(settings.currency)}
+        baseCost={totalCostPerProduct}
+        basePrice={currentPrice}
+        baseSku={watchedSku}
       />
     </>
   );
