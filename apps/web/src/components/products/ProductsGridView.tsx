@@ -111,12 +111,13 @@ export function ProductsGridView({
         const metrics = getCalculatedMetrics(product);
         const feeMetrics = feeAwareMode ? getFeeAwareMetrics(product) : null;
         const method = (product.pricing_method || 'price') as PricingMethod;
-        const pricingValue = product.pricing_value ?? product.target_price ?? 0;
+        // Use pricingValue (user's desired input) for non-price methods so the card always
+        // shows what the user set — even when product_cost=0 causes calculated metrics to be 0.
         const activeMetric: { label: string; value: number; isPercent: boolean } = {
-          markup: { label: 'Markup %', value: metrics.markup, isPercent: true },
+          markup: { label: 'Markup %', value: metrics.pricingValue, isPercent: true },
           price: { label: 'Sales Price', value: metrics.price, isPercent: false },
-          profit: { label: 'Desired Profit', value: metrics.profit, isPercent: false },
-          margin: { label: 'Desired Margin', value: metrics.margin, isPercent: true },
+          profit: { label: 'Desired Profit', value: metrics.pricingValue, isPercent: false },
+          margin: { label: 'Desired Margin', value: metrics.pricingValue, isPercent: true },
         }[method] ?? { label: 'Sales Price', value: metrics.price, isPercent: false };
         const secondaryMetric = method === 'price'
           ? { label: 'Markup %', value: formatPercentage(metrics.markup) }

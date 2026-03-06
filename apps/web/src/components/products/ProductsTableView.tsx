@@ -352,9 +352,12 @@ export function ProductsTableView({
           }
         }
         const metrics = getCalculatedMetrics(product);
+        // When method='profit', show pricingValue (user's desired profit) not the re-derived profit
+        // (they diverge when product_cost=0, making the cell show wrong value after save)
+        const profitValue = product.pricing_method === 'profit' ? metrics.pricingValue : metrics.profit;
         return (
           <EditableCell
-            value={metrics.profit}
+            value={profitValue}
             onSave={async value => handleSavePricingValue(product.id, 'profit', value as number)}
             type="number"
             formatDisplay={v => <span className={Number(v) >= 0 ? 'text-green-600' : 'text-red-600'}>{formatCurrencyValue(v)}</span>}
@@ -384,12 +387,15 @@ export function ProductsTableView({
       },
       cell: ({ row }) => {
         const product = row.original;
+        const metrics = getCalculatedMetrics(product);
         let marginValue: number;
         if (feeAwareMode) {
           const feeMetrics = getFeeAwareMetrics(product);
-          marginValue = feeMetrics ? feeMetrics.netMarginPreTax : getCalculatedMetrics(product).margin;
+          marginValue = feeMetrics ? feeMetrics.netMarginPreTax : metrics.margin;
         } else {
-          marginValue = getCalculatedMetrics(product).margin;
+          // When method='margin', show pricingValue (user's desired margin) not re-derived margin
+          // (they diverge when product_cost=0, causing the cell to show 0% after save)
+          marginValue = product.pricing_method === 'margin' ? metrics.pricingValue : metrics.margin;
         }
         const dotColor =
           marginValue >= 30 ? 'bg-green-500' :
@@ -420,9 +426,11 @@ export function ProductsTableView({
       cell: ({ row }) => {
         const product = row.original;
         const metrics = getCalculatedMetrics(product);
+        // When method='markup', show pricingValue (user's desired markup) not re-derived markup
+        const markupValue = product.pricing_method === 'markup' ? metrics.pricingValue : metrics.markup;
         return (
           <EditableCell
-            value={metrics.markup}
+            value={markupValue}
             onSave={async value => handleSavePricingValue(product.id, 'markup', value as number)}
             type="number"
             formatDisplay={formatPercentage}

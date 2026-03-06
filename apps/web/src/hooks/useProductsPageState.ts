@@ -106,8 +106,10 @@ export function useProductsPageState() {
   const getFeeAwareMetrics = (product: Product): FeeBreakdown | null => {
     if (!activeFeeProfile) return null;
     const method = product.pricing_method || 'price';
-    const pricingValue = product.pricing_value ?? product.target_price ?? 0;
-    const price = calculatePriceFromMethod(method, pricingValue, product.product_cost);
+    const cost = Number(product.product_cost) || 0;
+    const rawPricingValue = Number(product.pricing_value ?? product.target_price ?? 0);
+    const pricingValue = isNaN(rawPricingValue) ? 0 : rawPricingValue;
+    const price = calculatePriceFromMethod(method, pricingValue, cost);
     const feeConfig: PlatformFeeConfig = {
       listing_fee_usd: activeFeeProfile.listing_fee_usd,
       transaction_fee_pct: activeFeeProfile.transaction_fee_pct,
@@ -121,7 +123,7 @@ export function useProductsPageState() {
     };
     const shippingCost = product.shipping_cost ?? 0;
     const incomeTaxPct = settings.tax_percentage ?? 0;
-    return calculateNetProfitWithFees(price, product.product_cost, shippingCost, feeConfig, incomeTaxPct);
+    return calculateNetProfitWithFees(price, cost, shippingCost, feeConfig, incomeTaxPct);
   };
 
   // --- Filter state ---
@@ -197,12 +199,17 @@ export function useProductsPageState() {
   // --- Computed metrics ---
   // Reads directly from product data so it stays in sync with both optimistic cache
   // updates (setQueryData) and server refetches (invalidateQueries).
+  // Returns pricingValue (the raw user-set value) alongside calculated metrics so callers
+  // can choose whether to show the derived value or the user's input (important when cost=0).
   const getCalculatedMetrics = (product: Product) => {
     const method = product.pricing_method || 'price';
-    const pricingValue = product.pricing_value ?? product.target_price ?? 0;
-    const price = calculatePriceFromMethod(method, pricingValue, product.product_cost);
-    const metrics = calculateProfitFromPrice(price, product.product_cost);
-    return { price, profit: metrics.profit, margin: metrics.margin, markup: metrics.markup };
+    // Guard against string values from PostgreSQL NUMERIC columns (avoids + concat bug)
+    const cost = Number(product.product_cost) || 0;
+    const rawPricingValue = Number(product.pricing_value ?? product.target_price ?? 0);
+    const pricingValue = isNaN(rawPricingValue) ? 0 : rawPricingValue;
+    const price = calculatePriceFromMethod(method, pricingValue, cost);
+    const metrics = calculateProfitFromPrice(price, cost);
+    return { price, profit: metrics.profit, margin: metrics.margin, markup: metrics.markup, pricingValue };
   };
 
   // --- Filtered products (used by grid view; table view uses TanStack sorting on top) ---
@@ -275,7 +282,8 @@ export function useProductsPageState() {
     try {
       const product = products.find(p => p.id === productId);
       if (!product) return;
-      const calculatedPrice = calculatePriceFromMethod(method, value, product.product_cost);
+      const cost = Number(product.product_cost) || 0;
+      const calculatedPrice = calculatePriceFromMethod(method, value, cost);
       // Optimistically update the query cache so the table re-renders immediately
       queryClient.setQueryData<Product[]>(['products'], old =>
         (old ?? []).map(p =>
