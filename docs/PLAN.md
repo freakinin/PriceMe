@@ -104,11 +104,49 @@
     - Data recovery
     - Version history
 
+18. **Business Finance & Overhead Tracker** *(planned — see description below)*
+
+---
+
+## Planned Feature: Business Finance & Overhead Tracker
+
+> **Purpose:** Give sellers a complete picture of their business profitability — not just per-product margins, but true take-home profit after real-world business costs.
+
+### What it covers
+
+- **Fixed overhead expenses** — recurring costs that exist regardless of sales: rent/studio space, machinery, electricity, internet, software subscriptions, accountant, insurance, computer/equipment depreciation
+- **Variable business costs** — costs that scale with production: packaging supplies, transaction fees per platform (separate from the existing fee-aware mode), delivery runs
+- **Capital expenses** — one-time equipment purchases (laser cutter, 3D printer, sewing machine) amortised over their useful life to give a realistic per-unit overhead contribution
+
+### Key outputs
+
+- **True cost per unit** — current product cost (materials + labour + other) PLUS allocated overhead share based on batch volume / production hours
+- **Break-even volume** — how many units need to sell per month to cover all fixed costs at the current price
+- **Monthly cashflow view** — income (from sales) vs outgoings (overhead + COGS), with trend chart
+- **Business P&L summary** — gross profit vs net profit after overhead, per month/quarter/year
+- **Overhead allocation rate** — auto-calculated overhead per production hour or per unit, which feeds back into product cost calculations
+
+### Implementation notes (for later)
+
+- New `business_expenses` table: `id, user_id, name, category (fixed|variable|capital), amount, frequency (monthly|annual|one_off), useful_life_months (for capital), created_at`
+- New `BusinessFinance` page in the sidebar
+- Settings to set monthly production hours (for overhead-per-hour rate)
+- Optional: flag products to include/exclude overhead allocation (e.g. exclude a side-project product from main overhead pool)
+- Connects to the existing sales data to populate actual income figures in the cashflow view
+
 ---
 
 ## Completed Features ✅
 
 ### Recently Completed
+
+- ✅ **Pricing UX Redesign** (`feat/pricing-ux-redesign`)
+  - Per-product inline pricing calculator with 4 methods: Set Price, Profit $, Margin %, Markup %
+  - Real-time price/profit/margin/markup display in both Table and Grid views
+  - Optimistic cache updates (no refresh needed) via `queryClient.setQueryData`
+  - Fixed NaN display: added `Number()` coercions to guard against PostgreSQL NUMERIC string values
+  - Fixed stale metric display: `getCalculatedMetrics` now returns raw `pricingValue` so "Desired Margin/Profit/Markup" always shows what the user set, even for zero-cost products
+  - Fee-aware mode: platform fee profiles applied to profit/margin columns in both views
 
 - ✅ **Subscription & Usage Plans — Phase 1**
   - 4-tier plan system: Free (10 products / 2 competitors), Starter ($12/mo), Pro ($19/mo), Business ($49/mo unlimited)
