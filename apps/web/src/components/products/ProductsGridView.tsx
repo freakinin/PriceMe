@@ -19,11 +19,8 @@ import { FeeBreakdownTooltip } from '@/components/products/FeeBreakdownTooltip';
 type Props = Pick<ProductsPageState,
   | 'filteredProducts'
   | 'products'
-  | 'productPricingMethods'
-  | 'productPricingValues'
   | 'productCategoryIds'
   | 'setProductCategoryIds'
-  | 'globalPricingMethod'
   | 'handleSaveField'
   | 'handleDeleteClick'
   | 'setEditingProductId'
@@ -52,11 +49,8 @@ const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
 export function ProductsGridView({
   filteredProducts,
   products,
-  productPricingMethods,
-  productPricingValues,
   productCategoryIds,
   setProductCategoryIds,
-  globalPricingMethod,
   handleSaveField,
   handleDeleteClick,
   setEditingProductId,
@@ -116,13 +110,13 @@ export function ProductsGridView({
       {filteredProducts.map(product => {
         const metrics = getCalculatedMetrics(product);
         const feeMetrics = feeAwareMode ? getFeeAwareMetrics(product) : null;
-        const method = (productPricingMethods[product.id] || globalPricingMethod || product.pricing_method || 'price') as PricingMethod;
-        const pricingValue = productPricingValues[product.id] ?? product.pricing_value ?? (product.target_price || 0);
+        const method = (product.pricing_method || 'price') as PricingMethod;
+        const pricingValue = product.pricing_value ?? product.target_price ?? 0;
         const activeMetric: { label: string; value: number; isPercent: boolean } = {
-          markup: { label: 'Markup %', value: pricingValue, isPercent: true },
-          price: { label: 'Sales Price', value: pricingValue, isPercent: false },
-          profit: { label: 'Desired Profit', value: pricingValue, isPercent: false },
-          margin: { label: 'Desired Margin', value: pricingValue, isPercent: true },
+          markup: { label: 'Markup %', value: metrics.markup, isPercent: true },
+          price: { label: 'Sales Price', value: metrics.price, isPercent: false },
+          profit: { label: 'Desired Profit', value: metrics.profit, isPercent: false },
+          margin: { label: 'Desired Margin', value: metrics.margin, isPercent: true },
         }[method] ?? { label: 'Sales Price', value: metrics.price, isPercent: false };
         const secondaryMetric = method === 'price'
           ? { label: 'Markup %', value: formatPercentage(metrics.markup) }

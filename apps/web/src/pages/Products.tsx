@@ -167,11 +167,8 @@ export default function Products() {
         <ProductsGridView
           filteredProducts={state.filteredProducts}
           products={state.products}
-          productPricingMethods={state.productPricingMethods}
-          productPricingValues={state.productPricingValues}
           productCategoryIds={state.productCategoryIds}
           setProductCategoryIds={state.setProductCategoryIds}
-          globalPricingMethod={state.globalPricingMethod}
           handleSaveField={state.handleSaveField}
           handleDeleteClick={state.handleDeleteClick}
           setEditingProductId={state.setEditingProductId}
