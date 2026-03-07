@@ -1,6 +1,6 @@
 import { useState, useEffect, type ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
-import { AlertTriangle, HelpCircle } from 'lucide-react';
+import { AlertTriangle, HelpCircle, Gift } from 'lucide-react';
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from './AppSidebar';
 import { SettingsDialog } from './SettingsDialog';
@@ -38,8 +38,14 @@ export function AppLayout({ children }: AppLayoutProps) {
   const pageTitle = getPageTitle(location.pathname);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsSection, setSettingsSection] = useState<'subscription' | undefined>(undefined);
-  const { isAtLimit } = useSubscription();
+  const { isAtLimit, subscription } = useSubscription();
   const hasLimitReached = isAtLimit('products') || isAtLimit('competitors');
+
+  // Trial expiry banner — show 14 days before trial ends
+  const trialEndsAt    = subscription?.trial_ends_at ? new Date(subscription.trial_ends_at) : null;
+  const trialDaysLeft  = trialEndsAt ? Math.ceil((trialEndsAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null;
+  const showTrialBanner = trialDaysLeft !== null && trialDaysLeft > 0 && trialDaysLeft <= 14;
+  const [trialBannerDismissed, setTrialBannerDismissed] = useState(false);
 
   // Listen for open-settings events dispatched by child pages (e.g. UpgradePrompt)
   useEffect(() => {
@@ -99,6 +105,29 @@ export function AppLayout({ children }: AppLayoutProps) {
               <NotificationBell />
             </div>
           </div>
+          {/* Trial expiry banner — appears 14 days before end */}
+          {showTrialBanner && !trialBannerDismissed && (
+            <div className="flex items-center gap-2 px-5 py-2 bg-brand-100 border-b border-brand-500/20 text-xs text-brand-900">
+              <Gift className="h-3.5 w-3.5 text-brand-700 shrink-0" />
+              <span className="flex-1">
+                Your free Pro trial ends in <strong>{trialDaysLeft} {trialDaysLeft === 1 ? 'day' : 'days'}</strong>.
+              </span>
+              <button
+                onClick={() => openSettingsAt('subscription')}
+                className="font-semibold text-brand-700 hover:text-brand-900 underline underline-offset-2 shrink-0"
+              >
+                Upgrade to keep it →
+              </button>
+              <button
+                onClick={() => setTrialBannerDismissed(true)}
+                className="ml-2 text-brand-500 hover:text-brand-700 shrink-0"
+                aria-label="Dismiss"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
           <div className="flex-1 overflow-auto">{children}</div>
         </main>
         <SettingsDialog

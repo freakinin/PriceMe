@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check, Zap, Loader2 } from 'lucide-react';
+import { Check, Zap, Loader2, Gift, MessageSquare } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -147,7 +147,12 @@ export function SubscriptionSettings() {
     );
   }
 
-  const currentPlan = subscription?.plan ?? 'free';
+  const currentPlan   = subscription?.plan ?? 'free';
+  const trialEndsAt   = subscription?.trial_ends_at ? new Date(subscription.trial_ends_at) : null;
+  const trialExpired  = trialEndsAt ? trialEndsAt < new Date() : false;
+  const trialDaysLeft = trialEndsAt && !trialExpired
+    ? Math.ceil((trialEndsAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+    : 0;
 
   return (
     <div className="flex flex-col h-full">
@@ -174,6 +179,58 @@ export function SubscriptionSettings() {
             </Badge>
           )}
         </div>
+
+        {/* Trial countdown — active */}
+        {trialEndsAt && !trialExpired && (
+          <div className="rounded-xl border border-brand-500/30 bg-brand-100 p-4 flex items-start gap-3">
+            <Gift className="h-5 w-5 text-brand-700 shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-brand-900 text-sm">
+                Pro Trial · {trialDaysLeft} {trialDaysLeft === 1 ? 'day' : 'days'} left
+              </p>
+              <p className="text-xs text-brand-700 mt-0.5">
+                Ends {trialEndsAt.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}.
+                As an early adopter, your feedback means a lot — no pressure, but we'd love to hear from you.
+              </p>
+              <a
+                href="mailto:feedback@cravio.co?subject=Early%20Adopter%20Feedback"
+                className="inline-flex items-center gap-1.5 mt-2 text-xs font-medium text-brand-700 hover:text-brand-900 transition-colors"
+              >
+                <MessageSquare className="h-3.5 w-3.5" />
+                Share feedback →
+              </a>
+            </div>
+          </div>
+        )}
+
+        {/* Trial expired — upgrade prompt */}
+        {trialEndsAt && trialExpired && (
+          <div className="rounded-xl border border-border bg-muted/40 p-4 flex items-start gap-3">
+            <Gift className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-foreground text-sm">You were one of our first — thank you.</p>
+              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                Your free 6-month Pro trial has ended. Your account is now on the Free plan.
+                We'd love your feedback on what worked and what didn't — no obligation, but it means a lot.
+              </p>
+              <div className="flex items-center gap-3 mt-3">
+                <a
+                  href="mailto:feedback@cravio.co?subject=Early%20Adopter%20Feedback"
+                  className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <MessageSquare className="h-3.5 w-3.5" />
+                  Give feedback →
+                </a>
+                <button
+                  onClick={() => handleSwitch('pro')}
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline"
+                >
+                  Upgrade to Pro →
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Usage snapshot */}
         <div className="space-y-4 max-w-md">

@@ -1070,6 +1070,59 @@ export async function initializeDatabase() {
       );
     `;
 
+    // Create promo_codes table
+    await sql`
+      CREATE TABLE IF NOT EXISTS promo_codes (
+        id SERIAL PRIMARY KEY,
+        code VARCHAR(50) UNIQUE NOT NULL,
+        plan VARCHAR(20) NOT NULL DEFAULT 'pro',
+        max_uses INTEGER NOT NULL DEFAULT 20,
+        used_count INTEGER NOT NULL DEFAULT 0,
+        duration_months INTEGER NOT NULL DEFAULT 6,
+        active BOOLEAN NOT NULL DEFAULT true,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+
+    // Seed the launch promo
+    try {
+      await sql`
+        INSERT INTO promo_codes (code, plan, max_uses, duration_months)
+        VALUES ('LAUNCH20', 'pro', 20, 6)
+        ON CONFLICT (code) DO NOTHING
+      `;
+    } catch (e: any) {
+      console.log('Note: promo seed:', e.message);
+    }
+
+    // Migration: add last_active_at to users (for inactive promo account recycling)
+    try {
+      const col = await sql`
+        SELECT column_name FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'last_active_at'
+      `;
+      const rows = Array.isArray(col) ? col : (col as any).rows ?? [];
+      if (rows.length === 0) {
+        await sql`ALTER TABLE users ADD COLUMN last_active_at TIMESTAMP`;
+      }
+    } catch (e: any) {
+      console.log('Note: last_active_at migration:', e.message);
+    }
+
+    // Migration: add promo_code to subscriptions (track which promo was used)
+    try {
+      const col = await sql`
+        SELECT column_name FROM information_schema.columns
+        WHERE table_name = 'subscriptions' AND column_name = 'promo_code'
+      `;
+      const rows = Array.isArray(col) ? col : (col as any).rows ?? [];
+      if (rows.length === 0) {
+        await sql`ALTER TABLE subscriptions ADD COLUMN promo_code VARCHAR(50)`;
+      }
+    } catch (e: any) {
+      console.log('Note: subscriptions.promo_code migration:', e.message);
+    }
+
     console.log('✅ Database tables initialized successfully');
   } catch (error) {
     console.error('❌ Error initializing database:', error);

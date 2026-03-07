@@ -11,6 +11,7 @@ const createUserSchema = z.object({
   password: z.string().min(8),
   name: z.string().optional(),
   plan: z.enum(VALID_PLANS).optional().default('free'),
+  promo_code: z.string().optional(),
 });
 
 const loginUserSchema = z.object({
@@ -24,7 +25,7 @@ export const register = async (req: Request, res: Response) => {
   try {
     // Validate input
     const validatedData = createUserSchema.parse(req.body);
-    const { email, password, name, plan } = validatedData;
+    const { email, password, name, plan: requestedPlan, promo_code } = validatedData;
 
     // Check if user already exists
     const existingUserResult = await db`
@@ -39,25 +40,61 @@ export const register = async (req: Request, res: Response) => {
       });
     }
 
+    // If a promo code was provided, atomically claim a spot
+    let finalPlan = requestedPlan;
+    let trialEndsAt: Date | null = null;
+    let usedPromoCode: string | null = null;
+
+    if (promo_code) {
+      const code = promo_code.toUpperCase();
+      const promoResult = await db`
+        UPDATE promo_codes
+        SET used_count = used_count + 1
+        WHERE code = ${code} AND active = true AND used_count < max_uses
+        RETURNING plan, duration_months
+      `;
+      const promoRows = Array.isArray(promoResult) ? promoResult : (promoResult as any).rows ?? [];
+      if (promoRows.length === 0) {
+        return res.status(400).json({
+          status: 'error',
+          code: 'PROMO_EXHAUSTED',
+          message: 'All free spots have been taken.',
+        });
+      }
+      finalPlan = promoRows[0].plan as typeof VALID_PLANS[number];
+      const months: number = promoRows[0].duration_months;
+      trialEndsAt = new Date();
+      trialEndsAt.setMonth(trialEndsAt.getMonth() + months);
+      usedPromoCode = code;
+    }
+
     // Hash password
     const passwordHash = await bcrypt.hash(password, 10);
 
     // Create user
     const result = await db`
-      INSERT INTO users (email, password_hash, name) 
-      VALUES (${email}, ${passwordHash}, ${name || null}) 
+      INSERT INTO users (email, password_hash, name, last_active_at)
+      VALUES (${email}, ${passwordHash}, ${name || null}, CURRENT_TIMESTAMP)
       RETURNING id, email, name, created_at
     `;
 
     const user = Array.isArray(result) ? result[0] : result.rows?.[0] || result;
 
-    // Provision a free subscription for the new user
+    // Provision subscription (trialing if promo, active otherwise)
     try {
-      await db`
-        INSERT INTO subscriptions (user_id, plan, status)
-        VALUES (${user.id}, ${plan}, 'active')
-        ON CONFLICT (user_id) DO NOTHING
-      `;
+      if (trialEndsAt) {
+        await db`
+          INSERT INTO subscriptions (user_id, plan, status, trial_ends_at, promo_code)
+          VALUES (${user.id}, ${finalPlan}, 'trialing', ${trialEndsAt.toISOString()}, ${usedPromoCode})
+          ON CONFLICT (user_id) DO NOTHING
+        `;
+      } else {
+        await db`
+          INSERT INTO subscriptions (user_id, plan, status)
+          VALUES (${user.id}, ${finalPlan}, 'active')
+          ON CONFLICT (user_id) DO NOTHING
+        `;
+      }
     } catch (subError: any) {
       console.error('Failed to create subscription for new user:', subError.message);
     }
@@ -126,6 +163,9 @@ export const login = async (req: Request, res: Response) => {
         message: 'Invalid email or password',
       });
     }
+
+    // Update last_active_at on login
+    await db`UPDATE users SET last_active_at = CURRENT_TIMESTAMP WHERE id = ${user.id}`.catch(() => {});
 
     // Generate JWT token
     const token = jwt.sign(

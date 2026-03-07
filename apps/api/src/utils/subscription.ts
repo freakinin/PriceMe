@@ -26,9 +26,14 @@ export async function getUserSubscription(userId: number): Promise<UserSubscript
 }
 
 /**
- * Returns effective plan limits — treats canceled/past_due as free.
+ * Returns effective plan limits.
+ * Treats canceled/past_due as free.
+ * Treats expired trials as free (lazy enforcement — no cron job needed).
  */
 export function getEffectiveLimits(subscription: UserSubscription) {
+  if (subscription.trial_ends_at && new Date(subscription.trial_ends_at) < new Date()) {
+    return PLAN_LIMITS['free'];
+  }
   const effectivePlan: PlanName =
     subscription.status === 'canceled' || subscription.status === 'past_due'
       ? 'free'

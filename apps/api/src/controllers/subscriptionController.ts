@@ -1,4 +1,4 @@
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { db } from '../utils/db.js';
 import { AuthRequest } from '../middleware/auth.js';
 import { getUserSubscription, getUserUsage, getEffectiveLimits } from '../utils/subscription.js';
@@ -28,6 +28,38 @@ export const getSubscription = async (req: AuthRequest, res: Response) => {
       usage,
       limits,
       display: PLAN_DISPLAY[subscription.plan as PlanName],
+    },
+  });
+};
+
+/**
+ * GET /api/promos/:code  (public — no auth required)
+ * Returns real-time promo info: spots remaining, plan, duration.
+ */
+export const getPromo = async (req: Request, res: Response) => {
+  const { code } = req.params;
+  const result = await db`
+    SELECT plan, max_uses, used_count, duration_months, active
+    FROM promo_codes
+    WHERE code = ${code.toUpperCase()}
+  `;
+  const rows = Array.isArray(result) ? result : (result as any).rows ?? [];
+
+  if (rows.length === 0 || !rows[0].active) {
+    return res.json({ status: 'success', data: { valid: false, reason: 'invalid' } });
+  }
+
+  const promo = rows[0];
+  const spotsRemaining = Math.max(0, promo.max_uses - promo.used_count);
+
+  return res.json({
+    status: 'success',
+    data: {
+      valid: true,
+      plan: promo.plan as PlanName,
+      spotsRemaining,
+      totalSpots: promo.max_uses,
+      durationMonths: promo.duration_months,
     },
   });
 };

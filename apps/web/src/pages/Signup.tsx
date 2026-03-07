@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -9,7 +9,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import {
   Check, ArrowRight, ArrowLeft,
   Sprout, TrendingUp, Zap, Star,
-  ChevronDown, X,
+  ChevronDown, X, Gift, Ticket,
 } from 'lucide-react';
 import { CravioIcon } from '@/components/CravioIcon';
 import api from '@/lib/api';
@@ -160,16 +160,30 @@ function ComparisonCell({ value }: { value: string }) {
 }
 
 /* ─────────────────────────────────────────── */
+/*  Promo info type                            */
+/* ─────────────────────────────────────────── */
+interface PromoInfo {
+  valid: boolean;
+  plan?: PlanName;
+  spotsRemaining?: number;
+  totalSpots?: number;
+  durationMonths?: number;
+  reason?: string;
+}
+
+/* ─────────────────────────────────────────── */
 /*  Step 1 — Plan selection                    */
 /* ─────────────────────────────────────────── */
 function PlanStep({
   billingPeriod,
   onBillingPeriodChange,
   onSelect,
+  promo,
 }: {
   billingPeriod: 'monthly' | 'annual';
   onBillingPeriodChange: (p: 'monthly' | 'annual') => void;
   onSelect: (p: PlanName) => void;
+  promo: PromoInfo | null;
 }) {
   const [hovered, setHovered] = useState<PlanName | null>(null);
   const [showComparison, setShowComparison] = useState(false);
@@ -203,6 +217,40 @@ function PlanStep({
             Know your real costs, set prices that grow your business, and never undersell your work again.
           </p>
         </div>
+
+        {/* Promo banner */}
+        {promo && (
+          <div className="w-full max-w-5xl mb-8">
+            {promo.valid && (promo.spotsRemaining ?? 0) > 0 ? (
+              <div className="flex items-start gap-3 rounded-xl border border-brand-500/30 bg-brand-100 px-5 py-4">
+                <Gift className="h-5 w-5 text-brand-700 shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-brand-900 text-sm">
+                    Early Bird — {promo.spotsRemaining} of {promo.totalSpots} free spots left
+                  </p>
+                  <p className="text-xs text-brand-700 mt-0.5 leading-relaxed">
+                    Get {PLAN_DISPLAY[promo.plan!]?.name ?? 'Pro'} free for {promo.durationMonths} months.
+                    Spots inactive for 14+ days are released back to the pool — stay active and you keep yours.
+                  </p>
+                </div>
+                <span className="shrink-0 text-xs font-bold text-brand-700 bg-brand-500/10 rounded-full px-2.5 py-1">
+                  {promo.spotsRemaining} left
+                </span>
+              </div>
+            ) : (
+              <div className="flex items-start gap-3 rounded-xl border border-border bg-muted/40 px-5 py-4">
+                <Ticket className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold text-foreground text-sm">All free spots are gone — but you're early!</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Get <span className="font-semibold text-foreground">20% off</span> any annual plan.
+                    Use code <span className="font-mono font-bold text-foreground bg-muted px-1.5 py-0.5 rounded">EARLY20</span> at checkout.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Plan grid */}
         <div className="w-full max-w-5xl">
@@ -522,14 +570,19 @@ function FormStep({
   plan,
   billingPeriod,
   onBack,
+  promoCode,
+  promo,
 }: {
   plan: PlanName;
   billingPeriod: 'monthly' | 'annual';
   onBack: () => void;
+  promoCode?: string;
+  promo: PromoInfo | null;
 }) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const isPromoActive = !!(promoCode && promo?.valid && (promo.spotsRemaining ?? 0) > 0);
   const display = PLAN_DISPLAY[plan];
   const style   = PLAN_STYLE[plan];
   const Icon    = style.icon;
@@ -544,7 +597,10 @@ function FormStep({
     setLoading(true);
     try {
       const { confirmPassword, ...signupData } = data;
-      const response = await api.post('/auth/register', { ...signupData, plan });
+      const payload = isPromoActive
+        ? { ...signupData, plan, promo_code: promoCode }
+        : { ...signupData, plan };
+      const response = await api.post('/auth/register', payload);
       localStorage.setItem('token', response.data.token);
       if (response.data.user) {
         localStorage.setItem('user', JSON.stringify(response.data.user));
@@ -584,7 +640,7 @@ function FormStep({
           <div className="space-y-6">
             <div>
               <p className="text-white/50 text-xs font-semibold uppercase tracking-[0.14em] mb-3">
-                Your selected plan
+                {isPromoActive ? 'Your early bird plan' : 'Your selected plan'}
               </p>
               <div
                 className="rounded-2xl p-5 space-y-4"
@@ -598,14 +654,24 @@ function FormStep({
                   <div>
                     <p className="font-semibold text-white">{display.name}</p>
                     <p className="text-white/60 text-xs">
-                      {plan === 'free'
-                        ? 'Free forever'
-                        : billingPeriod === 'annual'
-                          ? `${display.priceAnnual}/mo · ${display.priceAnnualTotal} billed annually`
-                          : `${display.priceMonthly}/mo · billed monthly`}
+                      {isPromoActive
+                        ? `Free for ${promo!.durationMonths} months · then ${display.priceMonthly}/mo`
+                        : plan === 'free'
+                          ? 'Free forever'
+                          : billingPeriod === 'annual'
+                            ? `${display.priceAnnual}/mo · ${display.priceAnnualTotal} billed annually`
+                            : `${display.priceMonthly}/mo · billed monthly`}
                     </p>
                   </div>
                 </div>
+                {isPromoActive && (
+                  <div className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium" style={{ background: 'rgba(255,255,255,0.12)' }}>
+                    <Gift className="h-3.5 w-3.5 text-white/80 shrink-0" />
+                    <span className="text-white/90">
+                      Early bird spot · {promo!.spotsRemaining} of {promo!.totalSpots} remaining
+                    </span>
+                  </div>
+                )}
 
                 {/* Features */}
                 <ul className="space-y-2">
@@ -750,23 +816,45 @@ function FormStep({
 /* ─────────────────────────────────────────── */
 export default function Signup() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const paramPlan = searchParams.get('plan') as PlanName | null;
+  const paramPlan  = searchParams.get('plan') as PlanName | null;
+  const paramPromo = searchParams.get('promo')?.toUpperCase() ?? null;
   const validPlans: PlanName[] = ['free', 'starter', 'growth', 'pro'];
-  const initialPlan: PlanName = validPlans.includes(paramPlan as PlanName) ? (paramPlan as PlanName) : 'free';
+  const initialPlan: PlanName  = validPlans.includes(paramPlan as PlanName) ? (paramPlan as PlanName) : 'free';
   const initialStep: 'plan' | 'form' = validPlans.includes(paramPlan as PlanName) ? 'form' : 'plan';
 
-  const [step, setStep] = useState<'plan' | 'form'>(initialStep);
+  const [step, setStep]               = useState<'plan' | 'form'>(initialStep);
   const [selectedPlan, setSelectedPlan] = useState<PlanName>(initialPlan);
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'annual'>('annual');
+  const [promo, setPromo]             = useState<PromoInfo | null>(null);
+
+  // Fetch promo info if ?promo= is in the URL
+  useEffect(() => {
+    if (!paramPromo) return;
+    api.get(`/subscription/promos/${paramPromo}`)
+      .then((res) => {
+        const data: PromoInfo = res.data.data;
+        setPromo(data);
+        // If promo is valid and has spots, auto-select the promo plan
+        if (data.valid && (data.spotsRemaining ?? 0) > 0 && data.plan) {
+          setSelectedPlan(data.plan);
+          setStep('form');
+          setSearchParams({ promo: paramPromo, plan: data.plan });
+        }
+      })
+      .catch(() => setPromo({ valid: false, reason: 'error' }));
+  }, [paramPromo]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (step === 'plan') {
     return (
       <PlanStep
         billingPeriod={billingPeriod}
         onBillingPeriodChange={setBillingPeriod}
+        promo={promo}
         onSelect={(plan) => {
           setSelectedPlan(plan);
-          setSearchParams({ plan });
+          const params: Record<string, string> = { plan };
+          if (paramPromo) params.promo = paramPromo;
+          setSearchParams(params);
           setStep('form');
         }}
       />
@@ -777,8 +865,12 @@ export default function Signup() {
     <FormStep
       plan={selectedPlan}
       billingPeriod={billingPeriod}
+      promoCode={paramPromo ?? undefined}
+      promo={promo}
       onBack={() => {
-        setSearchParams({});
+        const params: Record<string, string> = {};
+        if (paramPromo) params.promo = paramPromo;
+        setSearchParams(params);
         setStep('plan');
       }}
     />
