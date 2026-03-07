@@ -4,10 +4,13 @@ import jwt from 'jsonwebtoken';
 import { db } from '../utils/db.js';
 import { z } from 'zod';
 
+const VALID_PLANS = ['free', 'starter', 'pro', 'business'] as const;
+
 const createUserSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
   name: z.string().optional(),
+  plan: z.enum(VALID_PLANS).optional().default('free'),
 });
 
 const loginUserSchema = z.object({
@@ -21,7 +24,7 @@ export const register = async (req: Request, res: Response) => {
   try {
     // Validate input
     const validatedData = createUserSchema.parse(req.body);
-    const { email, password, name } = validatedData;
+    const { email, password, name, plan } = validatedData;
 
     // Check if user already exists
     const existingUserResult = await db`
@@ -52,7 +55,7 @@ export const register = async (req: Request, res: Response) => {
     try {
       await db`
         INSERT INTO subscriptions (user_id, plan, status)
-        VALUES (${user.id}, 'free', 'active')
+        VALUES (${user.id}, ${plan}, 'active')
         ON CONFLICT (user_id) DO NOTHING
       `;
     } catch (subError: any) {

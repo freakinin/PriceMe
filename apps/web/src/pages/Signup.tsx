@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -9,11 +9,12 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import {
   Check, ArrowRight, ArrowLeft,
   Sprout, TrendingUp, Zap, Star,
+  ChevronDown, X,
 } from 'lucide-react';
 import { CravioIcon } from '@/components/CravioIcon';
 import api from '@/lib/api';
 import { track, identify } from '@/lib/analytics';
-import { PLAN_ORDER, PLAN_DISPLAY, PLAN_LIMITS } from '@/config/plans';
+import { PLAN_ORDER, PLAN_DISPLAY } from '@/config/plans';
 import type { PlanName } from '@/config/plans';
 import { cn } from '@/lib/utils';
 
@@ -30,10 +31,6 @@ const signupSchema = z.object({
   path: ['confirmPassword'],
 });
 type SignupFormValues = z.infer<typeof signupSchema>;
-
-function limitLabel(val: number) {
-  return val === -1 ? 'Unlimited' : String(val);
-}
 
 /* ─────────────────────────────────────────── */
 /*  Per-plan visual config                     */
@@ -68,7 +65,7 @@ const PLAN_STYLE: Record<PlanName, {
     iconBg:       'bg-brand-100',
     iconColor:    'text-brand-500',
     selectedRing: 'ring-brand-500 border-brand-500',
-    cta:          'Start Pro',
+    cta:          'Start Growth',
   },
   business: {
     icon: Star,
@@ -76,15 +73,106 @@ const PLAN_STYLE: Record<PlanName, {
     iconBg:       'bg-brand-100',
     iconColor:    'text-brand-900',
     selectedRing: 'ring-brand-900 border-brand-900',
-    cta:          'Start Business',
+    cta:          'Start Pro',
   },
 };
 
 /* ─────────────────────────────────────────── */
+/*  6 highlight features per plan card         */
+/* ─────────────────────────────────────────── */
+const PLAN_CARD_FEATURES: Record<PlanName, { label: string; value: string }[]> = {
+  free: [
+    { label: 'Products',        value: '5 products' },
+    { label: 'Variations',      value: 'None' },
+    { label: 'Competitors',     value: '1 per product' },
+    { label: 'AI Insights',     value: '3 insights' },
+    { label: 'AI Reports',      value: 'None' },
+    { label: 'Finance Metrics', value: 'Price + Margin' },
+  ],
+  starter: [
+    { label: 'Products',        value: '10 products' },
+    { label: 'Variations',      value: '1 per product' },
+    { label: 'Competitors',     value: '3 per product' },
+    { label: 'AI Insights',     value: '5 insights' },
+    { label: 'AI Reports',      value: '2 reports/mo' },
+    { label: 'Finance Metrics', value: 'Full access' },
+  ],
+  pro: [
+    { label: 'Products',        value: '30 products' },
+    { label: 'Variations',      value: '2 per product' },
+    { label: 'Competitors',     value: '5 per product' },
+    { label: 'AI Insights',     value: 'Full access' },
+    { label: 'AI Reports',      value: 'Full access' },
+    { label: 'Finance Metrics', value: 'Full access' },
+  ],
+  business: [
+    { label: 'Products',        value: 'Unlimited' },
+    { label: 'Variations',      value: 'Unlimited' },
+    { label: 'Competitors',     value: 'Unlimited' },
+    { label: 'AI Insights',     value: 'Full access' },
+    { label: 'AI Reports',      value: 'Full access' },
+    { label: 'Finance Metrics', value: 'Full access' },
+  ],
+};
+
+/* ─────────────────────────────────────────── */
+/*  Full comparison table rows                 */
+/* ─────────────────────────────────────────── */
+const COMPARISON_ROWS: { label: string; values: [string, string, string, string] }[] = [
+  { label: 'Products',           values: ['5',              '10',            '30',            'Unlimited']  },
+  { label: 'Product Variations', values: ['None',           '1 per product', '2 per product', 'Unlimited']  },
+  { label: 'Materials',          values: ['Unlimited',      'Unlimited',     'Unlimited',     'Unlimited']  },
+  { label: 'Competitors',        values: ['1 per product',  '3 per product', '5 per product', 'Unlimited']  },
+  { label: 'AI Coach Insights',  values: ['3 insights',     '5 insights',    'Full access',   'Full access'] },
+  { label: 'AI Reports',         values: ['None',           '2 reports/mo',  'Full access',   'Full access'] },
+  { label: 'AI Chat',            values: ['None',           'Included',      'Included',      'Included']   },
+  { label: 'Finance Metrics',    values: ['Price + Margin', 'Full access',   'Full access',   'Full access'] },
+  { label: 'Tax Metrics',        values: ['None',           'Included',      'Included',      'Included']   },
+  { label: 'Platform Fees',      values: ['1 store',        'Unlimited',     'Unlimited',     'Unlimited']  },
+  { label: 'Shipping Methods',   values: ['1 method',       'Unlimited',     'Unlimited',     'Unlimited']  },
+];
+
+const POSITIVE_KEYWORDS = ['unlimited', 'included', 'full access', 'free'];
+
+function ComparisonCell({ value }: { value: string }) {
+  const lower = value.toLowerCase();
+  const isNone = lower === 'none';
+  const isPositive = POSITIVE_KEYWORDS.some((k) => lower.includes(k));
+
+  if (isNone) {
+    return (
+      <span className="flex items-center justify-center">
+        <X className="h-3.5 w-3.5 text-muted-foreground/30" />
+      </span>
+    );
+  }
+  if (isPositive) {
+    return (
+      <span className="flex flex-col items-center gap-0.5">
+        <Check className="h-3.5 w-3.5 text-primary shrink-0" />
+        {lower !== 'unlimited' && lower !== 'included' && (
+          <span className="text-[10px] text-muted-foreground leading-tight">{value}</span>
+        )}
+      </span>
+    );
+  }
+  return <span className="text-xs text-foreground/80 text-center leading-tight">{value}</span>;
+}
+
+/* ─────────────────────────────────────────── */
 /*  Step 1 — Plan selection                    */
 /* ─────────────────────────────────────────── */
-function PlanStep({ onSelect }: { onSelect: (p: PlanName) => void }) {
+function PlanStep({
+  billingPeriod,
+  onBillingPeriodChange,
+  onSelect,
+}: {
+  billingPeriod: 'monthly' | 'annual';
+  onBillingPeriodChange: (p: 'monthly' | 'annual') => void;
+  onSelect: (p: PlanName) => void;
+}) {
   const [hovered, setHovered] = useState<PlanName | null>(null);
+  const [showComparison, setShowComparison] = useState(false);
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -102,7 +190,7 @@ function PlanStep({ onSelect }: { onSelect: (p: PlanName) => void }) {
         </div>
       </header>
 
-      <main className="flex-1 flex flex-col items-center justify-center px-6 py-16">
+      <main className="flex-1 flex flex-col items-center px-6 py-16">
         {/* Hero */}
         <div className="text-center max-w-xl mb-14 space-y-4">
           <p className="text-xs font-semibold uppercase tracking-[0.15em] text-primary">
@@ -118,13 +206,52 @@ function PlanStep({ onSelect }: { onSelect: (p: PlanName) => void }) {
 
         {/* Plan grid */}
         <div className="w-full max-w-5xl">
-          <p className="text-center text-[11px] uppercase tracking-[0.14em] font-semibold text-muted-foreground mb-6">
+          <p className="text-center text-[11px] uppercase tracking-[0.14em] font-semibold text-muted-foreground mb-5">
             Choose your plan
           </p>
+
+          {/* Billing period toggle */}
+          <div className="flex justify-center mb-8">
+            <div className="inline-flex items-center rounded-xl border border-border bg-muted/30 p-1 gap-1">
+              <button
+                type="button"
+                onClick={() => onBillingPeriodChange('monthly')}
+                className={cn(
+                  'px-5 py-2 rounded-lg text-sm font-medium transition-all duration-150',
+                  billingPeriod === 'monthly'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground',
+                )}
+              >
+                Monthly
+              </button>
+              <button
+                type="button"
+                onClick={() => onBillingPeriodChange('annual')}
+                className={cn(
+                  'px-5 py-2 rounded-lg text-sm font-medium transition-all duration-150 flex items-center gap-2',
+                  billingPeriod === 'annual'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground',
+                )}
+              >
+                Annual
+                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full leading-none">
+                  Save up to 40%
+                </span>
+              </button>
+            </div>
+          </div>
+
+          {billingPeriod === 'annual' && (
+            <p className="text-center text-xs text-muted-foreground mb-6">
+              All paid plans billed annually
+            </p>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {PLAN_ORDER.map((plan) => {
               const display = PLAN_DISPLAY[plan];
-              const limits  = PLAN_LIMITS[plan];
               const style   = PLAN_STYLE[plan];
               const Icon    = style.icon;
               const isHot   = plan === hovered;
@@ -164,39 +291,51 @@ function PlanStep({ onSelect }: { onSelect: (p: PlanName) => void }) {
                   {/* Price */}
                   <div>
                     <div className="flex items-baseline gap-1">
-                      <span className="text-3xl font-bold text-foreground">{display.priceMonthly}</span>
+                      <span className="text-3xl font-bold text-foreground">
+                        {billingPeriod === 'annual' ? display.priceAnnual : display.priceMonthly}
+                      </span>
                       {plan !== 'free' && (
                         <span className="text-sm text-muted-foreground">/mo</span>
                       )}
                     </div>
-                    {display.priceAnnual ? (
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        or {display.priceAnnual}/mo · billed annually
-                      </p>
+                    {plan !== 'free' ? (
+                      billingPeriod === 'annual' ? (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Billed annually · {display.priceAnnualTotal}
+                        </p>
+                      ) : (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Billed monthly
+                        </p>
+                      )
                     ) : (
-                      <p className="text-xs text-muted-foreground mt-0.5 invisible">—</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Forever free</p>
                     )}
                   </div>
+
+                  {/* Savings badge (annual only) */}
+                  {billingPeriod === 'annual' && display.savingsPct && (
+                    <div className="inline-flex items-center gap-1 self-start bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                      Save {display.savingsPct} · ${(parseFloat(display.priceMonthly.replace('$', '')) - parseFloat(display.priceAnnual.replace('$', ''))).toFixed(2)}/mo
+                    </div>
+                  )}
 
                   {/* Description */}
                   <p className="text-xs text-muted-foreground leading-relaxed flex-1">
                     {display.description}
                   </p>
 
-                  {/* Feature list */}
-                  <ul className="space-y-1.5 text-sm">
-                    <li className="flex items-center gap-2 text-foreground/80">
-                      <Check className={cn('h-3.5 w-3.5 shrink-0', style.iconColor)} />
-                      {limitLabel(limits.products)} products
-                    </li>
-                    <li className="flex items-center gap-2 text-foreground/80">
-                      <Check className={cn('h-3.5 w-3.5 shrink-0', style.iconColor)} />
-                      {limitLabel(limits.competitors)} competitor slots
-                    </li>
-                    <li className="flex items-center gap-2 text-foreground/80">
-                      <Check className={cn('h-3.5 w-3.5 shrink-0', style.iconColor)} />
-                      Unlimited materials
-                    </li>
+                  {/* 6-item feature list */}
+                  <ul className="space-y-1.5">
+                    {PLAN_CARD_FEATURES[plan].map(({ label, value }) => (
+                      <li key={label} className="flex items-start gap-2 text-sm">
+                        <Check className={cn('h-3.5 w-3.5 shrink-0 mt-0.5', style.iconColor)} />
+                        <span>
+                          <span className="text-muted-foreground text-xs">{label}: </span>
+                          <span className="text-foreground/80">{value}</span>
+                        </span>
+                      </li>
+                    ))}
                   </ul>
 
                   {/* CTA row */}
@@ -210,6 +349,72 @@ function PlanStep({ onSelect }: { onSelect: (p: PlanName) => void }) {
                 </button>
               );
             })}
+          </div>
+
+          {/* Compare all features toggle */}
+          <div className="mt-10 flex flex-col items-center gap-6">
+            <button
+              type="button"
+              onClick={() => setShowComparison((v) => !v)}
+              className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Compare all features
+              <ChevronDown className={cn('h-4 w-4 transition-transform duration-200', showComparison && 'rotate-180')} />
+            </button>
+
+            {/* Comparison table */}
+            {showComparison && (
+              <div className="w-full overflow-x-auto rounded-xl border border-border">
+                <table className="w-full text-sm border-collapse">
+                  <thead>
+                    <tr className="border-b border-border bg-muted/30">
+                      <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground w-[200px]">
+                        Feature
+                      </th>
+                      {PLAN_ORDER.map((plan) => {
+                        const style = PLAN_STYLE[plan];
+                        return (
+                          <th
+                            key={plan}
+                            className={cn(
+                              'px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide border-t-[3px]',
+                              style.topBorder,
+                              style.iconColor,
+                            )}
+                          >
+                            {PLAN_DISPLAY[plan].name}
+                          </th>
+                        );
+                      })}
+                    </tr>
+                    <tr className="border-b border-border bg-muted/10">
+                      <td className="px-4 py-2 text-xs text-muted-foreground">Monthly price</td>
+                      {PLAN_ORDER.map((plan) => (
+                        <td key={plan} className="px-4 py-2 text-center font-semibold text-foreground text-sm">
+                          {PLAN_DISPLAY[plan].priceMonthly}
+                          {plan !== 'free' && <span className="text-xs font-normal text-muted-foreground">/mo</span>}
+                        </td>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {COMPARISON_ROWS.map((row, i) => (
+                      <tr
+                        key={row.label}
+                        className={cn('border-b border-border last:border-0', i % 2 === 0 ? 'bg-background' : 'bg-muted/10')}
+                      >
+                        <td className="px-4 py-3 text-xs font-medium text-foreground/70">{row.label}</td>
+                        {row.values.map((val, j) => (
+                          <td key={j} className="px-4 py-3 text-center">
+                            <ComparisonCell value={val} />
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       </main>
@@ -315,16 +520,17 @@ function CraftSvg() {
 /* ─────────────────────────────────────────── */
 function FormStep({
   plan,
+  billingPeriod,
   onBack,
 }: {
   plan: PlanName;
+  billingPeriod: 'monthly' | 'annual';
   onBack: () => void;
 }) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const display = PLAN_DISPLAY[plan];
-  const limits  = PLAN_LIMITS[plan];
   const style   = PLAN_STYLE[plan];
   const Icon    = style.icon;
 
@@ -391,21 +597,22 @@ function FormStep({
                   </div>
                   <div>
                     <p className="font-semibold text-white">{display.name}</p>
-                    <p className="text-white/60 text-xs">{display.priceMonthly}{plan !== 'free' ? '/mo' : ' forever'}</p>
+                    <p className="text-white/60 text-xs">
+                      {plan === 'free'
+                        ? 'Free forever'
+                        : billingPeriod === 'annual'
+                          ? `${display.priceAnnual}/mo · ${display.priceAnnualTotal} billed annually`
+                          : `${display.priceMonthly}/mo · billed monthly`}
+                    </p>
                   </div>
                 </div>
 
                 {/* Features */}
                 <ul className="space-y-2">
-                  {[
-                    `${limitLabel(limits.products)} products`,
-                    `${limitLabel(limits.competitors)} competitor slots`,
-                    'Unlimited materials & costs',
-                    limits.coachChatPerDay !== 0 ? 'AI Growth Coach' : null,
-                  ].filter(Boolean).map((f) => (
-                    <li key={f as string} className="flex items-center gap-2.5 text-sm text-white/80">
+                  {PLAN_CARD_FEATURES[plan].slice(0, 4).map(({ label, value }) => (
+                    <li key={label} className="flex items-center gap-2.5 text-sm text-white/80">
                       <Check className="h-3.5 w-3.5 text-white/60 shrink-0" />
-                      {f}
+                      <span className="text-white/50 text-xs">{label}:</span> {value}
                     </li>
                   ))}
                 </ul>
@@ -542,12 +749,21 @@ function FormStep({
 /*  Root: orchestrates the two steps           */
 /* ─────────────────────────────────────────── */
 export default function Signup() {
-  const [step, setStep] = useState<'plan' | 'form'>('plan');
-  const [selectedPlan, setSelectedPlan] = useState<PlanName>('free');
+  const [searchParams] = useSearchParams();
+  const paramPlan = searchParams.get('plan') as PlanName | null;
+  const validPlans: PlanName[] = ['free', 'starter', 'pro', 'business'];
+  const initialPlan: PlanName = validPlans.includes(paramPlan as PlanName) ? (paramPlan as PlanName) : 'free';
+  const initialStep: 'plan' | 'form' = validPlans.includes(paramPlan as PlanName) ? 'form' : 'plan';
+
+  const [step, setStep] = useState<'plan' | 'form'>(initialStep);
+  const [selectedPlan, setSelectedPlan] = useState<PlanName>(initialPlan);
+  const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'annual'>('annual');
 
   if (step === 'plan') {
     return (
       <PlanStep
+        billingPeriod={billingPeriod}
+        onBillingPeriodChange={setBillingPeriod}
         onSelect={(plan) => {
           setSelectedPlan(plan);
           setStep('form');
@@ -559,6 +775,7 @@ export default function Signup() {
   return (
     <FormStep
       plan={selectedPlan}
+      billingPeriod={billingPeriod}
       onBack={() => setStep('plan')}
     />
   );

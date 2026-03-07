@@ -12,41 +12,55 @@ export interface PlanLimits {
 const QA_MODE = process.env.QA_MODE === 'true';
 
 export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
-  free:     { products: QA_MODE ? 4  : 10,  competitors: QA_MODE ? 1 : 2,  coachInsights: 3,   coachChatPerDay: 0,  coachReportsPerMonth: 0  },
-  starter:  { products: 50,  competitors: 10, coachInsights: 10,  coachChatPerDay: 10, coachReportsPerMonth: 2  },
-  pro:      { products: 200, competitors: 30, coachInsights: -1,  coachChatPerDay: 50, coachReportsPerMonth: 5  },
-  business: { products: -1,  competitors: -1, coachInsights: -1,  coachChatPerDay: -1, coachReportsPerMonth: -1 },
+  free:     { products: QA_MODE ? 3  : 5,  competitors: QA_MODE ? 1 : 1,  coachInsights: 3,  coachChatPerDay: 0,  coachReportsPerMonth: 0  },
+  starter:  { products: 10, competitors: 3,  coachInsights: 5,  coachChatPerDay: -1, coachReportsPerMonth: 2  },
+  pro:      { products: 30, competitors: 5,  coachInsights: -1, coachChatPerDay: -1, coachReportsPerMonth: -1 },
+  business: { products: -1, competitors: -1, coachInsights: -1, coachChatPerDay: -1, coachReportsPerMonth: -1 },
 };
 
 export interface PlanDisplay {
   name: string;
   priceMonthly: string;
-  priceAnnual?: string;
-  priceAnnualNote?: string;
+  priceAnnual: string;
+  priceAnnualTotal: string;
+  savingsPerYear?: string;
+  savingsPct?: string;
   description: string;
 }
 
 export const PLAN_DISPLAY: Record<PlanName, PlanDisplay> = {
   free: {
     name: 'Free',
-    priceMonthly: '$0',
-    description: 'Get started for free — no credit card required.',
+    priceMonthly:     '$0',
+    priceAnnual:      '$0',
+    priceAnnualTotal: '$0/yr',
+    description: 'Start for free and see exactly what your products really cost.',
   },
   starter: {
     name: 'Starter',
-    priceMonthly: '$12',
-    priceAnnual: '$10',
-    priceAnnualNote: '$120/yr',
-    description: 'For growing Etsy shops ready to take pricing seriously.',
+    priceMonthly:     '$10.99',
+    priceAnnual:      '$8',
+    priceAnnualTotal: '$96/yr',
+    savingsPerYear:   '$35.88',
+    savingsPct:       '27%',
+    description: 'Know your real costs and stop leaving money on the table.',
   },
   pro: {
-    name: 'Pro',
-    priceMonthly: '$19',
-    description: 'For serious sellers managing large product catalogs.',
+    name: 'Growth',
+    priceMonthly:     '$24.99',
+    priceAnnual:      '$15',
+    priceAnnualTotal: '$180/yr',
+    savingsPerYear:   '$119.88',
+    savingsPct:       '40%',
+    description: 'AI that spots underpriced products and tells you exactly what to fix.',
   },
   business: {
-    name: 'Business',
-    priceMonthly: '$49',
-    description: 'Unlimited everything for full-time makers.',
+    name: 'Pro',
+    priceMonthly:     '$35.99',
+    priceAnnual:      '$25',
+    priceAnnualTotal: '$300/yr',
+    savingsPerYear:   '$131.88',
+    savingsPct:       '31%',
+    description: 'Full access, no limits — built for sellers who run it like a business.',
   },
 };
