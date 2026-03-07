@@ -42,8 +42,8 @@ export function useSubscription() {
     refetch: query.refetch,
     isAtLimit,
     getUsagePercent,
-    isPro: plan === 'pro' || plan === 'business',
-    isBusiness: plan === 'business',
+    isPro: plan === 'growth' || plan === 'pro',
+    isBusiness: plan === 'pro',
     invalidate: () => queryClient.invalidateQueries({ queryKey: ['subscription'] }),
   };
 }

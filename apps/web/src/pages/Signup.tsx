@@ -59,7 +59,7 @@ const PLAN_STYLE: Record<PlanName, {
     selectedRing: 'ring-primary border-primary',
     cta:          'Start Starter',
   },
-  pro: {
+  growth: {
     icon: Zap,
     topBorder:    'border-t-brand-500',
     iconBg:       'bg-brand-100',
@@ -67,7 +67,7 @@ const PLAN_STYLE: Record<PlanName, {
     selectedRing: 'ring-brand-500 border-brand-500',
     cta:          'Start Growth',
   },
-  business: {
+  pro: {
     icon: Star,
     topBorder:    'border-t-brand-900',
     iconBg:       'bg-brand-100',
@@ -97,7 +97,7 @@ const PLAN_CARD_FEATURES: Record<PlanName, { label: string; value: string }[]> =
     { label: 'AI Reports',      value: '2 reports/mo' },
     { label: 'Finance Metrics', value: 'Full access' },
   ],
-  pro: [
+  growth: [
     { label: 'Products',        value: '30 products' },
     { label: 'Variations',      value: '2 per product' },
     { label: 'Competitors',     value: '5 per product' },
@@ -105,7 +105,7 @@ const PLAN_CARD_FEATURES: Record<PlanName, { label: string; value: string }[]> =
     { label: 'AI Reports',      value: 'Full access' },
     { label: 'Finance Metrics', value: 'Full access' },
   ],
-  business: [
+  pro: [
     { label: 'Products',        value: 'Unlimited' },
     { label: 'Variations',      value: 'Unlimited' },
     { label: 'Competitors',     value: 'Unlimited' },
@@ -749,9 +749,9 @@ function FormStep({
 /*  Root: orchestrates the two steps           */
 /* ─────────────────────────────────────────── */
 export default function Signup() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const paramPlan = searchParams.get('plan') as PlanName | null;
-  const validPlans: PlanName[] = ['free', 'starter', 'pro', 'business'];
+  const validPlans: PlanName[] = ['free', 'starter', 'growth', 'pro'];
   const initialPlan: PlanName = validPlans.includes(paramPlan as PlanName) ? (paramPlan as PlanName) : 'free';
   const initialStep: 'plan' | 'form' = validPlans.includes(paramPlan as PlanName) ? 'form' : 'plan';
 
@@ -766,6 +766,7 @@ export default function Signup() {
         onBillingPeriodChange={setBillingPeriod}
         onSelect={(plan) => {
           setSelectedPlan(plan);
+          setSearchParams({ plan });
           setStep('form');
         }}
       />
@@ -776,7 +777,10 @@ export default function Signup() {
     <FormStep
       plan={selectedPlan}
       billingPeriod={billingPeriod}
-      onBack={() => setStep('plan')}
+      onBack={() => {
+        setSearchParams({});
+        setStep('plan');
+      }}
     />
   );
 }

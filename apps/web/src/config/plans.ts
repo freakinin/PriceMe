@@ -5,8 +5,8 @@ export type { PlanName, PlanLimits };
 export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
   free:     { products: 5,  competitors: 1,  coachInsights: 3,  coachChatPerDay: 0,  coachReportsPerMonth: 0  },
   starter:  { products: 10, competitors: 3,  coachInsights: 5,  coachChatPerDay: -1, coachReportsPerMonth: 2  },
-  pro:      { products: 30, competitors: 5,  coachInsights: -1, coachChatPerDay: -1, coachReportsPerMonth: -1 },
-  business: { products: -1, competitors: -1, coachInsights: -1, coachChatPerDay: -1, coachReportsPerMonth: -1 },
+  growth:   { products: 30, competitors: 5,  coachInsights: -1, coachChatPerDay: -1, coachReportsPerMonth: -1 },
+  pro:      { products: -1, competitors: -1, coachInsights: -1, coachChatPerDay: -1, coachReportsPerMonth: -1 },
 };
 
 export interface PlanDisplay {
@@ -42,7 +42,7 @@ export const PLAN_DISPLAY: Record<PlanName, PlanDisplay> = {
     savingsPct:      '27%',
     description: 'Know your real costs and stop leaving money on the table.',
   },
-  pro: {
+  growth: {
     name: 'Growth',
     priceMonthly:    '$24.99',
     priceAnnual:     '$15',
@@ -52,7 +52,7 @@ export const PLAN_DISPLAY: Record<PlanName, PlanDisplay> = {
     description: 'AI that spots underpriced products and tells you exactly what to fix.',
     badge: 'Most Popular',
   },
-  business: {
+  pro: {
     name: 'Pro',
     priceMonthly:    '$35.99',
     priceAnnual:     '$25',
@@ -63,4 +63,4 @@ export const PLAN_DISPLAY: Record<PlanName, PlanDisplay> = {
   },
 };
 
-export const PLAN_ORDER: PlanName[] = ['free', 'starter', 'pro', 'business'];
+export const PLAN_ORDER: PlanName[] = ['free', 'starter', 'growth', 'pro'];

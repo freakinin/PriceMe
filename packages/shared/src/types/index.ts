@@ -1,5 +1,5 @@
 // Subscription / Plan types
-export type PlanName = 'free' | 'starter' | 'pro' | 'business';
+export type PlanName = 'free' | 'starter' | 'growth' | 'pro';
 
 export interface PlanLimits {
   products: number;             // -1 = unlimited

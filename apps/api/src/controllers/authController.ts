@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken';
 import { db } from '../utils/db.js';
 import { z } from 'zod';
 
-const VALID_PLANS = ['free', 'starter', 'pro', 'business'] as const;
+const VALID_PLANS = ['free', 'starter', 'growth', 'pro'] as const;
 
 const createUserSchema = z.object({
   email: z.string().email(),

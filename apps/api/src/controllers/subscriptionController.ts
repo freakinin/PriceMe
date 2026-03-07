@@ -67,7 +67,7 @@ export const assignPlan = async (req: AuthRequest, res: Response) => {
   }
 
   const userId = isAdminAction ? Number(target_user_id) : req.userId;
-  const validPlans: PlanName[] = ['free', 'starter', 'pro', 'business'];
+  const validPlans: PlanName[] = ['free', 'starter', 'growth', 'pro'];
 
   if (!validPlans.includes(plan)) {
     return res.status(400).json({ status: 'error', message: `Invalid plan. Must be one of: ${validPlans.join(', ')}` });

@@ -972,6 +972,23 @@ export async function initializeDatabase() {
       console.log('Note: tracked_products linked_product_id FK migration:', e.message);
     }
 
+    // Migration: rename plan keys 'pro'→'growth' and 'business'→'pro'
+    try {
+      // Drop the old CHECK constraint (auto-named by Postgres)
+      await sql`ALTER TABLE subscriptions DROP CONSTRAINT IF EXISTS subscriptions_plan_check`;
+      // Rename data — order matters: rename 'pro' first so 'business'→'pro' doesn't collide
+      await sql`UPDATE subscriptions SET plan = 'growth' WHERE plan = 'pro'`;
+      await sql`UPDATE subscriptions SET plan = 'pro'    WHERE plan = 'business'`;
+      // Re-add constraint with new allowed values
+      await sql`
+        ALTER TABLE subscriptions
+        ADD CONSTRAINT subscriptions_plan_check
+        CHECK (plan IN ('free', 'starter', 'growth', 'pro'))
+      `;
+    } catch (e: any) {
+      console.log('Note: plan key rename migration:', e.message);
+    }
+
     // Create coach_profiles table
     await sql`
       CREATE TABLE IF NOT EXISTS coach_profiles (
