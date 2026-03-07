@@ -133,6 +133,7 @@ import profileRoutes from './routes/profile.js';
 import coachRoutes from './routes/coach.js';
 import supportRoutes from './routes/support.js';
 import { PriceMonitorJob } from './jobs/priceMonitor.js';
+import { NotionSyncJob } from './jobs/notionSync.js';
 
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/platform-fees', platformFeesRoutes);
@@ -161,6 +162,13 @@ if (process.env.VERCEL !== '1') {
     PriceMonitorJob.run();
     setInterval(() => {
       PriceMonitorJob.run();
+    }, 24 * 60 * 60 * 1000);
+
+    // Notion user sync — initial full sync + daily refresh
+    console.log('📋 Initializing Notion Sync Job...');
+    NotionSyncJob.run();
+    setInterval(() => {
+      NotionSyncJob.run();
     }, 24 * 60 * 60 * 1000);
   });
 }

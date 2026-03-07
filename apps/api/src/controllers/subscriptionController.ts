@@ -3,6 +3,7 @@ import { db } from '../utils/db.js';
 import { AuthRequest } from '../middleware/auth.js';
 import { getUserSubscription, getUserUsage, getEffectiveLimits } from '../utils/subscription.js';
 import { PLAN_LIMITS, PLAN_DISPLAY, type PlanName } from '../config/plans.js';
+import { NotionSyncJob } from '../jobs/notionSync.js';
 
 /**
  * GET /api/subscription
@@ -111,6 +112,9 @@ export const assignPlan = async (req: AuthRequest, res: Response) => {
     ON CONFLICT (user_id) DO UPDATE
       SET plan = ${plan}, status = 'active', updated_at = CURRENT_TIMESTAMP
   `;
+
+  // Sync updated plan to Notion (fire-and-forget)
+  NotionSyncJob.syncUser(userId).catch(() => {});
 
   return res.json({ status: 'success', message: `Plan updated to ${plan}`, data: { plan } });
 };

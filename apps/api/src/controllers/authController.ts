@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { db } from '../utils/db.js';
 import { z } from 'zod';
+import { NotionSyncJob } from '../jobs/notionSync.js';
 
 const VALID_PLANS = ['free', 'starter', 'growth', 'pro'] as const;
 
@@ -98,6 +99,9 @@ export const register = async (req: Request, res: Response) => {
     } catch (subError: any) {
       console.error('Failed to create subscription for new user:', subError.message);
     }
+
+    // Sync new user to Notion (fire-and-forget)
+    NotionSyncJob.syncUser(user.id).catch(() => {});
 
     // Generate JWT token
     const token = jwt.sign(
