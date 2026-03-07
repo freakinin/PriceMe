@@ -707,14 +707,16 @@ function FormStep({
 
           {/* Back + heading */}
           <div className="space-y-4">
-            <button
-              type="button"
-              onClick={onBack}
-              className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <ArrowLeft className="h-3.5 w-3.5" />
-              Change plan
-            </button>
+            {!isPromoActive && (
+              <button
+                type="button"
+                onClick={onBack}
+                className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" />
+                Change plan
+              </button>
+            )}
             <div className="space-y-1">
               <h2 className="font-display text-2xl font-semibold text-foreground tracking-tight">
                 Create your account
@@ -726,6 +728,21 @@ function FormStep({
               </p>
             </div>
           </div>
+
+          {/* Promo badge — visible on all screen sizes */}
+          {isPromoActive && (
+            <div className="flex items-center gap-2.5 rounded-lg border border-brand-500/30 bg-brand-100 px-4 py-3">
+              <Gift className="h-4 w-4 text-brand-700 shrink-0" />
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-brand-900">
+                  Early Bird — Pro free for {promo!.durationMonths} months
+                </p>
+                <p className="text-xs text-brand-700 mt-0.5">
+                  {promo!.spotsRemaining} of {promo!.totalSpots} spots left. Inactive accounts (14+ days) lose their spot.
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Form */}
           <Form {...form}>
