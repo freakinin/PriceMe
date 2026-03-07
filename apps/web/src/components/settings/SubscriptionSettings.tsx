@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check, Zap, Loader2, Gift, MessageSquare } from 'lucide-react';
+import { Check, Zap, Loader2, Gift } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -190,15 +190,8 @@ export function SubscriptionSettings() {
               </p>
               <p className="text-xs text-brand-700 mt-0.5">
                 Ends {trialEndsAt.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}.
-                As an early adopter, your feedback means a lot — no pressure, but we'd love to hear from you.
+                You're one of our early adopters — thank you for being here.
               </p>
-              <a
-                href="mailto:feedback@cravio.co?subject=Early%20Adopter%20Feedback"
-                className="inline-flex items-center gap-1.5 mt-2 text-xs font-medium text-brand-700 hover:text-brand-900 transition-colors"
-              >
-                <MessageSquare className="h-3.5 w-3.5" />
-                Share feedback →
-              </a>
             </div>
           </div>
         )}
@@ -214,13 +207,6 @@ export function SubscriptionSettings() {
                 We'd love your feedback on what worked and what didn't — no obligation, but it means a lot.
               </p>
               <div className="flex items-center gap-3 mt-3">
-                <a
-                  href="mailto:feedback@cravio.co?subject=Early%20Adopter%20Feedback"
-                  className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  <MessageSquare className="h-3.5 w-3.5" />
-                  Give feedback →
-                </a>
                 <button
                   onClick={() => handleSwitch('pro')}
                   className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline"
