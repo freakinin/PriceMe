@@ -62,9 +62,9 @@ function PlanCard({
           {display.priceMonthly}
           {plan !== 'free' && <span className="text-sm font-normal text-muted-foreground">/mo</span>}
         </p>
-        {display.priceAnnual && (
+        {plan !== 'free' && (
           <p className="text-xs text-muted-foreground mt-0.5">
-            or {display.priceAnnual}/mo · {display.priceAnnualNote}
+            or {display.priceAnnual}/mo · {display.priceAnnualTotal} billed annually
           </p>
         )}
       </div>
