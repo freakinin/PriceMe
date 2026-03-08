@@ -36,6 +36,7 @@ export type MarketEvent =
 export type CoachEvent =
   | { event: 'coach_opened' }
   | { event: 'coach_onboarding_completed'; craft_type: string; experience_years: string }
+  | { event: 'coach_onboarding_skipped' }
   | { event: 'insight_generated' }
   | { event: 'chat_message_sent'; daily_count: number }
   | { event: 'report_generated' }
