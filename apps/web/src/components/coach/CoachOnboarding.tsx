@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import type { FieldErrors, UseFormSetValue } from 'react-hook-form';
 import { ChevronRight, ChevronLeft, BrainCircuit, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,27 +9,24 @@ import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { coachProfileSchema, type CoachProfileInput } from '@priceme/shared';
 
-interface CoachOnboardingProps {
-  onComplete: (data: CoachProfileInput) => Promise<void>;
-  isSubmitting: boolean;
-  initialValues?: CoachProfileInput;
-  onCancel?: () => void;
-}
+// ---------------------------------------------------------------------------
+// Shared constants — exported for use in profile preview
+// ---------------------------------------------------------------------------
 
-const CRAFT_TYPES = [
+export const CRAFT_TYPES = [
   'Jewelry', 'Candles', 'Ceramics / Pottery', 'Woodworking', 'Textiles / Fabric',
   'Soap & Bath', 'Art Prints', 'Leather Goods', 'Glass / Resin', 'Other',
 ];
 
-const SALES_CHANNELS = ['Etsy', 'Shopify', 'Amazon Handmade', 'Markets / Fairs', 'Instagram', 'Wholesale', 'Own Website'];
+export const SALES_CHANNELS = ['Etsy', 'Shopify', 'Amazon Handmade', 'Markets / Fairs', 'Instagram', 'Wholesale', 'Own Website'];
 
-const EXPERIENCE_OPTIONS: { value: CoachProfileInput['experience_years']; label: string }[] = [
+export const EXPERIENCE_OPTIONS: { value: CoachProfileInput['experience_years']; label: string }[] = [
   { value: '<1year', label: 'Less than 1 year' },
   { value: '1-3years', label: '1–3 years' },
   { value: '3+years', label: '3+ years' },
 ];
 
-const CHALLENGES = [
+export const CHALLENGES = [
   'Pricing my products correctly',
   'Low profit margins',
   'Not enough sales',
@@ -37,42 +35,22 @@ const CHALLENGES = [
   'Scaling my business',
 ];
 
-const TOTAL_STEPS = 5;
+export const TOTAL_STEPS = 5;
 
-export function CoachOnboarding({ onComplete, isSubmitting, initialValues, onCancel }: CoachOnboardingProps) {
-  const [step, setStep] = useState(0);
-  const isEditing = !!initialValues;
+// ---------------------------------------------------------------------------
+// CoachProfileSteps — layout-agnostic step content
+// Used by both CoachOnboarding (modal) and Onboarding page (full-page)
+// ---------------------------------------------------------------------------
 
-  const form = useForm<CoachProfileInput>({
-    resolver: zodResolver(coachProfileSchema),
-    defaultValues: initialValues ?? {
-      craft_type: '',
-      sales_channels: [],
-      experience_years: '<1year',
-      primary_challenge: '',
-      monthly_revenue_goal: undefined,
-    },
-  });
+export interface CoachProfileStepsProps {
+  step: number;
+  values: CoachProfileInput;
+  setValue: UseFormSetValue<CoachProfileInput>;
+  errors: FieldErrors<CoachProfileInput>;
+  initialMonthlyGoal?: number;
+}
 
-  const { watch, setValue, handleSubmit, formState: { errors } } = form;
-  const values = watch();
-
-  const canProceed = () => {
-    switch (step) {
-      case 0: return !!values.craft_type;
-      case 1: return values.sales_channels.length > 0;
-      case 2: return !!values.experience_years;
-      case 3: return !!values.primary_challenge;
-      case 4: return true;
-      default: return false;
-    }
-  };
-
-  const onSubmit = handleSubmit(async (data) => {
-    await onComplete(data);
-    onCancel?.();
-  });
-
+export function CoachProfileSteps({ step, values, setValue, errors, initialMonthlyGoal }: CoachProfileStepsProps) {
   const toggleChannel = (channel: string) => {
     const current = values.sales_channels;
     setValue(
@@ -202,7 +180,7 @@ export function CoachOnboarding({ onComplete, isSubmitting, initialValues, onCan
           min={0}
           placeholder="e.g. 2000"
           className="text-base"
-          defaultValue={initialValues?.monthly_revenue_goal ?? ''}
+          defaultValue={initialMonthlyGoal ?? ''}
           onChange={(e) => {
             const val = parseFloat(e.target.value);
             setValue('monthly_revenue_goal', isNaN(val) ? undefined : val);
@@ -214,6 +192,54 @@ export function CoachOnboarding({ onComplete, isSubmitting, initialValues, onCan
       </div>
     </div>,
   ];
+
+  return steps[step] ?? null;
+}
+
+// ---------------------------------------------------------------------------
+// CoachOnboarding — the original modal wrapper (interface unchanged)
+// ---------------------------------------------------------------------------
+
+interface CoachOnboardingProps {
+  onComplete: (data: CoachProfileInput) => Promise<void>;
+  isSubmitting: boolean;
+  initialValues?: CoachProfileInput;
+  onCancel?: () => void;
+}
+
+export function CoachOnboarding({ onComplete, isSubmitting, initialValues, onCancel }: CoachOnboardingProps) {
+  const [step, setStep] = useState(0);
+  const isEditing = !!initialValues;
+
+  const form = useForm<CoachProfileInput>({
+    resolver: zodResolver(coachProfileSchema),
+    defaultValues: initialValues ?? {
+      craft_type: '',
+      sales_channels: [],
+      experience_years: '<1year',
+      primary_challenge: '',
+      monthly_revenue_goal: undefined,
+    },
+  });
+
+  const { watch, setValue, handleSubmit, formState: { errors } } = form;
+  const values = watch();
+
+  const canProceed = () => {
+    switch (step) {
+      case 0: return !!values.craft_type;
+      case 1: return values.sales_channels.length > 0;
+      case 2: return !!values.experience_years;
+      case 3: return !!values.primary_challenge;
+      case 4: return true;
+      default: return false;
+    }
+  };
+
+  const onSubmit = handleSubmit(async (data) => {
+    await onComplete(data);
+    onCancel?.();
+  });
 
   return (
     <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
@@ -247,7 +273,13 @@ export function CoachOnboarding({ onComplete, isSubmitting, initialValues, onCan
           onSubmit={onSubmit}
           onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
         >
-          {steps[step]}
+          <CoachProfileSteps
+            step={step}
+            values={values}
+            setValue={setValue}
+            errors={errors}
+            initialMonthlyGoal={initialValues?.monthly_revenue_goal}
+          />
 
           {/* Navigation */}
           <div className="flex justify-between pt-4">

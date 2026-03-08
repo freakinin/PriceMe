@@ -609,7 +609,7 @@ function FormStep({
         identify(response.data.user.id, { email: response.data.user.email, name: response.data.user.name, plan });
       }
       track({ event: 'user_signed_up', plan_selected: plan });
-      window.location.href = '/';
+      window.location.href = '/onboarding';
     } catch (err: any) {
       setError(err.response?.data?.message || 'Signup failed. Please try again.');
     } finally {

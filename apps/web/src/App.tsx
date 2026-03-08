@@ -25,6 +25,7 @@ import ForgotPassword from './pages/ForgotPassword';
 import MarketAnalysis from './pages/MarketAnalysis';
 import Coach from './pages/Coach';
 import Help from './pages/Help';
+import Onboarding from './pages/Onboarding';
 import { useAuth } from './hooks/useAuth';
 import './index.css';
 
@@ -207,6 +208,16 @@ function App() {
               <AppLayout>
                 <Help />
               </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Post-signup onboarding — protected but no AppLayout (full-page wizard) */}
+        <Route
+          path="/onboarding"
+          element={
+            <ProtectedRoute>
+              <Onboarding />
             </ProtectedRoute>
           }
         />

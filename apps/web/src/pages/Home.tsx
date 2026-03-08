@@ -15,6 +15,8 @@ import {
   Tag,
   Sparkles,
   Box,
+  BrainCircuit,
+  X,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -22,6 +24,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { useAuth } from '@/hooks/useAuth';
 import { Navigate } from 'react-router-dom';
 import api from '@/lib/api';
+import { useCoach } from '@/hooks/useCoach';
 import { useSettings } from '@/hooks/useSettings';
 import { formatCurrency } from '@/utils/currency';
 import { StatsCard } from '@/components/dashboard/StatsCard';
@@ -57,6 +60,16 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [showAfterTax, setShowAfterTax] = useState(false);
   const { categories } = useCategories();
+  const { profile, isProfileLoading } = useCoach();
+  const [nudgeDismissed, setNudgeDismissed] = useState(
+    () => localStorage.getItem('cravio_coach_nudge_dismissed') === '1'
+  );
+  const showCoachNudge = !isProfileLoading && !profile && !nudgeDismissed;
+
+  const handleNudgeDismiss = () => {
+    localStorage.setItem('cravio_coach_nudge_dismissed', '1');
+    setNudgeDismissed(true);
+  };
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -214,6 +227,40 @@ export default function Home() {
           </div>
         </div>
       </div>
+
+      {/* ── Coach profile nudge ── */}
+      {showCoachNudge && (
+        <div className="flex items-center gap-3 rounded-xl border border-brand-500/25 bg-brand-100 px-4 py-3 text-brand-900 animate-in fade-in duration-300">
+          <div className="h-8 w-8 rounded-lg bg-brand-500/15 flex items-center justify-center flex-shrink-0">
+            <BrainCircuit className="h-4 w-4 text-brand-700" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium leading-snug">
+              Get AI pricing insights built for your craft
+            </p>
+            <p className="text-xs text-brand-700/70 mt-0.5">
+              Set up your Coach profile — takes 60 seconds.
+            </p>
+          </div>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-brand-700 hover:text-brand-900 hover:bg-brand-500/10 text-xs h-7 px-3 flex-shrink-0"
+            onClick={() => navigate('/onboarding')}
+          >
+            Set up now
+            <ArrowRight className="h-3.5 w-3.5 ml-1" />
+          </Button>
+          <button
+            type="button"
+            onClick={handleNudgeDismiss}
+            className="text-brand-700/50 hover:text-brand-700 transition-colors flex-shrink-0 ml-1"
+            aria-label="Dismiss"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       {/* ── Stats Grid ── */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" data-tour="tour-stats-grid">
