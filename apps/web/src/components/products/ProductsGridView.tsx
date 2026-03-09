@@ -288,7 +288,7 @@ export function ProductsGridView({
                 {/* Action buttons */}
                 <div className="flex items-center gap-0.5 shrink-0">
                   <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                    onClick={() => setEditingProductId(product.id)}>
+                    onClick={() => navigate(`/products/${product.id}/edit`)}>
                     <Edit className="h-3.5 w-3.5" />
                   </Button>
                   <Button variant="ghost" size="icon" className="h-7 w-7"

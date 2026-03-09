@@ -578,7 +578,7 @@ export default function CreateProduct() {
           {/* Right: Buttons */}
           <div className="flex gap-2">
             <Button type="button" variant="outline" size="sm" onClick={() => navigate('/products')}>Cancel</Button>
-            <Button type="button" size="sm" onClick={handleSubmit(onSubmit, onError)}>{isEditMode ? 'Save Changes' : 'Create Product'}</Button>
+            <Button type="button" size="sm" onClick={handleSubmit(onSubmit, onError)}>{isEditMode ? 'Update Product' : 'Create Product'}</Button>
           </div>
         </div>
       </div>

@@ -147,7 +147,7 @@ export function ProductsTableView({
               variant="ghost"
               size="icon"
               className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 text-muted-foreground hover:text-foreground"
-              onClick={e => { e.stopPropagation(); setEditingProductId(product.id); }}
+              onClick={e => { e.stopPropagation(); navigate(`/products/${product.id}/edit`); }}
             >
               <Edit className="h-3.5 w-3.5" />
             </Button>
