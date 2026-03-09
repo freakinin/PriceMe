@@ -7,12 +7,8 @@ import {
   TrendingUp,
   DollarSign,
   ArrowRight,
-  Clock,
-  CheckCircle2,
-  FileText,
   ToggleLeft,
   ToggleRight,
-  Tag,
   Sparkles,
   Box,
   BrainCircuit,
@@ -34,6 +30,69 @@ import { GrowthChart } from '@/components/dashboard/GrowthChart';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useCategories } from '@/hooks/useCategories';
 import { cn } from '@/lib/utils';
+
+// ── Donut chart helpers ────────────────────────────────────────────────────
+function polarToCartesian(cx: number, cy: number, r: number, deg: number) {
+  const rad = (deg * Math.PI) / 180;
+  return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+}
+
+function donutSlicePath(cx: number, cy: number, outerR: number, innerR: number, startDeg: number, endDeg: number) {
+  const end = Math.min(endDeg, startDeg + 359.99); // prevent full-circle arc issues
+  const o1 = polarToCartesian(cx, cy, outerR, startDeg);
+  const o2 = polarToCartesian(cx, cy, outerR, end);
+  const i1 = polarToCartesian(cx, cy, innerR, end);
+  const i2 = polarToCartesian(cx, cy, innerR, startDeg);
+  const large = end - startDeg > 180 ? 1 : 0;
+  return `M ${o1.x} ${o1.y} A ${outerR} ${outerR} 0 ${large} 1 ${o2.x} ${o2.y} L ${i1.x} ${i1.y} A ${innerR} ${innerR} 0 ${large} 0 ${i2.x} ${i2.y} Z`;
+}
+
+interface DonutSlice {
+  label: string;
+  value: number;
+  color: string;
+}
+
+function DonutChart({ slices, emptyText = 'No data' }: { slices: DonutSlice[]; emptyText?: string }) {
+  const total = slices.reduce((sum, s) => sum + s.value, 0);
+  if (total === 0) {
+    return <p className="text-center py-6 text-sm text-muted-foreground">{emptyText}</p>;
+  }
+
+  const cx = 50, cy = 50, outerR = 44, innerR = 28;
+  let angle = -90; // start at top
+
+  const paths = slices
+    .filter(s => s.value > 0)
+    .map(s => {
+      const sweep = (s.value / total) * 360;
+      const path = donutSlicePath(cx, cy, outerR, innerR, angle, angle + sweep);
+      angle += sweep;
+      return { ...s, path, pct: Math.round((s.value / total) * 100) };
+    });
+
+  return (
+    <div className="flex items-center gap-4">
+      <svg viewBox="0 0 100 100" className="w-[88px] h-[88px] shrink-0">
+        {paths.map((p, i) => (
+          <path key={i} d={p.path} fill={p.color} className="transition-opacity hover:opacity-75" />
+        ))}
+      </svg>
+      <div className="flex-1 space-y-2 min-w-0">
+        {slices.map((s, i) => (
+          <div key={i} className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
+              <span className="text-xs text-muted-foreground truncate">{s.label}</span>
+            </div>
+            <span className="text-xs font-bold tabular-nums shrink-0" style={{ color: s.color }}>{s.value}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 type ProductStatus = 'draft' | 'in_progress' | 'on_sale' | 'inactive';
 
@@ -96,6 +155,8 @@ export default function Home() {
     const onSaleProducts = products.filter(p => p.status === 'on_sale');
     const draftProducts = products.filter(p => p.status === 'draft');
     const inProgressProducts = products.filter(p => p.status === 'in_progress');
+    const unpricedProducts = products.filter(p => p.target_price === null || p.target_price === 0);
+    const pricedProducts = products.filter(p => p.target_price !== null && p.target_price > 0);
 
     const totalPotentialRevenue = products.reduce((sum, product) => {
       const price = product.target_price ?? 0;
@@ -132,10 +193,13 @@ export default function Home() {
       onSaleProducts: onSaleProducts.length,
       draftProducts: draftProducts.length,
       inProgressProducts: inProgressProducts.length,
+      unpricedProducts: unpricedProducts.length,
+      pricedProducts: pricedProducts.length,
       totalPotentialRevenue,
       totalCost,
       totalPotentialProfit,
       averageMargin,
+      productsWithMarginCount: productsWithMargin.length,
       sortedCategories,
     };
   }, [products, categories]);
@@ -263,210 +327,177 @@ export default function Home() {
       )}
 
       {/* ── Stats Grid ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" data-tour="tour-stats-grid">
-        <div className={cn("animate-slide-up stagger-1")}>
-          <StatsCard
-            title="Total Products"
-            value={analytics.totalProducts}
-            description={`${analytics.onSaleProducts} currently on sale`}
-            icon={Package}
-            variant="info"
-          />
+      {analytics.totalProducts === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 gap-4 text-center">
+          <div className="h-16 w-16 rounded-2xl bg-brand-100 flex items-center justify-center">
+            <Package className="h-8 w-8 text-brand-700" />
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold text-foreground mb-1">No products yet</h3>
+            <p className="text-sm text-muted-foreground max-w-xs">
+              Add your first product to start tracking costs, setting prices, and watching your margins.
+            </p>
+          </div>
+          <Button onClick={() => navigate('/products/add')} className="mt-2">
+            <Plus className="h-4 w-4 mr-2" />
+            Add First Product
+          </Button>
         </div>
-        <div className={cn("animate-slide-up stagger-2")}>
-          <StatsCard
-            title="Potential Revenue"
-            value={formatCurrencyValue(analytics.totalPotentialRevenue)}
-            description="Based on current batch sizes"
-            icon={DollarSign}
-            variant="success"
-          />
-        </div>
-        <div className={cn("animate-slide-up stagger-3")}>
-          <StatsCard
-            title={showAfterTax ? 'After-Tax Profit' : 'Potential Profit'}
-            value={formatCurrencyValue(showAfterTax ? afterTaxPotentialProfit : analytics.totalPotentialProfit)}
-            description={`Avg margin: ${formatPercentage(analytics.averageMargin)}`}
-            icon={TrendingUp}
-            variant={(showAfterTax ? afterTaxPotentialProfit : analytics.totalPotentialProfit) >= 0 ? "purple" : "danger"}
-          />
-        </div>
-        <div className={cn("animate-slide-up stagger-4")}>
-          <StatsCard
-            title="Total Cost"
-            value={formatCurrencyValue(analytics.totalCost)}
-            description="All products combined"
-            icon={ShoppingCart}
-            variant="orange"
-          />
-        </div>
-      </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" data-tour="tour-stats-grid">
+            <div className={cn("animate-slide-up stagger-1")}>
+              <StatsCard
+                title="Total Products"
+                value={analytics.totalProducts}
+                description={
+                  analytics.unpricedProducts > 0
+                    ? `${analytics.onSaleProducts} on sale · ${analytics.unpricedProducts} unpriced`
+                    : `${analytics.onSaleProducts} currently on sale`
+                }
+                icon={Package}
+                variant="info"
+              />
+            </div>
+            <div className={cn("animate-slide-up stagger-2")}>
+              <StatsCard
+                title="Potential Revenue"
+                value={formatCurrencyValue(analytics.totalPotentialRevenue)}
+                description={`${analytics.pricedProducts} of ${analytics.totalProducts} products priced`}
+                icon={DollarSign}
+                variant="success"
+              />
+            </div>
+            <div className={cn("animate-slide-up stagger-3")}>
+              <StatsCard
+                title={showAfterTax ? 'After-Tax Profit' : 'Potential Profit'}
+                value={formatCurrencyValue(showAfterTax ? afterTaxPotentialProfit : analytics.totalPotentialProfit)}
+                description={`Avg margin: ${formatPercentage(analytics.averageMargin)} across ${analytics.productsWithMarginCount} products`}
+                icon={TrendingUp}
+                variant={(showAfterTax ? afterTaxPotentialProfit : analytics.totalPotentialProfit) >= 0 ? "purple" : "danger"}
+              />
+            </div>
+            <div className={cn("animate-slide-up stagger-4")}>
+              <StatsCard
+                title="Total Cost"
+                value={formatCurrencyValue(analytics.totalCost)}
+                description={`Across all ${analytics.totalProducts} products`}
+                icon={ShoppingCart}
+                variant="orange"
+              />
+            </div>
+          </div>
 
-      {/* ── Main Content Grid ── */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+          {/* ── Main Content Grid ── */}
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
 
-        {/* Left: Charts + Activity */}
-        <div className="xl:col-span-2 space-y-6">
-          <GrowthChart products={products} />
-          <RecentActivity products={products} loading={loading} />
-        </div>
+            {/* Left: Charts + Activity */}
+            <div className="xl:col-span-2 space-y-6">
+              <GrowthChart products={products} />
+              <RecentActivity products={products} loading={loading} />
+            </div>
 
-        {/* Right: Sidebar widgets */}
-        <div className="space-y-6">
-          <LowStockAlerts />
+            {/* Right: Sidebar widgets */}
+            <div className="space-y-6">
 
-          {/* Product Status Overview */}
-          <Card className="border-border shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-semibold text-foreground">Product Status</CardTitle>
-              <CardDescription className="text-xs">Distribution across your catalog</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {[
-                {
-                  label: 'Draft',
-                  count: analytics.draftProducts,
-                  icon: FileText,
-                  bg: 'bg-zinc-100 dark:bg-zinc-800',
-                  text: 'text-zinc-500',
-                  dot: 'bg-zinc-400',
-                },
-                {
-                  label: 'In Progress',
-                  count: analytics.inProgressProducts,
-                  icon: Clock,
-                  bg: 'bg-amber-50 dark:bg-amber-900/10',
-                  text: 'text-amber-600 dark:text-amber-400',
-                  dot: 'bg-amber-400',
-                },
-                {
-                  label: 'On Sale',
-                  count: analytics.onSaleProducts,
-                  icon: CheckCircle2,
-                  bg: 'bg-emerald-50 dark:bg-emerald-900/10',
-                  text: 'text-emerald-600 dark:text-emerald-400',
-                  dot: 'bg-emerald-500',
-                },
-              ].map(({ label, count, icon: Icon, bg, text, dot }) => (
-                <div
-                  key={label}
-                  className={cn(
-                    'flex items-center justify-between p-3 rounded-lg transition-colors',
-                    bg,
-                  )}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={cn('h-1.5 w-1.5 rounded-full shrink-0', dot)} />
-                    <Icon className={cn('h-3.5 w-3.5', text)} />
-                    <span className={cn('text-sm font-medium', text)}>{label}</span>
-                  </div>
-                  <span className={cn('text-sm font-bold tabular-nums', text)}>{count}</span>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
+              {/* Product Status Overview — most actionable, first */}
+              <Card className="border-border shadow-sm">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-semibold text-foreground">Product Status</CardTitle>
+                  <CardDescription className="text-xs">Distribution across your catalog</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <DonutChart
+                    slices={[
+                      { label: 'Draft',       value: analytics.draftProducts,      color: '#a1a1aa' },
+                      { label: 'In Progress', value: analytics.inProgressProducts,  color: '#f59e0b' },
+                      { label: 'On Sale',     value: analytics.onSaleProducts,      color: '#10b981' },
+                    ]}
+                    emptyText="No products yet"
+                  />
+                </CardContent>
+              </Card>
 
-          {/* Category Overview */}
-          <Card className="border-border shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-semibold text-foreground">Top Categories</CardTitle>
-              <CardDescription className="text-xs">By product volume</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {analytics.sortedCategories.length > 0 ? (
-                <div className="space-y-2">
-                  {analytics.sortedCategories.map(([name, count], index) => {
-                    const pct = Math.round((count / analytics.totalProducts) * 100);
-                    const colors = [
-                      { bar: 'bg-brand-700', text: 'text-brand-900' },
-                      { bar: 'bg-sky-400',   text: 'text-sky-700' },
-                      { bar: 'bg-emerald-400', text: 'text-emerald-700' },
-                      { bar: 'bg-brand-300', text: 'text-brand-700' },
-                      { bar: 'bg-warm-500',  text: 'text-warm-700' },
-                    ];
-                    const c = colors[index] ?? colors[4];
-                    return (
-                      <div key={name} className="space-y-1">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <Tag className={cn('h-3 w-3', c.text)} />
-                            <span className="text-xs font-medium text-foreground truncate max-w-[120px]">{name}</span>
-                          </div>
-                          <span className="text-xs font-bold tabular-nums text-muted-foreground">{count}</span>
-                        </div>
-                        <div className="h-1 bg-muted rounded-full overflow-hidden">
-                          <div
-                            className={cn('h-full rounded-full transition-all duration-500', c.bar)}
-                            style={{ width: `${pct}%` }}
-                          />
-                        </div>
+              {/* Quick Actions — second */}
+              <Card className="border-border shadow-sm">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-semibold text-foreground">Quick Actions</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {[
+                    {
+                      label: 'Add New Product',
+                      description: 'Set costs & target price',
+                      icon: Plus,
+                      onClick: () => navigate('/products/add'),
+                      accent: 'hover:border-primary/40 hover:bg-primary/5',
+                      iconBg: 'bg-primary/10 text-primary',
+                    },
+                    {
+                      label: 'Manage Materials',
+                      description: 'Track your inventory',
+                      icon: Box,
+                      onClick: () => navigate('/materials'),
+                      accent: 'hover:border-sky-300 hover:bg-sky-50',
+                      iconBg: 'bg-sky-100 text-sky-600',
+                    },
+                    {
+                      label: 'View On Sale',
+                      description: 'Active listings',
+                      icon: Sparkles,
+                      onClick: () => navigate('/products?status=on_sale'),
+                      accent: 'hover:border-emerald-300 hover:bg-emerald-50',
+                      iconBg: 'bg-emerald-100 text-emerald-600',
+                    },
+                  ].map(({ label, description, icon: Icon, onClick, accent, iconBg }) => (
+                    <button
+                      key={label}
+                      onClick={onClick}
+                      className={cn(
+                        'w-full flex items-center gap-3 p-3 rounded-lg border border-border',
+                        'text-left transition-all duration-150 group',
+                        accent,
+                      )}
+                    >
+                      <div className={cn('h-8 w-8 rounded-lg flex items-center justify-center shrink-0', iconBg)}>
+                        <Icon className="h-4 w-4" />
                       </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p className="text-center py-6 text-sm text-muted-foreground">
-                  No categories yet
-                </p>
-              )}
-            </CardContent>
-          </Card>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-foreground leading-none mb-0.5">{label}</p>
+                        <p className="text-xs text-muted-foreground">{description}</p>
+                      </div>
+                      <ArrowRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors shrink-0" />
+                    </button>
+                  ))}
+                </CardContent>
+              </Card>
 
-          {/* Quick Actions */}
-          <Card className="border-border shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-semibold text-foreground">Quick Actions</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {[
-                {
-                  label: 'Add New Product',
-                  description: 'Set costs & target price',
-                  icon: Plus,
-                  onClick: () => navigate('/products/add'),
-                  accent: 'hover:border-primary/40 hover:bg-primary/5',
-                  iconBg: 'bg-primary/10 text-primary',
-                },
-                {
-                  label: 'Manage Materials',
-                  description: 'Track your inventory',
-                  icon: Box,
-                  onClick: () => navigate('/materials'),
-                  accent: 'hover:border-sky-300 hover:bg-sky-50',
-                  iconBg: 'bg-sky-100 text-sky-600',
-                },
-                {
-                  label: 'View On Sale',
-                  description: 'Active listings',
-                  icon: Sparkles,
-                  onClick: () => navigate('/on-sale'),
-                  accent: 'hover:border-emerald-300 hover:bg-emerald-50',
-                  iconBg: 'bg-emerald-100 text-emerald-600',
-                },
-              ].map(({ label, description, icon: Icon, onClick, accent, iconBg }) => (
-                <button
-                  key={label}
-                  onClick={onClick}
-                  className={cn(
-                    'w-full flex items-center gap-3 p-3 rounded-lg border border-border',
-                    'text-left transition-all duration-150 group',
-                    accent,
-                  )}
-                >
-                  <div className={cn('h-8 w-8 rounded-lg flex items-center justify-center shrink-0', iconBg)}>
-                    <Icon className="h-4 w-4" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground leading-none mb-0.5">{label}</p>
-                    <p className="text-xs text-muted-foreground">{description}</p>
-                  </div>
-                  <ArrowRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors shrink-0" />
-                </button>
-              ))}
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+              {/* Category Overview */}
+              <Card className="border-border shadow-sm">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-semibold text-foreground">Top Categories</CardTitle>
+                  <CardDescription className="text-xs">By product volume</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <DonutChart
+                    slices={analytics.sortedCategories.map(([name, count], i) => ({
+                      label: name,
+                      value: count,
+                      color: ['#c2410c', '#38bdf8', '#34d399', '#fdba74', '#a08060'][i] ?? '#a08060',
+                    }))}
+                    emptyText="No categories yet"
+                  />
+                </CardContent>
+              </Card>
+
+              {/* Low Stock Alerts — last */}
+              <LowStockAlerts />
+
+            </div>
+          </div>
+        </>
+      )}
+
     </div>
   );
 }

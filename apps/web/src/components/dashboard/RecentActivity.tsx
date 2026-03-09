@@ -45,8 +45,8 @@ const statusConfig: Record<string, { label: string; icon: typeof CheckCircle2; c
     in_progress: {
         label: 'In Progress',
         icon: Clock,
-        color: 'text-blue-600 dark:text-blue-400',
-        bgColor: 'bg-blue-100 dark:bg-blue-900/20',
+        color: 'text-amber-600 dark:text-amber-400',
+        bgColor: 'bg-amber-50 dark:bg-amber-900/10',
     },
     on_sale: {
         label: 'On Sale',
@@ -137,7 +137,7 @@ export function RecentActivity({ products, loading }: RecentActivityProps) {
                                     <TableRow
                                         key={product.id}
                                         className="cursor-pointer hover:bg-muted/50"
-                                        onClick={() => navigate(`/products`)}
+                                        onClick={() => navigate(`/products/${product.id}/edit`)}
                                     >
                                         <TableCell className="font-medium">
                                             <div className="flex flex-col">
