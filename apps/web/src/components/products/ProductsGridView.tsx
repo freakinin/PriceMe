@@ -23,7 +23,6 @@ type Props = Pick<ProductsPageState,
   | 'setProductCategoryIds'
   | 'handleSaveField'
   | 'handleDeleteClick'
-  | 'setEditingProductId'
   | 'updatingProductId'
   | 'updatingCategoryProductId'
   | 'setUpdatingCategoryProductId'
@@ -53,7 +52,6 @@ export function ProductsGridView({
   setProductCategoryIds,
   handleSaveField,
   handleDeleteClick,
-  setEditingProductId,
   updatingProductId,
   updatingCategoryProductId,
   setUpdatingCategoryProductId,

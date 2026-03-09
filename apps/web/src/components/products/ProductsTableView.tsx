@@ -44,7 +44,6 @@ type Props = Pick<ProductsPageState,
   | 'handleSaveField'
   | 'handleSavePricingValue'
   | 'handleDeleteClick'
-  | 'setEditingProductId'
   | 'updatingProductId'
   | 'updatingCategoryProductId'
   | 'setUpdatingCategoryProductId'
@@ -80,7 +79,6 @@ export function ProductsTableView({
   handleSaveField,
   handleSavePricingValue,
   handleDeleteClick,
-  setEditingProductId,
   updatingProductId,
   updatingCategoryProductId,
   setUpdatingCategoryProductId,
