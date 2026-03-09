@@ -147,7 +147,6 @@ export default function Products() {
           handleSaveField={state.handleSaveField}
           handleSavePricingValue={state.handleSavePricingValue}
           handleDeleteClick={state.handleDeleteClick}
-          setEditingProductId={state.setEditingProductId}
           updatingProductId={state.updatingProductId}
           updatingCategoryProductId={state.updatingCategoryProductId}
           setUpdatingCategoryProductId={state.setUpdatingCategoryProductId}
@@ -171,7 +170,6 @@ export default function Products() {
           setProductCategoryIds={state.setProductCategoryIds}
           handleSaveField={state.handleSaveField}
           handleDeleteClick={state.handleDeleteClick}
-          setEditingProductId={state.setEditingProductId}
           updatingProductId={state.updatingProductId}
           updatingCategoryProductId={state.updatingCategoryProductId}
           setUpdatingCategoryProductId={state.setUpdatingCategoryProductId}
