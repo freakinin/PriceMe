@@ -125,7 +125,6 @@ app.use('/api/competitors', competitorRoutes);
 app.use('/api/suppliers', supplierRoutes);
 app.use('/api/export', exportRoutes);
 
-import notificationRoutes from './routes/notifications.js';
 import platformFeesRoutes from './routes/platformFees.js';
 import shippingMethodsRoutes from './routes/shippingMethods.js';
 import subscriptionRoutes from './routes/subscription.js';
@@ -135,7 +134,6 @@ import supportRoutes from './routes/support.js';
 import { PriceMonitorJob } from './jobs/priceMonitor.js';
 import { NotionSyncJob } from './jobs/notionSync.js';
 
-app.use('/api/notifications', notificationRoutes);
 app.use('/api/platform-fees', platformFeesRoutes);
 app.use('/api/shipping-methods', shippingMethodsRoutes);
 app.use('/api/subscription', subscriptionRoutes);

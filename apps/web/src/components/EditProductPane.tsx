@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 
@@ -20,7 +21,6 @@ import { useProducts } from '@/hooks/useProducts';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { CategorySelect } from '@/components/CategorySelect';
-import { MarketAnalysisPanel } from '@/components/MarketAnalysisPanel';
 import { ProductVariationsModal, type Variant } from '@/components/products/ProductVariationsModal';
 import { PriceCalculatorPanel } from '@/components/products/PriceCalculatorPanel';
 
@@ -57,10 +57,8 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
   const { settings } = useSettings();
   const { toast } = useToast();
   const { updateProduct } = useProducts();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('basic');
-
-  // New State for Split View
-  const [isMarketAnalysisOpen, setIsMarketAnalysisOpen] = useState(false);
 
   // Variations State
   const [variants, setVariants] = useState<Variant[]>([]);
@@ -235,7 +233,7 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent
           side="right"
-          className={`transition-all duration-300 ease-in-out ${isMarketAnalysisOpen ? 'w-screen sm:max-w-none sm:w-[95vw]' : 'w-full sm:max-w-2xl'} overflow-y-auto p-0 flex flex-col`}
+          className="w-full sm:max-w-2xl overflow-y-auto p-0 flex flex-col"
         >
           {/* Header */}
           <div className="flex-none p-6 pb-2">
@@ -253,13 +251,13 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
                   <Settings2 className="h-4 w-4" />
                 </Button>
 
-                {/* Toggle Market Analysis Button */}
+                {/* Market Analysis Button — navigates to full page */}
                 <Button
-                  variant={isMarketAnalysisOpen ? "secondary" : "ghost"}
+                  variant="ghost"
                   size="icon"
-                  onClick={() => setIsMarketAnalysisOpen(!isMarketAnalysisOpen)}
+                  onClick={() => { onOpenChange(false); navigate(`/market-analysis?productId=${productId}`); }}
                   className="h-9 w-9"
-                  title={isMarketAnalysisOpen ? 'Close Market Analysis' : 'Competitor Analysis'}
+                  title="Competitor Analysis"
                 >
                   <BarChart2 className="h-4 w-4" />
                 </Button>
@@ -267,10 +265,8 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
             </SheetHeader>
           </div>
 
-          {/* Main Content Area - Split View */}
-          <div className={`flex-1 flex overflow-hidden`}>
-            {/* Left/Main Panel: Product Form */}
-            <div className={`flex-1 overflow-y-auto p-6 pt-2 h-full ${isMarketAnalysisOpen ? 'border-r' : ''}`}>
+          {/* Main Content Area */}
+          <div className="flex-1 overflow-y-auto p-6 pt-2">
               {isLoadingProduct || !product ? (
                 <div className="py-8 text-center text-muted-foreground">Loading product data...</div>
               ) : (
@@ -362,21 +358,6 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
                 </div>
               )}
             </div>
-
-            {/* Right Panel: Market Analysis */}
-            {isMarketAnalysisOpen && product && (
-              <div className="flex-1 w-1/2 overflow-hidden h-full">
-                {/* w-1/2 ensures it takes half space when in flex container */}
-                <MarketAnalysisPanel
-                  product={{
-                    ...product,
-                    target_price: currentPrice
-                  }}
-                  currency={settings?.currency || 'USD'}
-                />
-              </div>
-            )}
-          </div>
         </SheetContent>
       </Sheet>
 

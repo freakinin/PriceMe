@@ -1,6 +1,6 @@
 
 import { Router } from 'express';
-import { trackCompetitorProduct, getTrackedProducts, deleteTrackedProduct, updateTrackedProduct, getCompetitiveInsights, getSavedInsights } from '../controllers/competitor.controller.js';
+import { trackCompetitorProduct, getTrackedProducts, deleteTrackedProduct, updateTrackedProduct, getCompetitiveInsights, getSavedInsights, refreshTrackedProduct } from '../controllers/competitor.controller.js';
 import { authenticate } from '../middleware/auth.js';
 
 const router = Router();
@@ -13,6 +13,9 @@ router.post('/track', trackCompetitorProduct);
 
 // GET /api/competitors - Get all tracked products
 router.get('/', getTrackedProducts);
+
+// POST /api/competitors/:id/refresh - Re-run AI analysis on a tracked product
+router.post('/:id/refresh', refreshTrackedProduct);
 
 // PATCH /api/competitors/:id - Update a tracked product
 router.patch('/:id', updateTrackedProduct);

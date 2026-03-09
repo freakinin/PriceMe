@@ -399,6 +399,74 @@ export const updateTrackedProduct = async (req: Request, res: Response): Promise
 };
 
 /**
+ * Refresh a tracked product by re-running AI analysis on its URL.
+ */
+export const refreshTrackedProduct = async (req: Request, res: Response): Promise<Response | void> => {
+    try {
+        const { id } = req.params;
+        const userId = (req as any).userId;
+
+        const existing = await db`
+            SELECT tp.*
+            FROM tracked_products tp
+            JOIN competitors c ON tp.competitor_id = c.id
+            WHERE tp.id = ${Number(id)} AND c.user_id = ${userId}
+        `;
+
+        if (existing.rows.length === 0) {
+            return res.status(404).json({ error: 'Tracked product not found or unauthorized' });
+        }
+
+        const product = existing.rows[0];
+
+        let analysis;
+        try {
+            analysis = await AIService.analyzeProduct(product.url);
+        } catch (aiError: any) {
+            console.warn('AI Analysis failed during refresh:', aiError.message);
+            return res.status(422).json({ error: `AI Analysis failed: ${aiError.message}` });
+        }
+
+        if (!analysis || !analysis.price || analysis.price === 0) {
+            return res.status(422).json({
+                error: 'Could not extract price from URL. Try again or update manually.'
+            });
+        }
+
+        const oldPrice = parseFloat(product.current_price);
+        const newPrice = analysis.price;
+
+        await db`
+            UPDATE tracked_products
+            SET
+                title = ${analysis.title},
+                current_price = ${newPrice},
+                currency = ${analysis.currency || product.currency},
+                materials_analysis = ${JSON.stringify(analysis.materials)},
+                quality_score = ${analysis.quality_score},
+                image_quality_score = ${analysis.image_quality_score},
+                description_score = ${analysis.description_score},
+                ai_analysis_summary = ${analysis.ai_analysis_summary},
+                last_scraped_at = NOW(),
+                updated_at = NOW()
+            WHERE id = ${Number(id)}
+        `;
+
+        if (newPrice !== oldPrice) {
+            await db`
+                INSERT INTO price_history (tracked_product_id, price)
+                VALUES (${Number(id)}, ${newPrice})
+            `;
+        }
+
+        res.json({ message: 'Product refreshed successfully', analysis });
+    } catch (error: any) {
+        console.error('Error refreshing tracked product:', error);
+        res.status(500).json({ error: 'Failed to refresh tracked product' });
+    }
+};
+
+/**
  * Delete a tracked product.
  */
 export const deleteTrackedProduct = async (req: Request, res: Response): Promise<Response | void> => {

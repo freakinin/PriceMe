@@ -4,7 +4,6 @@ import { AlertTriangle, HelpCircle, Gift } from 'lucide-react';
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from './AppSidebar';
 import { SettingsDialog } from './SettingsDialog';
-import { NotificationBell } from './NotificationBell';
 import { useSubscription } from '@/hooks/useSubscription';
 import { openSettingsAt } from '@/lib/openSettings';
 import { TourProvider } from './onboarding/TourContext';
@@ -102,7 +101,6 @@ export function AppLayout({ children }: AppLayoutProps) {
                   <HelpCircle className="h-4 w-4" />
                 </button>
               )}
-              <NotificationBell />
             </div>
           </div>
           {/* Trial expiry banner — appears 14 days before end */}

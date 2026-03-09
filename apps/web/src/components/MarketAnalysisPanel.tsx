@@ -95,6 +95,7 @@ export function MarketAnalysisPanel({ product, currency }: MarketAnalysisPanelPr
         notes: ''
     });
     const [isUpdating, setIsUpdating] = useState(false);
+    const [refreshingId, setRefreshingId] = useState<number | null>(null);
 
     // AI Insights state
     const [insights, setInsights] = useState<CompetitiveInsights | null>(null);
@@ -290,6 +291,21 @@ export function MarketAnalysisPanel({ product, currency }: MarketAnalysisPanelPr
             toast({ title: 'Deleted', description: 'Competitor removed' });
         } catch (err) {
             toast({ variant: 'destructive', title: 'Error', description: 'Failed to delete' });
+        }
+    };
+
+    const handleRefresh = async (p: TrackedProduct) => {
+        setRefreshingId(p.id);
+        try {
+            await api.post(`/competitors/${p.id}/refresh`);
+            const res = await api.get(`/competitors?productId=${productId}`);
+            setTrackedProducts(res.data);
+            toast({ title: 'Synced', description: `${p.title} price updated` });
+        } catch (err: any) {
+            const msg = err?.response?.data?.error || 'Failed to sync price';
+            toast({ variant: 'destructive', title: 'Sync failed', description: msg });
+        } finally {
+            setRefreshingId(null);
         }
     };
 
@@ -580,6 +596,16 @@ export function MarketAnalysisPanel({ product, currency }: MarketAnalysisPanelPr
                                                 </div>
 
                                                 <div className="flex items-center gap-1">
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="h-6 w-6 p-0 text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                                                        onClick={() => handleRefresh(p)}
+                                                        disabled={refreshingId === p.id}
+                                                        title="Sync latest price"
+                                                    >
+                                                        <RefreshCw className={`h-3.5 w-3.5 ${refreshingId === p.id ? 'animate-spin' : ''}`} />
+                                                    </Button>
                                                     <Button
                                                         variant="ghost"
                                                         size="sm"
