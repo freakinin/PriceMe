@@ -226,6 +226,21 @@ function SortableWidget({
 
 type ProductStatus = 'draft' | 'in_progress' | 'on_sale' | 'inactive';
 
+// ── Date filter ────────────────────────────────────────────────────────────
+type DatePreset = '7d' | '30d' | '3m' | '1y' | 'all';
+const DATE_PRESET_LABELS: Record<DatePreset, string> = { '7d': '7d', '30d': '30d', '3m': '3m', '1y': '1y', all: 'All' };
+function getDateFrom(preset: DatePreset): Date | null {
+  const now = new Date();
+  switch (preset) {
+    case '7d':  { const d = new Date(now); d.setDate(d.getDate() - 7);   return d; }
+    case '30d': { const d = new Date(now); d.setDate(d.getDate() - 30);  return d; }
+    case '3m':  { const d = new Date(now); d.setMonth(d.getMonth() - 3); return d; }
+    case '1y':  { const d = new Date(now); d.setFullYear(d.getFullYear() - 1); return d; }
+    default: return null;
+  }
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 interface Product {
   id: number;
   name: string;
@@ -248,6 +263,7 @@ export default function Home() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAfterTax, setShowAfterTax] = useState(false);
+  const [datePreset, setDatePreset] = useState<DatePreset>('all');
   const { categories } = useCategories();
   const { profile, isProfileLoading } = useCoach();
   const [nudgeDismissed, setNudgeDismissed] = useState(
@@ -369,6 +385,20 @@ export default function Home() {
     };
   }, [products, categories]);
 
+  // ── Date-filtered product subsets (for chart + activity only) ────────────
+  const chartProducts = useMemo(() => {
+    const from = getDateFrom(datePreset);
+    if (!from) return products;
+    return products.filter(p => p.created_at && new Date(p.created_at) >= from);
+  }, [products, datePreset]);
+
+  const activityProducts = useMemo(() => {
+    const from = getDateFrom(datePreset);
+    if (!from) return products;
+    return products.filter(p => p.updated_at && new Date(p.updated_at) >= from);
+  }, [products, datePreset]);
+  // ─────────────────────────────────────────────────────────────────────────
+
   const formatCurrencyValue = (value: number | null | undefined) =>
     value == null ? '-' : formatCurrency(value, settings.currency);
 
@@ -452,8 +482,8 @@ export default function Home() {
   // ── Left widget renderer ──────────────────────────────────────────────────
   const renderLeftWidget = (id: LeftWidgetId) => {
     switch (id) {
-      case 'growth_chart': return <GrowthChart products={products} />;
-      case 'recent_activity': return <RecentActivity products={products} loading={loading} />;
+      case 'growth_chart': return <GrowthChart products={chartProducts} />;
+      case 'recent_activity': return <RecentActivity products={activityProducts} loading={loading} />;
     }
   };
 
@@ -547,6 +577,26 @@ export default function Home() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {/* Date filter pill group */}
+          <div className="flex items-center border border-border rounded-lg overflow-hidden">
+            {(Object.keys(DATE_PRESET_LABELS) as DatePreset[]).map(preset => (
+              <button
+                key={preset}
+                type="button"
+                onClick={() => setDatePreset(preset)}
+                className={cn(
+                  'px-2.5 h-8 text-xs font-medium transition-colors',
+                  preset !== 'all' && 'border-r border-border',
+                  datePreset === preset
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted/50 text-muted-foreground hover:bg-muted',
+                )}
+              >
+                {DATE_PRESET_LABELS[preset]}
+              </button>
+            ))}
+          </div>
+
           {taxRate > 0 && (
             <TooltipProvider>
               <Tooltip>
