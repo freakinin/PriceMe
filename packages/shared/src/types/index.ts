@@ -117,6 +117,15 @@ export interface CoachChatMessage {
   created_at: Date;
 }
 
+export interface CoachChatSession {
+  id: number;
+  session_id: string;
+  title: string | null;
+  created_at: Date;
+  last_message_at: Date;
+  message_count: number;
+}
+
 export interface CoachReport {
   id: number;
   user_id: number;

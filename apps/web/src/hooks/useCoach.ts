@@ -1,18 +1,21 @@
+import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import type {
   CoachProfile,
   CoachInsight,
   CoachChatMessage,
+  CoachChatSession,
   CoachReport,
   HealthScore,
   ReportType,
 } from '@priceme/shared';
 
-export type { CoachProfile, CoachInsight, CoachChatMessage, CoachReport, HealthScore, ReportType };
+export type { CoachProfile, CoachInsight, CoachChatMessage, CoachChatSession, CoachReport, HealthScore, ReportType };
 
 export function useCoach() {
   const queryClient = useQueryClient();
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
 
   // ─── Profile ──────────────────────────────────────────────────────────────
 
@@ -96,16 +99,72 @@ export function useCoach() {
     },
   });
 
-  // ─── Chat ─────────────────────────────────────────────────────────────────
+  // ─── Chat Sessions ────────────────────────────────────────────────────────
+
+  const chatSessionsQuery = useQuery({
+    queryKey: ['coach', 'chat-sessions'],
+    queryFn: async (): Promise<CoachChatSession[]> => {
+      const response = await api.get('/coach/chat/sessions');
+      if (response.data.status === 'success') return response.data.data;
+      throw new Error('Failed to load chat sessions');
+    },
+    enabled: !!profileQuery.data,
+  });
+
+  // Derive the effective session ID — use user-selected one if set, otherwise fall back to most recent
+  const resolvedSessionId = activeSessionId ?? (chatSessionsQuery.data?.[0]?.session_id ?? null);
+
+  const createChatSessionMutation = useMutation({
+    mutationFn: async (): Promise<{ session_id: string }> => {
+      const response = await api.post('/coach/chat/sessions');
+      if (response.data.status === 'success') return response.data.data;
+      throw new Error('Failed to create session');
+    },
+    onSuccess: (data) => {
+      setActiveSessionId(data.session_id);
+      queryClient.invalidateQueries({ queryKey: ['coach', 'chat-sessions'] });
+    },
+  });
+
+  // Auto-create the very first session when sessions finish loading empty
+  const hasAutoCreated = useRef(false);
+  useEffect(() => {
+    if (
+      !hasAutoCreated.current &&
+      !chatSessionsQuery.isLoading &&
+      chatSessionsQuery.data?.length === 0
+    ) {
+      hasAutoCreated.current = true;
+      createChatSessionMutation.mutate();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatSessionsQuery.isLoading, chatSessionsQuery.data?.length]);
+
+  const deleteChatSessionMutation = useMutation({
+    mutationFn: async (session_id: string) => {
+      await api.delete(`/coach/chat/sessions/${session_id}`);
+      return session_id;
+    },
+    onSuccess: (deletedId) => {
+      // If the deleted session was active, clear it so the next session is auto-resolved
+      if (resolvedSessionId === deletedId) {
+        setActiveSessionId(null);
+      }
+      queryClient.invalidateQueries({ queryKey: ['coach', 'chat-sessions'] });
+      queryClient.removeQueries({ queryKey: ['coach', 'chat-messages', deletedId] });
+    },
+  });
+
+  // ─── Chat Messages ────────────────────────────────────────────────────────
 
   const chatHistoryQuery = useQuery({
-    queryKey: ['coach', 'chat-history'],
+    queryKey: ['coach', 'chat-messages', resolvedSessionId],
     queryFn: async (): Promise<CoachChatMessage[]> => {
-      const response = await api.get('/coach/chat/history');
+      const response = await api.get(`/coach/chat/sessions/${resolvedSessionId}/messages`);
       if (response.data.status === 'success') return response.data.data;
       throw new Error('Failed to load chat history');
     },
-    enabled: !!profileQuery.data,
+    enabled: !!profileQuery.data && !!resolvedSessionId,
   });
 
   const sendChatMutation = useMutation({
@@ -124,21 +183,24 @@ export function useCoach() {
         session_id,
         created_at: new Date(),
       };
-      queryClient.setQueryData<CoachChatMessage[]>(['coach', 'chat-history'], (old) => [
+      queryClient.setQueryData<CoachChatMessage[]>(['coach', 'chat-messages', session_id], (old) => [
         ...(old ?? []),
         optimisticUserMsg,
       ]);
     },
     onSuccess: (assistantMessage) => {
+      const sid = assistantMessage.session_id;
       // Append the assistant reply — user message is already in the cache
-      queryClient.setQueryData<CoachChatMessage[]>(['coach', 'chat-history'], (old) => [
+      queryClient.setQueryData<CoachChatMessage[]>(['coach', 'chat-messages', sid], (old) => [
         ...(old ?? []),
         assistantMessage,
       ]);
+      // Refresh sessions to update title + last_message_at
+      queryClient.invalidateQueries({ queryKey: ['coach', 'chat-sessions'] });
     },
-    onError: () => {
+    onError: (_err, { session_id }) => {
       // Roll back the optimistic user message on failure
-      queryClient.invalidateQueries({ queryKey: ['coach', 'chat-history'] });
+      queryClient.invalidateQueries({ queryKey: ['coach', 'chat-messages', session_id] });
     },
   });
 
@@ -208,7 +270,16 @@ export function useCoach() {
     isGeneratingInsights: generateInsightsMutation.isPending,
     updateInsightStatus: updateInsightStatusMutation.mutateAsync,
 
-    // Chat
+    // Chat sessions
+    chatSessions: chatSessionsQuery.data ?? [],
+    isChatSessionsLoading: chatSessionsQuery.isLoading,
+    activeSessionId: resolvedSessionId,
+    setActiveSessionId,
+    createChatSession: createChatSessionMutation.mutateAsync,
+    isCreatingChatSession: createChatSessionMutation.isPending,
+    deleteChatSession: deleteChatSessionMutation.mutateAsync,
+
+    // Chat messages
     chatHistory: chatHistoryQuery.data ?? [],
     isChatHistoryLoading: chatHistoryQuery.isLoading,
     sendChat: sendChatMutation.mutateAsync,

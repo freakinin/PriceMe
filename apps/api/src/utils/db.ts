@@ -1070,6 +1070,37 @@ export async function initializeDatabase() {
       );
     `;
 
+    // Create coach_chat_sessions table
+    await sql`
+      CREATE TABLE IF NOT EXISTS coach_chat_sessions (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+        session_id VARCHAR(36) NOT NULL UNIQUE,
+        title VARCHAR(255),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_message_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+    try {
+      await sql`CREATE INDEX IF NOT EXISTS idx_coach_chat_sessions_user_id ON coach_chat_sessions(user_id)`;
+    } catch (e: any) {
+      console.log('Note: Index creation for coach_chat_sessions:', e.message);
+    }
+
+    // Backfill sessions from existing chat messages (idempotent)
+    await sql`
+      INSERT INTO coach_chat_sessions (user_id, session_id, title, created_at, last_message_at)
+      SELECT
+        user_id,
+        session_id,
+        'Previous Conversation',
+        MIN(created_at),
+        MAX(created_at)
+      FROM coach_chat_messages
+      WHERE session_id NOT IN (SELECT session_id FROM coach_chat_sessions)
+      GROUP BY user_id, session_id
+    `;
+
     // Create promo_codes table
     await sql`
       CREATE TABLE IF NOT EXISTS promo_codes (
