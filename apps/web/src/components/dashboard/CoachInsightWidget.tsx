@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-import type { CoachInsight } from '@shared/types';
+import type { CoachInsight } from '@priceme/shared';
 
 interface CoachInsightWidgetProps {
   insights: CoachInsight[];

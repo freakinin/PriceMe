@@ -1,10 +1,9 @@
-import { useNavigate } from 'react-router-dom';
 import { BrainCircuit, ArrowRight } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-import type { HealthScore } from '@shared/types';
+import type { HealthScore } from '@priceme/shared';
 
 interface CoachHealthWidgetProps {
   healthScore: HealthScore | null;
