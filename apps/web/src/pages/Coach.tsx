@@ -191,8 +191,8 @@ export default function Coach() {
             sessions={chatSessions}
             activeSessionId={activeSessionId}
             onSelectSession={setActiveSessionId}
-            onNewChat={createChatSession}
-            onDeleteSession={deleteChatSession}
+            onNewChat={async () => { await createChatSession(); }}
+            onDeleteSession={async (id) => { await deleteChatSession(id); }}
             isSending={isSendingChat}
             isCreatingSession={isCreatingChatSession}
             isChatSessionsLoading={isChatSessionsLoading}
