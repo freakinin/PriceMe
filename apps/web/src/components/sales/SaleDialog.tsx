@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { formatCurrency } from '@/utils/currency';
 import { useSettings } from '@/hooks/useSettings';
@@ -123,15 +124,6 @@ export function SaleDialog({ open, onOpenChange, product, onSave }: SaleDialogPr
                 </DialogHeader>
 
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-                    {/* Product & Variant */}
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <Label>Product</Label>
-                            <Input value={product.name} disabled className="bg-muted" />
-                        </div>
-                        {/* Variant selector placeholder */}
-                    </div>
-
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label>Quantity</Label>
@@ -260,7 +252,7 @@ export function SaleDialog({ open, onOpenChange, product, onSave }: SaleDialogPr
 
                     <div className="space-y-2">
                         <Label>Notes</Label>
-                        <Input {...register('notes')} placeholder="Optional notes about this sale" />
+                        <Textarea {...register('notes')} placeholder="Optional notes about this sale" rows={2} />
                     </div>
 
                     {/* Summary */}
@@ -278,7 +270,22 @@ export function SaleDialog({ open, onOpenChange, product, onSave }: SaleDialogPr
                             <span className="font-semibold text-base">Total Revenue</span>
                             <span className="text-xl font-bold text-primary">{formatCurrency(totalRevenue, settings.currency)}</span>
                         </div>
-                        {/* Optional profit preview if we had cost available */}
+                        {product.product_cost != null && product.product_cost > 0 && (
+                            <>
+                                <div className="h-px bg-border my-1" />
+                                <div className="flex justify-between items-center text-sm">
+                                    <span className="text-muted-foreground">Est. Profit (this sale)</span>
+                                    {(() => {
+                                        const estProfit = totalRevenue - product.product_cost! * quantity;
+                                        return (
+                                            <span className={estProfit >= 0 ? 'font-medium text-green-600' : 'font-medium text-red-600'}>
+                                                {formatCurrency(estProfit, settings.currency)}
+                                            </span>
+                                        );
+                                    })()}
+                                </div>
+                            </>
+                        )}
                     </div>
 
                     <DialogFooter>

@@ -1,9 +1,16 @@
-import { PlusCircle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { PlusCircle, MoreHorizontal, Edit, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { EditableCell } from '@/components/EditableCell';
 import { type Product } from '@/hooks/useProducts';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 interface Props {
   products: Product[];
@@ -13,6 +20,7 @@ interface Props {
   formatPercentage: (v: number | null | undefined) => string;
   onRecordSale: (product: Product) => void;
   handleSaveField: (productId: number, field: string, value: string | number) => Promise<void>;
+  onRemoveFromSale: (product: Product) => void;
 }
 
 export function OnSaleCardView({
@@ -23,7 +31,10 @@ export function OnSaleCardView({
   formatPercentage,
   onRecordSale,
   handleSaveField,
+  onRemoveFromSale,
 }: Props) {
+  const navigate = useNavigate();
+
   if (products.length === 0) return null;
 
   return (
@@ -56,9 +67,35 @@ export function OnSaleCardView({
                       <span className="text-xs text-muted-foreground truncate">{product.sku || '—'}</span>
                     </div>
                   </div>
-                  <Badge className="bg-[#11743B] text-white border-transparent shrink-0 text-xs whitespace-nowrap">
-                    {formatCurrencyValue(product.target_price)}
-                  </Badge>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Badge className="bg-[#11743B] text-white border-transparent text-xs whitespace-nowrap">
+                      {formatCurrencyValue(product.target_price)}
+                    </Badge>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground">
+                          <MoreHorizontal className="h-3.5 w-3.5" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => navigate(`/products/${product.id}/edit`)}>
+                          <Edit className="h-4 w-4 mr-2" />
+                          Edit Product
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onRecordSale(product)}>
+                          <PlusCircle className="h-4 w-4 mr-2" />
+                          Record Sale
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive"
+                          onClick={() => onRemoveFromSale(product)}
+                        >
+                          <XCircle className="h-4 w-4 mr-2" />
+                          Remove from Sale
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 </div>
               </div>
 

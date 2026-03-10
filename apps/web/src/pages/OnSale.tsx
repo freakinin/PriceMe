@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
-import { ArrowUpDown, ArrowUp, ArrowDown, Search, DollarSign, TrendingUp, Package, ShoppingCart, ToggleLeft, ToggleRight, PlusCircle, History, Table2, LayoutGrid } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { ArrowUpDown, ArrowUp, ArrowDown, Search, DollarSign, TrendingUp, Package, ShoppingCart, ToggleLeft, ToggleRight, PlusCircle, History, Table2, LayoutGrid, MoreHorizontal, Edit, XCircle, Sparkles, Tag } from 'lucide-react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -22,6 +23,12 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useSettings } from '@/hooks/useSettings';
 import { useToast } from '@/components/ui/use-toast';
 import { formatCurrency } from '@/utils/currency';
@@ -35,6 +42,7 @@ import { calculateNetProfitWithFees, type PlatformFeeConfig } from '@/utils/prof
 import { track } from '@/lib/analytics';
 
 export default function OnSale() {
+  const navigate = useNavigate();
   const { settings } = useSettings();
   const { toast } = useToast();
   const { products: allProducts, isLoading: loadingProducts, updateProduct } = useProducts();
@@ -51,7 +59,7 @@ export default function OnSale() {
   // true = use total investment (Made × Cost), false = use COGS (Sold × Cost)
   const [useFullInvestment, setUseFullInvestment] = useState(true);
   const [showAfterTax, setShowAfterTax] = useState(false);
-  const [activeTab, setActiveTab] = useState<'table' | 'grid'>('table');
+  const [activeTab, setActiveTab] = useState<'table' | 'grid'>('grid');
 
   const [activeProductForSale, setActiveProductForSale] = useState<Product | null>(null);
   const [isSaleDialogOpen, setIsSaleDialogOpen] = useState(false);
@@ -181,6 +189,32 @@ export default function OnSale() {
     await fetchSales(); // Refresh list to update numbers
   };
 
+  const handleMarkAsOnSale = async (product: Product) => {
+    try {
+      await updateProduct({ id: product.id, data: { status: 'on_sale' } });
+      toast({ variant: 'success', title: 'Added to On Sale', description: `"${product.name}" is now listed for sale.` });
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: 'Error', description: error.message || 'Failed to update product status.' });
+    }
+  };
+
+  const handleRemoveFromSale = async (product: Product) => {
+    try {
+      await updateProduct({ id: product.id, data: { status: 'in_progress' } });
+      toast({
+        variant: 'success',
+        title: 'Removed from On Sale',
+        description: `"${product.name}" is now In Progress.`,
+      });
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: error.message || 'Failed to update product status.',
+      });
+    }
+  };
+
   const formatCurrencyValue = (value: number | null | undefined): string => {
     if (value === null || value === undefined) return '-';
     return formatCurrency(value, settings.currency);
@@ -219,7 +253,35 @@ export default function OnSale() {
       cell: ({ row }) => {
         const product = row.original;
         return (
-          <div className="font-medium py-1">{product.name}</div>
+          <div className="flex items-center gap-1 group/name py-1">
+            <span className="font-medium truncate">{product.name}</span>
+            <div className="flex items-center shrink-0 opacity-0 group-hover/name:opacity-100 transition-opacity ml-1">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground">
+                    <MoreHorizontal className="h-3.5 w-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuItem onClick={() => navigate(`/products/${product.id}/edit`)}>
+                    <Edit className="h-4 w-4 mr-2" />
+                    Edit Product
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleRecordSale(product)}>
+                    <PlusCircle className="h-4 w-4 mr-2" />
+                    Record Sale
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive"
+                    onClick={() => handleRemoveFromSale(product)}
+                  >
+                    <XCircle className="h-4 w-4 mr-2" />
+                    Remove from Sale
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
         );
       },
     },
@@ -573,7 +635,7 @@ export default function OnSale() {
         );
       },
     },
-  ], [salesByProduct, settings.currency, useFullInvestment]);
+  ], [salesByProduct, settings.currency, useFullInvestment, navigate]);
 
   const table = useReactTable({
     data: products,
@@ -598,6 +660,12 @@ export default function OnSale() {
       globalFilter,
     },
   });
+
+  // Products eligible to be listed (in_progress, up to 3 suggestions)
+  const suggestedProducts = useMemo(() =>
+    allProducts.filter(p => p.status === 'in_progress').slice(0, 3),
+    [allProducts]
+  );
 
   // Calculate analytics
   const analytics = useMemo(() => {
@@ -734,8 +802,8 @@ export default function OnSale() {
                       </p>
                     )}
                   </div>
-                  <div className="h-12 w-12 rounded-full bg-green-100 dark:bg-green-900/20 flex items-center justify-center">
-                    <DollarSign className="h-6 w-6 text-green-600 dark:text-green-400" />
+                  <div className="h-12 w-12 rounded-full bg-brand-100 flex items-center justify-center">
+                    <DollarSign className="h-6 w-6 text-brand-700" />
                   </div>
                 </div>
               </CardContent>
@@ -761,14 +829,8 @@ export default function OnSale() {
                       );
                     })()}
                   </div>
-                  <div className={`h-12 w-12 rounded-full flex items-center justify-center ${analytics.totalProfit >= 0
-                    ? 'bg-blue-100 dark:bg-blue-900/20'
-                    : 'bg-red-100 dark:bg-red-900/20'
-                    }`}>
-                    <TrendingUp className={`h-6 w-6 ${analytics.totalProfit >= 0
-                      ? 'text-blue-600 dark:text-blue-400'
-                      : 'text-red-600 dark:text-red-400'
-                      }`} />
+                  <div className={`h-12 w-12 rounded-full flex items-center justify-center ${analytics.totalProfit >= 0 ? 'bg-emerald-100' : 'bg-red-100'}`}>
+                    <TrendingUp className={`h-6 w-6 ${analytics.totalProfit >= 0 ? 'text-emerald-700' : 'text-red-600'}`} />
                   </div>
                 </div>
               </CardContent>
@@ -784,8 +846,8 @@ export default function OnSale() {
                       Avg Margin: {formatPercentage(showAfterTax ? afterTaxMargin : analytics.averageMargin)}
                     </p>
                   </div>
-                  <div className="h-12 w-12 rounded-full bg-purple-100 dark:bg-purple-900/20 flex items-center justify-center">
-                    <Package className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+                  <div className="h-12 w-12 rounded-full bg-warm-100 flex items-center justify-center">
+                    <Package className="h-6 w-6 text-warm-700" />
                   </div>
                 </div>
               </CardContent>
@@ -801,8 +863,8 @@ export default function OnSale() {
                       {analytics.totalMade} items made
                     </p>
                   </div>
-                  <div className="h-12 w-12 rounded-full bg-orange-100 dark:bg-orange-900/20 flex items-center justify-center">
-                    <ShoppingCart className="h-6 w-6 text-orange-600 dark:text-orange-400" />
+                  <div className="h-12 w-12 rounded-full bg-brand-100 flex items-center justify-center">
+                    <ShoppingCart className="h-6 w-6 text-brand-500" />
                   </div>
                 </div>
               </CardContent>
@@ -910,12 +972,42 @@ export default function OnSale() {
         </>
       )}
       {products.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-12 text-center">
-          <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-          <h3 className="text-lg font-semibold mb-2">No products on sale</h3>
-          <p className="text-muted-foreground">
-            Products with status "On Sale" will appear here
-          </p>
+        <div className="flex flex-col items-center py-16 px-6 text-center gap-4">
+          <div className="h-16 w-16 rounded-full bg-brand-100 flex items-center justify-center">
+            <Sparkles className="h-8 w-8 text-brand-700" />
+          </div>
+          <div>
+            <h3 className="text-xl font-semibold mb-1">Ready to start selling?</h3>
+            <p className="text-muted-foreground text-sm max-w-sm">
+              Once you mark a product as <span className="font-medium text-foreground">On Sale</span>, it'll show up here with live revenue and profit tracking.
+            </p>
+          </div>
+
+          {suggestedProducts.length > 0 && (
+            <div className="w-full max-w-lg mt-2">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground font-medium mb-3">Ready to list</p>
+              <div className="flex flex-col gap-2">
+                {suggestedProducts.map(p => (
+                  <div key={p.id} className="flex items-center justify-between gap-3 rounded-lg border bg-card px-4 py-3 text-left">
+                    <div className="min-w-0">
+                      <p className="font-medium text-sm truncate">{p.name}</p>
+                      {p.target_price != null && (
+                        <p className="text-xs text-muted-foreground mt-0.5">{formatCurrencyValue(p.target_price)}</p>
+                      )}
+                    </div>
+                    <Button size="sm" variant="outline" className="shrink-0 h-7 text-xs gap-1.5" onClick={() => handleMarkAsOnSale(p)}>
+                      <Tag className="h-3 w-3" />
+                      List for Sale
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <Button variant="ghost" size="sm" className="text-muted-foreground mt-1" onClick={() => navigate('/products')}>
+            Browse all products
+          </Button>
         </div>
       ) : activeTab === 'grid' ? (
         <OnSaleCardView
@@ -926,6 +1018,7 @@ export default function OnSale() {
           formatPercentage={formatPercentage}
           onRecordSale={handleRecordSale}
           handleSaveField={handleSaveField}
+          onRemoveFromSale={handleRemoveFromSale}
         />
       ) : (
         <div className="rounded-lg border overflow-x-auto">
