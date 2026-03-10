@@ -10,10 +10,9 @@ interface ChatSessionListProps {
   sessions: CoachChatSession[];
   activeSessionId: string | null;
   onSelectSession: (id: string) => void;
-  onNewChat: () => void;
-  onDeleteSession: (id: string) => void;
+  onNewChat: () => Promise<void>;
+  onDeleteSession: (id: string) => Promise<void>;
   isLoading: boolean;
-  isCreating: boolean;
 }
 
 export function ChatSessionList({
@@ -23,10 +22,19 @@ export function ChatSessionList({
   onNewChat,
   onDeleteSession,
   isLoading,
-  isCreating,
 }: ChatSessionListProps) {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
+
+  const handleNewChat = async () => {
+    setIsCreating(true);
+    try {
+      await onNewChat();
+    } finally {
+      setIsCreating(false);
+    }
+  };
 
   const handleDelete = async (e: React.MouseEvent, sessionId: string) => {
     e.stopPropagation();
@@ -43,7 +51,7 @@ export function ChatSessionList({
       {/* New Chat Button */}
       <div className="p-3 border-b border-warm-200">
         <Button
-          onClick={onNewChat}
+          onClick={handleNewChat}
           disabled={isCreating}
           className="w-full bg-brand-700 hover:bg-brand-500 text-white text-sm font-medium h-8 gap-1.5 transition-colors"
           size="sm"

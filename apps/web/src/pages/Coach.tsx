@@ -32,7 +32,6 @@ export default function Coach() {
     activeSessionId,
     setActiveSessionId,
     createChatSession,
-    isCreatingChatSession,
     deleteChatSession,
     chatHistory,
     sendChat,
@@ -194,7 +193,6 @@ export default function Coach() {
             onNewChat={async () => { await createChatSession(); }}
             onDeleteSession={async (id) => { await deleteChatSession(id); }}
             isSending={isSendingChat}
-            isCreatingSession={isCreatingChatSession}
             isChatSessionsLoading={isChatSessionsLoading}
             error={sendChatError}
             onSend={async (msg) => { const r = await sendChat(msg); track({ event: 'chat_message_sent', daily_count: chatDailyUsed + 1 }); return r; }}

@@ -17,7 +17,6 @@ interface ChatPanelProps {
   onDeleteSession: (id: string) => Promise<void>;
   onSend: (args: { message: string; session_id: string }) => Promise<CoachChatMessage>;
   isSending: boolean;
-  isCreatingSession: boolean;
   isChatSessionsLoading: boolean;
   error: string | null;
   chatPerDayLimit: number; // 0 = no access, -1 = unlimited
@@ -33,7 +32,6 @@ export function ChatPanel({
   onDeleteSession,
   onSend,
   isSending,
-  isCreatingSession,
   isChatSessionsLoading,
   error,
   chatPerDayLimit,
@@ -87,7 +85,6 @@ export function ChatPanel({
           onNewChat={onNewChat}
           onDeleteSession={onDeleteSession}
           isLoading={isChatSessionsLoading}
-          isCreating={isCreatingSession}
         />
       </div>
 
