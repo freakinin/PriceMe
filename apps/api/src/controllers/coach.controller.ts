@@ -215,6 +215,93 @@ export const updateInsightStatus = async (req: AuthRequest, res: Response): Prom
   }
 };
 
+// ─── Chat Sessions ───────────────────────────────────────────────────────────
+
+export const getChatSessions = async (req: AuthRequest, res: Response): Promise<Response | void> => {
+  try {
+    const result = await db`
+      SELECT
+        s.id,
+        s.session_id,
+        s.title,
+        s.created_at,
+        s.last_message_at,
+        COUNT(m.id)::int AS message_count
+      FROM coach_chat_sessions s
+      LEFT JOIN coach_chat_messages m ON m.session_id = s.session_id
+      WHERE s.user_id = ${req.userId!}
+      GROUP BY s.id, s.session_id, s.title, s.created_at, s.last_message_at
+      ORDER BY s.last_message_at DESC
+    `;
+    const rows = Array.isArray(result) ? result : result.rows || [];
+    return res.json({ status: 'success', data: rows });
+  } catch (error) {
+    console.error('Error fetching chat sessions:', error);
+    return res.status(500).json({ status: 'error', message: 'Failed to fetch chat sessions' });
+  }
+};
+
+export const createChatSession = async (req: AuthRequest, res: Response): Promise<Response | void> => {
+  try {
+    const sessionId = crypto.randomUUID();
+    await db`
+      INSERT INTO coach_chat_sessions (user_id, session_id)
+      VALUES (${req.userId!}, ${sessionId})
+    `;
+    return res.status(201).json({ status: 'success', data: { session_id: sessionId } });
+  } catch (error) {
+    console.error('Error creating chat session:', error);
+    return res.status(500).json({ status: 'error', message: 'Failed to create chat session' });
+  }
+};
+
+export const deleteChatSession = async (req: AuthRequest, res: Response): Promise<Response | void> => {
+  try {
+    const { session_id } = req.params;
+    // Validate ownership
+    const sessionResult = await db`
+      SELECT id FROM coach_chat_sessions
+      WHERE session_id = ${session_id} AND user_id = ${req.userId!}
+    `;
+    const sessionRows = Array.isArray(sessionResult) ? sessionResult : sessionResult.rows || [];
+    if (sessionRows.length === 0) {
+      return res.status(404).json({ status: 'error', message: 'Session not found' });
+    }
+    // Delete messages first (no FK cascade since session_id is plain varchar)
+    await db`DELETE FROM coach_chat_messages WHERE session_id = ${session_id} AND user_id = ${req.userId!}`;
+    await db`DELETE FROM coach_chat_sessions WHERE session_id = ${session_id} AND user_id = ${req.userId!}`;
+    return res.json({ status: 'success', message: 'Session deleted' });
+  } catch (error) {
+    console.error('Error deleting chat session:', error);
+    return res.status(500).json({ status: 'error', message: 'Failed to delete chat session' });
+  }
+};
+
+export const getChatSessionMessages = async (req: AuthRequest, res: Response): Promise<Response | void> => {
+  try {
+    const { session_id } = req.params;
+    // Validate ownership
+    const sessionResult = await db`
+      SELECT id FROM coach_chat_sessions
+      WHERE session_id = ${session_id} AND user_id = ${req.userId!}
+    `;
+    const sessionRows = Array.isArray(sessionResult) ? sessionResult : sessionResult.rows || [];
+    if (sessionRows.length === 0) {
+      return res.status(404).json({ status: 'error', message: 'Session not found' });
+    }
+    const result = await db`
+      SELECT * FROM coach_chat_messages
+      WHERE session_id = ${session_id} AND user_id = ${req.userId!}
+      ORDER BY created_at ASC
+    `;
+    const rows = Array.isArray(result) ? result : result.rows || [];
+    return res.json({ status: 'success', data: rows });
+  } catch (error) {
+    console.error('Error fetching session messages:', error);
+    return res.status(500).json({ status: 'error', message: 'Failed to fetch messages' });
+  }
+};
+
 // ─── Chat ────────────────────────────────────────────────────────────────────
 
 export const getChatHistory = async (req: AuthRequest, res: Response): Promise<Response | void> => {
@@ -268,15 +355,27 @@ export const sendChatMessage = async (req: AuthRequest, res: Response): Promise<
       }
     }
 
+    // Validate session belongs to this user
+    const sessionResult = await db`
+      SELECT id, title FROM coach_chat_sessions
+      WHERE session_id = ${session_id} AND user_id = ${req.userId!}
+    `;
+    const sessionRows = Array.isArray(sessionResult) ? sessionResult : sessionResult.rows || [];
+    if (sessionRows.length === 0) {
+      return res.status(404).json({ status: 'error', message: 'Chat session not found.' });
+    }
+    const existingTitle = sessionRows[0].title;
+
     const profileResult = await db`SELECT * FROM coach_profiles WHERE user_id = ${req.userId!}`;
     const profileRows = Array.isArray(profileResult) ? profileResult : profileResult.rows || [];
     if (profileRows.length === 0) {
       return res.status(400).json({ status: 'error', message: 'Complete your Coach profile first.' });
     }
 
+    // Use session-scoped history for AI context
     const historyResult = await db`
       SELECT role, content FROM coach_chat_messages
-      WHERE user_id = ${req.userId!}
+      WHERE user_id = ${req.userId!} AND session_id = ${session_id}
       ORDER BY created_at DESC
       LIMIT 20
     `;
@@ -303,6 +402,21 @@ export const sendChatMessage = async (req: AuthRequest, res: Response): Promise<
       RETURNING *
     `;
     const assistantRows = Array.isArray(assistantResult) ? assistantResult : assistantResult.rows || [];
+
+    // Set title on first reply (once, never updated again)
+    const newTitle = existingTitle === null ? message.substring(0, 60) : null;
+    if (newTitle !== null) {
+      await db`
+        UPDATE coach_chat_sessions
+        SET title = ${newTitle}, last_message_at = NOW()
+        WHERE session_id = ${session_id} AND user_id = ${req.userId!}
+      `;
+    } else {
+      await db`
+        UPDATE coach_chat_sessions SET last_message_at = NOW()
+        WHERE session_id = ${session_id} AND user_id = ${req.userId!}
+      `;
+    }
 
     // Increment daily usage counter
     if (limits.coachChatPerDay !== -1) {

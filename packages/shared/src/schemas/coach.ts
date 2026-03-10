@@ -38,3 +38,7 @@ export const chatMessageSchema = z.object({
 });
 
 export type ChatMessageInput = z.infer<typeof chatMessageSchema>;
+
+export const createChatSessionSchema = z.object({});
+
+export type CreateChatSessionInput = z.infer<typeof createChatSessionSchema>;

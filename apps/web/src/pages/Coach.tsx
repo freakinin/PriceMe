@@ -27,6 +27,13 @@ export default function Coach() {
     generateInsights,
     isGeneratingInsights,
     updateInsightStatus,
+    chatSessions,
+    isChatSessionsLoading,
+    activeSessionId,
+    setActiveSessionId,
+    createChatSession,
+    isCreatingChatSession,
+    deleteChatSession,
     chatHistory,
     sendChat,
     isSendingChat,
@@ -178,10 +185,17 @@ export default function Coach() {
         </div>
 
         {/* Right column: Chat */}
-        <div data-tour="ctour-chat" className="flex flex-col border-l overflow-hidden" style={{ flex: '0 0 45%' }}>
+        <div data-tour="ctour-chat" className="flex flex-col border-l overflow-hidden p-4" style={{ flex: '0 0 45%' }}>
           <ChatPanel
             history={chatHistory}
+            sessions={chatSessions}
+            activeSessionId={activeSessionId}
+            onSelectSession={setActiveSessionId}
+            onNewChat={createChatSession}
+            onDeleteSession={deleteChatSession}
             isSending={isSendingChat}
+            isCreatingSession={isCreatingChatSession}
+            isChatSessionsLoading={isChatSessionsLoading}
             error={sendChatError}
             onSend={async (msg) => { const r = await sendChat(msg); track({ event: 'chat_message_sent', daily_count: chatDailyUsed + 1 }); return r; }}
             chatDailyUsed={chatDailyUsed}
