@@ -9,8 +9,8 @@ export function LowStockAlerts() {
     const { materials, isLoading } = useMaterials();
 
     const lowStockMaterials = materials
-        .filter(m => m.stock_level <= m.reorder_point)
-        .sort((a, b) => (a.stock_level / a.reorder_point) - (b.stock_level / b.reorder_point)) // Sort by most critical first (lowest ratio)
+        .filter(m => m.stock_level != null && m.reorder_point != null && Number(m.stock_level) <= Number(m.reorder_point))
+        .sort((a, b) => (Number(a.stock_level) / (Number(a.reorder_point) || 1)) - (Number(b.stock_level) / (Number(b.reorder_point) || 1)))
         .slice(0, 5);
 
     if (isLoading) {
