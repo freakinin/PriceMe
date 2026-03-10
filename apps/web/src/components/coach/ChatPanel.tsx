@@ -112,18 +112,13 @@ export function ChatPanel({
           ref={scrollContainerRef}
           className="flex-1 overflow-y-auto px-4 py-4 space-y-3 min-h-0"
         >
-          {!activeSessionId ? (
-            <div className="text-center py-8">
-              <p className="text-sm text-muted-foreground">Select a chat or start a new one.</p>
+          {(!activeSessionId || history.length === 0) && (
+            <div className="flex justify-start">
+              <div className="max-w-[82%] rounded-2xl rounded-tl-sm px-3.5 py-2.5 text-sm leading-relaxed bg-muted text-foreground">
+                Hey! I'm your business Coach. Ask me anything about your pricing, margins, or products — I know your shop inside and out.
+              </div>
             </div>
-          ) : history.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-sm text-muted-foreground">Ask anything about your shop.</p>
-              <p className="text-xs text-muted-foreground mt-1 opacity-70">
-                Coach knows your products, costs, and sales.
-              </p>
-            </div>
-          ) : null}
+          )}
           {history.map((msg) => (
             <ChatMessage key={msg.id} message={msg} />
           ))}

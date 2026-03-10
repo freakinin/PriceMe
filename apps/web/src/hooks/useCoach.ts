@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import type {
@@ -125,6 +125,20 @@ export function useCoach() {
       queryClient.invalidateQueries({ queryKey: ['coach', 'chat-sessions'] });
     },
   });
+
+  // Auto-create the very first session when sessions finish loading empty
+  const hasAutoCreated = useRef(false);
+  useEffect(() => {
+    if (
+      !hasAutoCreated.current &&
+      !chatSessionsQuery.isLoading &&
+      chatSessionsQuery.data?.length === 0
+    ) {
+      hasAutoCreated.current = true;
+      createChatSessionMutation.mutate();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatSessionsQuery.isLoading, chatSessionsQuery.data?.length]);
 
   const deleteChatSessionMutation = useMutation({
     mutationFn: async (session_id: string) => {
