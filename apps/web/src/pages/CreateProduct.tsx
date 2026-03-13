@@ -57,6 +57,63 @@ import {
 
 
 
+// --- Batch Insight Card ---
+
+function BatchInsightCard({ batchSize, pricePerUnit, costPerUnit, currency }: {
+  batchSize: number;
+  pricePerUnit: number;
+  costPerUnit: number;
+  currency: string;
+}) {
+  if (batchSize <= 1 || pricePerUnit <= 0) return null;
+
+  const totalRevenue = pricePerUnit * batchSize;
+  const totalCost    = costPerUnit * batchSize;
+  const totalProfit  = totalRevenue - totalCost;
+  const breakEvenUnits = costPerUnit > 0 ? Math.ceil(totalCost / pricePerUnit) : 0;
+  const breakEvenPct   = Math.round((breakEvenUnits / batchSize) * 100);
+
+  return (
+    <div className="rounded-lg border bg-card p-4 space-y-3 mt-4">
+      <div className="flex items-center justify-between">
+        <div className="text-sm font-semibold">Batch of {batchSize} units</div>
+        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Optimistic — all sold</div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3">
+        <div>
+          <div className="text-[9px] uppercase tracking-wider text-muted-foreground mb-0.5">Revenue</div>
+          <div className="text-sm font-semibold">{formatCurrency(totalRevenue, currency)}</div>
+        </div>
+        <div>
+          <div className="text-[9px] uppercase tracking-wider text-muted-foreground mb-0.5">Profit</div>
+          <div className={`text-sm font-semibold ${totalProfit >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+            {formatCurrency(totalProfit, currency)}
+          </div>
+        </div>
+        <div>
+          <div className="text-[9px] uppercase tracking-wider text-muted-foreground mb-0.5">Total Cost</div>
+          <div className="text-sm font-semibold">{formatCurrency(totalCost, currency)}</div>
+        </div>
+      </div>
+
+      {breakEvenUnits > 0 && breakEvenUnits <= batchSize && (
+        <div className="pt-2 border-t space-y-1.5">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-muted-foreground">
+              Break even after <span className="font-semibold text-foreground">{breakEvenUnits} of {batchSize}</span> units sold
+            </span>
+            <span className="text-muted-foreground">{breakEvenPct}%</span>
+          </div>
+          <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+            <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${breakEvenPct}%` }} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // --- Sub-components for Adding Items ---
 
 
@@ -617,6 +674,12 @@ export default function CreateProduct() {
                     setValue('pricing_value', value);
                     setValue('target_price', calculatedPrice);
                   }}
+                />
+                <BatchInsightCard
+                  batchSize={batchSize}
+                  pricePerUnit={targetPrice}
+                  costPerUnit={totalCostPerProduct}
+                  currency={settings.currency}
                 />
               </div>
 
