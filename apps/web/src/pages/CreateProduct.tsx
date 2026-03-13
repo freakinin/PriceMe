@@ -583,7 +583,7 @@ export default function CreateProduct() {
               </div>
 
               {/* RIGHT PANEL: pricing calculator (desktop only, always visible) */}
-              <div className="hidden lg:flex lg:flex-col w-[32rem] shrink-0 border-l overflow-y-auto p-6" data-tour="ptour-cost-bar">
+              <div className="hidden lg:flex lg:flex-col w-[40rem] shrink-0 border-l overflow-y-auto p-6" data-tour="ptour-cost-bar">
                 <PriceCalculatorPanel
                   totalCost={totalCostPerProduct}
                   currency={settings.currency}
