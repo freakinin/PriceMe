@@ -1,4 +1,4 @@
-import { BrainCircuit, ArrowRight, AlertTriangle } from 'lucide-react';
+import { BrainCircuit, ArrowRight } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
