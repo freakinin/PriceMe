@@ -13,6 +13,7 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
+  SelectValue,
 } from '@/components/ui/select';
 import { Settings2, BarChart2, FileText } from 'lucide-react';
 import { useSidebar } from '@/components/ui/sidebar';
@@ -431,8 +432,9 @@ export default function CreateProduct() {
         {headerContainer && createPortal(
           <div className="flex items-center gap-2">
             <Select value={selectedTemplateId} onValueChange={handleLoadTemplate}>
-              <SelectTrigger className="hidden sm:flex h-8 w-8 p-0 justify-center [&>svg:last-child]:hidden" title="Load template">
-                <FileText className="h-4 w-4 shrink-0" />
+              <SelectTrigger className="hidden lg:flex w-[180px] h-9">
+                <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                <SelectValue placeholder="Load Template..." />
               </SelectTrigger>
               <SelectContent align="end">
                 <SelectItem value="none">None (Clear)</SelectItem>
