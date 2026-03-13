@@ -5,6 +5,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 
@@ -81,6 +82,7 @@ export default function CreateProduct() {
   const [templates, setTemplates] = useState<any[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'materials' | 'labor' | 'other'>('materials');
+  const [saveAsTemplate, setSaveAsTemplate] = useState(false);
 
 
   // Auto-start product form tour on first visit to Add Product (not edit)
@@ -370,6 +372,25 @@ export default function CreateProduct() {
           toast({ variant: 'success', title: 'Success', description: 'Product created successfully' });
         }
       }
+      if (saveAsTemplate) {
+        try {
+          await api.post('/templates', {
+            name: data.name,
+            default_batch_size: data.batch_size,
+            default_pricing_method: data.pricing_method || undefined,
+            default_markup_percentage: data.pricing_value || undefined,
+            materials: data.materials,
+            labor_costs: data.labor_costs,
+            other_costs: data.other_costs,
+            variants,
+          });
+          toast({ variant: 'success', title: 'Template saved', description: `"${data.name}" saved as a template.` });
+        } catch {
+          toast({ variant: 'destructive', title: 'Template not saved', description: 'Product was saved but the template could not be created.' });
+        }
+        setSaveAsTemplate(false);
+      }
+
       navigate('/products');
 
     } catch (error: any) {
@@ -624,10 +645,20 @@ export default function CreateProduct() {
             </div>
           </div>
 
-          {/* Right: buttons */}
-          <div className="flex gap-2 shrink-0">
-            <Button type="button" variant="outline" size="sm" onClick={() => navigate('/products')}>Cancel</Button>
-            <Button type="button" size="sm" onClick={handleSubmit(onSubmit, onError)}>{isEditMode ? 'Update Product' : 'Create Product'}</Button>
+          {/* Right: save as template + buttons */}
+          <div className="flex items-center gap-4 shrink-0">
+            <label className="hidden lg:flex items-center gap-2 cursor-pointer select-none">
+              <Checkbox
+                checked={saveAsTemplate}
+                onCheckedChange={(v) => setSaveAsTemplate(!!v)}
+                id="save-as-template"
+              />
+              <span className="text-xs text-muted-foreground">Save as template</span>
+            </label>
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => navigate('/products')}>Cancel</Button>
+              <Button type="button" size="sm" onClick={handleSubmit(onSubmit, onError)}>{isEditMode ? 'Update Product' : 'Create Product'}</Button>
+            </div>
           </div>
         </div>
       </div>
