@@ -193,7 +193,6 @@ function BatchInsightCard({ batchSize, pricePerUnit, costPerUnit, currency }: {
         )}
         <BreakEvenChart batchSize={batchSize} pricePerUnit={pricePerUnit} costPerUnit={costPerUnit} />
       </div>
-      )}
     </div>
   );
 }
