@@ -57,6 +57,94 @@ import {
 
 
 
+// --- Break-Even Chart (SVG, no external deps) ---
+
+function BreakEvenChart({ batchSize, pricePerUnit, costPerUnit }: {
+  batchSize: number;
+  pricePerUnit: number;
+  costPerUnit: number;
+}) {
+  const vW = 400, vH = 130;
+  const ml = 6, mr = 6, mt = 14, mb = 22;
+  const cW = vW - ml - mr;
+  const cH = vH - mt - mb;
+
+  const totalCost    = costPerUnit * batchSize;
+  const totalRevenue = pricePerUnit * batchSize;
+  const maxY = Math.max(totalCost, totalRevenue) * 1.12;
+
+  const px = (units: number) => ml + (units / batchSize) * cW;
+  const py = (val: number)   => mt + cH - (val / maxY) * cH;
+
+  const breakEvenUnits = pricePerUnit > 0 ? totalCost / pricePerUnit : Infinity;
+  const hasBreakEven   = breakEvenUnits < batchSize;
+  const bex = hasBreakEven ? px(breakEvenUnits) : null;
+  const bey = hasBreakEven ? py(totalCost) : null;
+
+  // Fill polygons
+  const lossPolygon = hasBreakEven
+    ? `${px(0)},${py(0)} ${bex},${bey} ${px(0)},${py(totalCost)}`
+    : `${px(0)},${py(0)} ${px(batchSize)},${py(totalRevenue)} ${px(batchSize)},${py(totalCost)} ${px(0)},${py(totalCost)}`;
+
+  const profitPolygon = hasBreakEven
+    ? `${bex},${bey} ${px(batchSize)},${py(totalRevenue)} ${px(batchSize)},${py(totalCost)}`
+    : null;
+
+  return (
+    <svg viewBox={`0 0 ${vW} ${vH}`} className="w-full">
+      {/* Legend */}
+      <circle cx={ml} cy={8} r={3} fill="#f97316" />
+      <text x={ml + 6} y={11} fontSize="8" fill="#6b7280">Cost</text>
+      <circle cx={ml + 38} cy={8} r={3} fill="#22c55e" />
+      <text x={ml + 44} y={11} fontSize="8" fill="#6b7280">Revenue</text>
+      {hasBreakEven && <>
+        <circle cx={ml + 100} cy={8} r={3} fill="#3b82f6" />
+        <text x={ml + 106} y={11} fontSize="8" fill="#6b7280">Break-even</text>
+      </>}
+
+      {/* Filled areas */}
+      <polygon points={lossPolygon} fill="#fee2e2" fillOpacity="0.5" />
+      {profitPolygon && <polygon points={profitPolygon} fill="#dcfce7" fillOpacity="0.6" />}
+
+      {/* X axis */}
+      <line x1={ml} y1={mt + cH} x2={vW - mr} y2={mt + cH} stroke="#e5e7eb" strokeWidth="1" />
+
+      {/* Break-even vertical guide */}
+      {hasBreakEven && bex && (
+        <line x1={bex} y1={mt} x2={bex} y2={mt + cH} stroke="#93c5fd" strokeDasharray="3,2" strokeWidth="1" />
+      )}
+
+      {/* Cost line — flat, dashed, orange */}
+      <line
+        x1={px(0)} y1={py(totalCost)}
+        x2={px(batchSize)} y2={py(totalCost)}
+        stroke="#f97316" strokeWidth="1.5" strokeDasharray="5,3"
+      />
+
+      {/* Revenue line — rising, green */}
+      <line
+        x1={px(0)} y1={py(0)}
+        x2={px(batchSize)} y2={py(totalRevenue)}
+        stroke="#22c55e" strokeWidth="1.5"
+      />
+
+      {/* Break-even dot */}
+      {hasBreakEven && bex && bey && (
+        <circle cx={bex} cy={bey} r="3.5" fill="#3b82f6" />
+      )}
+
+      {/* X axis labels */}
+      <text x={px(0)} y={vH - 4} textAnchor="start" fontSize="9" fill="#9ca3af">0</text>
+      {hasBreakEven && bex && (
+        <text x={bex} y={vH - 4} textAnchor="middle" fontSize="9" fill="#3b82f6" fontWeight="600">
+          {Math.ceil(breakEvenUnits)}
+        </text>
+      )}
+      <text x={px(batchSize)} y={vH - 4} textAnchor="end" fontSize="9" fill="#9ca3af">{batchSize}</text>
+    </svg>
+  );
+}
+
 // --- Batch Insight Card ---
 
 function BatchInsightCard({ batchSize, pricePerUnit, costPerUnit, currency }: {
@@ -97,18 +185,14 @@ function BatchInsightCard({ batchSize, pricePerUnit, costPerUnit, currency }: {
         </div>
       </div>
 
-      {breakEvenUnits > 0 && breakEvenUnits <= batchSize && (
-        <div className="pt-2 border-t space-y-1.5">
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-muted-foreground">
-              Break even after <span className="font-semibold text-foreground">{breakEvenUnits} of {batchSize}</span> units sold
-            </span>
-            <span className="text-muted-foreground">{breakEvenPct}%</span>
-          </div>
-          <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-            <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${breakEvenPct}%` }} />
-          </div>
-        </div>
+      <div className="pt-2 border-t">
+        {breakEvenUnits > 0 && breakEvenUnits <= batchSize && (
+          <p className="text-xs text-muted-foreground mb-2">
+            Break even after selling <span className="font-semibold text-foreground">{breakEvenUnits} of {batchSize}</span> units ({breakEvenPct}%)
+          </p>
+        )}
+        <BreakEvenChart batchSize={batchSize} pricePerUnit={pricePerUnit} costPerUnit={costPerUnit} />
+      </div>
       )}
     </div>
   );
