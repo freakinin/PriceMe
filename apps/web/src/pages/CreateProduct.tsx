@@ -13,7 +13,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from '@/components/ui/select';
 import { Settings2, BarChart2, FileText } from 'lucide-react';
 import { useSidebar } from '@/components/ui/sidebar';
