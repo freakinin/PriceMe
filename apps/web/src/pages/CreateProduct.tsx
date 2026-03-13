@@ -409,32 +409,6 @@ export default function CreateProduct() {
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
 
-      {/* Desktop Tab Bar — sticky below the app header */}
-      <div className="hidden lg:flex shrink-0 items-center gap-1 border-b bg-background px-6 py-1.5">
-        {([
-          { id: 'materials', label: 'Materials', count: materials?.length ?? 0 },
-          { id: 'labor',     label: 'Labor',     count: laborCosts?.length ?? 0 },
-          { id: 'other',     label: 'Other Costs', count: otherCosts?.length ?? 0 },
-        ] as const).map(({ id, label, count }) => (
-          <button
-            key={id}
-            type="button"
-            onClick={() => setActiveTab(id)}
-            className={`px-3 py-1 rounded-md text-xs font-medium transition-colors flex items-center gap-1.5 ${
-              activeTab === id
-                ? 'bg-primary text-primary-foreground'
-                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-            }`}
-          >
-            {label}
-            {count > 0 && (
-              <span className={`text-[10px] rounded-full px-1.5 leading-4 ${
-                activeTab === id ? 'bg-white/20 text-primary-foreground' : 'bg-muted text-muted-foreground'
-              }`}>{count}</span>
-            )}
-          </button>
-        ))}
-      </div>
 
       <div className="flex-1 overflow-y-auto lg:overflow-hidden lg:flex lg:flex-col">
 
@@ -548,6 +522,33 @@ export default function CreateProduct() {
                       <FormMessage />
                     </FormItem>
                   )} />
+                </div>
+
+                {/* Desktop tab bar */}
+                <div className="hidden lg:flex items-center gap-1 border-b -mx-6 px-6 pb-0 pt-1">
+                  {([
+                    { id: 'materials', label: 'Materials', count: materials?.length ?? 0 },
+                    { id: 'labor',     label: 'Labor',     count: laborCosts?.length ?? 0 },
+                    { id: 'other',     label: 'Other Costs', count: otherCosts?.length ?? 0 },
+                  ] as const).map(({ id, label, count }) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setActiveTab(id)}
+                      className={`px-3 py-1.5 rounded-t-md text-xs font-medium transition-colors flex items-center gap-1.5 border-b-2 -mb-px ${
+                        activeTab === id
+                          ? 'border-primary text-primary'
+                          : 'border-transparent text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      {label}
+                      {count > 0 && (
+                        <span className={`text-[10px] rounded-full px-1.5 leading-4 ${
+                          activeTab === id ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
+                        }`}>{count}</span>
+                      )}
+                    </button>
+                  ))}
                 </div>
 
                 {/* DESKTOP: one tab section at a time */}
