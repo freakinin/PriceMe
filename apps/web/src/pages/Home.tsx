@@ -50,6 +50,10 @@ import { StatsCard } from '@/components/dashboard/StatsCard';
 import { LowStockAlerts } from '@/components/dashboard/LowStockAlerts';
 import { RecentActivity } from '@/components/dashboard/RecentActivity';
 import { GrowthChart } from '@/components/dashboard/GrowthChart';
+import { CoachHealthWidget } from '@/components/dashboard/CoachHealthWidget';
+import { CoachInsightWidget } from '@/components/dashboard/CoachInsightWidget';
+import { SalesSummaryWidget } from '@/components/dashboard/SalesSummaryWidget';
+import { useSales } from '@/hooks/useSales';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useCategories } from '@/hooks/useCategories';
 import { cn } from '@/lib/utils';
@@ -110,12 +114,14 @@ function DonutChart({ slices, emptyText = 'No data' }: { slices: DonutSlice[]; e
 
 // ── Layout persistence ────────────────────────────────────────────────────
 type StatCardId = 'total_products' | 'potential_revenue' | 'potential_profit' | 'total_cost';
-type LeftWidgetId = 'growth_chart' | 'recent_activity';
+type LeftWidgetId = 'recent_sales' | 'coach_insight' | 'recent_activity';
 type SidebarWidgetId = 'product_status' | 'quick_actions' | 'top_categories' | 'low_stock';
-type WidgetId = StatCardId | LeftWidgetId | SidebarWidgetId;
+type CoachWidgetId = 'coach_health' | 'growth_chart';
+type WidgetId = StatCardId | LeftWidgetId | SidebarWidgetId | CoachWidgetId;
 
 interface DashboardLayout {
   statOrder: StatCardId[];
+  coachOrder: CoachWidgetId[];
   leftOrder: LeftWidgetId[];
   sidebarOrder: SidebarWidgetId[];
   hidden: WidgetId[];
@@ -125,7 +131,8 @@ const LAYOUT_KEY = 'priceme_dashboard_layout_v1';
 
 const DEFAULT_LAYOUT: DashboardLayout = {
   statOrder: ['total_products', 'potential_revenue', 'potential_profit', 'total_cost'],
-  leftOrder: ['growth_chart', 'recent_activity'],
+  coachOrder: ['coach_health', 'growth_chart'],
+  leftOrder: ['recent_sales', 'coach_insight', 'recent_activity'],
   sidebarOrder: ['product_status', 'quick_actions', 'top_categories', 'low_stock'],
   hidden: [],
 };
@@ -136,9 +143,18 @@ function loadLayout(): DashboardLayout {
     if (raw) {
       const parsed = JSON.parse(raw) as DashboardLayout;
       // Merge with defaults so new widgets added later are always included
+      const allValidIds = [
+        ...DEFAULT_LAYOUT.statOrder,
+        ...DEFAULT_LAYOUT.coachOrder,
+        ...DEFAULT_LAYOUT.leftOrder,
+        ...DEFAULT_LAYOUT.sidebarOrder,
+      ];
       return {
         statOrder: DEFAULT_LAYOUT.statOrder.slice().sort((a, b) =>
           (parsed.statOrder.indexOf(a) + 1 || 99) - (parsed.statOrder.indexOf(b) + 1 || 99)
+        ),
+        coachOrder: DEFAULT_LAYOUT.coachOrder.slice().sort((a, b) =>
+          ((parsed.coachOrder ?? []).indexOf(a) + 1 || 99) - ((parsed.coachOrder ?? []).indexOf(b) + 1 || 99)
         ),
         leftOrder: DEFAULT_LAYOUT.leftOrder.slice().sort((a, b) =>
           (parsed.leftOrder.indexOf(a) + 1 || 99) - (parsed.leftOrder.indexOf(b) + 1 || 99)
@@ -147,7 +163,7 @@ function loadLayout(): DashboardLayout {
           (parsed.sidebarOrder.indexOf(a) + 1 || 99) - (parsed.sidebarOrder.indexOf(b) + 1 || 99)
         ),
         hidden: (parsed.hidden || []).filter((id): id is WidgetId =>
-          [...DEFAULT_LAYOUT.statOrder, ...DEFAULT_LAYOUT.leftOrder, ...DEFAULT_LAYOUT.sidebarOrder].includes(id as WidgetId)
+          allValidIds.includes(id as WidgetId)
         ),
       };
     }
@@ -265,7 +281,8 @@ export default function Home() {
   const [showAfterTax, setShowAfterTax] = useState(false);
   const [datePreset, setDatePreset] = useState<DatePreset>('all');
   const { categories } = useCategories();
-  const { profile, isProfileLoading } = useCoach();
+  const { profile, isProfileLoading, healthScore, isHealthScoreLoading, insights, isInsightsLoading } = useCoach();
+  const { sales, isLoading: isSalesLoading, fetchSales } = useSales();
   const [nudgeDismissed, setNudgeDismissed] = useState(
     () => localStorage.getItem('cravio_coach_nudge_dismissed') === '1'
   );
@@ -310,6 +327,16 @@ export default function Home() {
     }
   }, []);
 
+  const handleCoachDragEnd = useCallback((e: DragEndEvent) => {
+    const { active, over } = e;
+    if (over && active.id !== over.id) {
+      setLayout(prev => ({
+        ...prev,
+        coachOrder: arrayMove(prev.coachOrder, prev.coachOrder.indexOf(String(active.id) as CoachWidgetId), prev.coachOrder.indexOf(String(over.id) as CoachWidgetId)),
+      }));
+    }
+  }, []);
+
   const handleLeftDragEnd = useCallback((e: DragEndEvent) => {
     const { active, over } = e;
     if (over && active.id !== over.id) {
@@ -337,8 +364,11 @@ export default function Home() {
   };
 
   useEffect(() => {
-    if (isAuthenticated) fetchProducts();
-  }, [isAuthenticated]);
+    if (isAuthenticated) {
+      fetchProducts();
+      fetchSales();
+    }
+  }, [isAuthenticated, fetchSales]);
 
   const fetchProducts = async () => {
     try {
@@ -482,8 +512,42 @@ export default function Home() {
   // ── Left widget renderer ──────────────────────────────────────────────────
   const renderLeftWidget = (id: LeftWidgetId) => {
     switch (id) {
-      case 'growth_chart': return <GrowthChart products={chartProducts} />;
+      case 'recent_sales':
+        return (
+          <SalesSummaryWidget
+            sales={sales}
+            isLoading={isSalesLoading}
+            settings={settings}
+            onNavigate={() => navigate('/on-sale')}
+          />
+        );
+      case 'coach_insight':
+        return (
+          <CoachInsightWidget
+            insights={insights}
+            isLoading={isInsightsLoading}
+            hasProfile={!!profile}
+            onNavigate={() => navigate('/coach')}
+          />
+        );
       case 'recent_activity': return <RecentActivity products={activityProducts} loading={loading} />;
+    }
+  };
+
+  // ── Coach widget renderer ─────────────────────────────────────────────────
+  const renderCoachWidget = (id: CoachWidgetId) => {
+    switch (id) {
+      case 'coach_health':
+        return (
+          <CoachHealthWidget
+            healthScore={healthScore}
+            isLoading={isHealthScoreLoading}
+            hasProfile={!!profile}
+            onNavigate={() => navigate('/coach')}
+          />
+        );
+      case 'growth_chart':
+        return <GrowthChart products={chartProducts} />;
     }
   };
 
@@ -734,6 +798,25 @@ export default function Home() {
                     onToggle={() => toggleHidden(id)}
                   >
                     {renderStatCard(id)}
+                  </SortableWidget>
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
+
+          {/* Coach cards row */}
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleCoachDragEnd}>
+            <SortableContext items={layout.coachOrder} strategy={rectSortingStrategy}>
+              <div className="grid grid-cols-1 md:grid-cols-[5fr_8fr] gap-4">
+                {layout.coachOrder.map(id => (
+                  <SortableWidget
+                    key={id}
+                    id={id}
+                    isEditing={isEditing}
+                    isHidden={isHidden(id)}
+                    onToggle={() => toggleHidden(id)}
+                  >
+                    {renderCoachWidget(id)}
                   </SortableWidget>
                 ))}
               </div>
