@@ -46,6 +46,9 @@ import {
 
 // --- Main Component ---
 
+// Persists across mount/unmount cycles (Sheet unmounts content on close)
+const productTabMemory: Record<number, string> = {};
+
 interface EditProductPaneProps {
   productId: number | null;
   open: boolean;
@@ -58,7 +61,9 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
   const { toast } = useToast();
   const { updateProduct } = useProducts();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('basic');
+  const [activeTab, setActiveTab] = useState(() =>
+    productId ? (productTabMemory[productId] || 'basic') : 'basic'
+  );
 
   // Variations State
   const [variants, setVariants] = useState<Variant[]>([]);
@@ -106,6 +111,13 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
     (materials?.reduce((sum, m) => sum + calculateMaterialCost(m, batchSize), 0) || 0) +
     (laborCosts?.reduce((sum, l) => sum + calculateLaborCost(l, batchSize), 0) || 0) +
     (otherCosts?.reduce((sum, o) => sum + calculateOtherCost(o, batchSize), 0) || 0);
+
+  // Restore tab when productId changes while pane is already mounted
+  useEffect(() => {
+    if (productId) {
+      setActiveTab(productTabMemory[productId] || 'basic');
+    }
+  }, [productId]);
 
   // Reset form when product loads or changes
   useEffect(() => {
@@ -161,9 +173,8 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
         setVariants([]);
       }
 
-      setActiveTab('basic');
     }
-  }, [open, product, reset]);
+  }, [open, product, reset, productId]);
 
   const onFinalSubmit = async (data: ProductFormValues) => {
     if (!productId) return;
@@ -273,7 +284,7 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
                 <div className="space-y-6 h-full flex flex-col">
                   <Form {...form}>
                     <form onSubmit={handleSubmit(onFinalSubmit, onInvalid)} className="flex flex-col h-full">
-                      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full flex-1">
+                      <Tabs value={activeTab} onValueChange={tab => { setActiveTab(tab); if (productId) productTabMemory[productId] = tab; }} className="w-full flex-1">
                         <TabsList className="grid w-full grid-cols-4 mb-6">
                           <TabsTrigger value="basic">Basic</TabsTrigger>
                           <TabsTrigger value="materials">Materials</TabsTrigger>
@@ -283,6 +294,18 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
 
                         {/* Tab 1: Basic Info */}
                         <TabsContent value="basic" className="space-y-4 mt-0">
+                          <PriceCalculatorPanel
+                            totalCost={totalCostPerProduct}
+                            currency={settings?.currency || 'USD'}
+                            initialMethod={(watch('pricing_method') as any) || 'price'}
+                            initialValue={watch('pricing_value') || watch('target_price') || undefined}
+                            onChange={(method, value, calculatedPrice) => {
+                              form.setValue('pricing_method', method);
+                              form.setValue('pricing_value', value);
+                              form.setValue('target_price', calculatedPrice);
+                            }}
+                          />
+                          <hr className="border-border" />
                           <FormField control={control} name="name" render={({ field }) => (
                             <FormItem><FormLabel>Product Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
                           )} />
@@ -305,17 +328,6 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
                               <FormItem><FormLabel>Batch Size</FormLabel><FormControl><Input {...field} type="number" min="1" onChange={e => field.onChange(parseInt(e.target.value) || 1)} /></FormControl><FormMessage /></FormItem>
                             )} />
                           </div>
-                          <PriceCalculatorPanel
-                            totalCost={totalCostPerProduct}
-                            currency={settings?.currency || 'USD'}
-                            initialMethod={(watch('pricing_method') as any) || 'price'}
-                            initialValue={watch('pricing_value') || watch('target_price') || undefined}
-                            onChange={(method, value, calculatedPrice) => {
-                              form.setValue('pricing_method', method);
-                              form.setValue('pricing_value', value);
-                              form.setValue('target_price', calculatedPrice);
-                            }}
-                          />
                         </TabsContent>
 
                         {/* Tab 2: Materials */}

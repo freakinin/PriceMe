@@ -145,6 +145,8 @@ export default function CreateProduct() {
             category_id: p.category_id || null,
             batch_size: p.batch_size || 1,
             target_price: p.target_price ? Number(p.target_price) : 0,
+            pricing_method: p.pricing_method || 'price',
+            pricing_value: Number(p.pricing_value) || 0,
             materials: (p.materials || []).map((m: any) => ({
               name: m.name,
               quantity: Number(m.quantity) || 0,

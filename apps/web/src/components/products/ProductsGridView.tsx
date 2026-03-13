@@ -182,9 +182,12 @@ export function ProductsGridView({
                 {/* Active pricing metric — read-only */}
                 <div>
                   <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">{activeMetric.label}</p>
-                  <p className="text-sm font-semibold mt-0.5">
-                    {activeMetric.isPercent ? formatPercentage(activeMetric.value) : formatCurrencyValue(activeMetric.value)}
-                  </p>
+                  <div className="flex items-center gap-1 mt-0.5">
+                    <div className={`h-1.5 w-1.5 rounded-full shrink-0 ${metrics.profit >= 0 ? 'bg-green-500' : 'bg-red-500'}`} title="Pricing driver" />
+                    <p className="text-sm font-semibold">
+                      {activeMetric.isPercent ? formatPercentage(activeMetric.value) : formatCurrencyValue(activeMetric.value)}
+                    </p>
+                  </div>
                 </div>
 
                 {/* Secondary metric — calculated, read-only */}

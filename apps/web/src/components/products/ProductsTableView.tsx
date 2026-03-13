@@ -304,14 +304,29 @@ export function ProductsTableView({
       cell: ({ row }) => {
         const product = row.original;
         const metrics = getCalculatedMetrics(product);
+        const method = product.pricing_method;
+        const val = Number(product.pricing_value);
+        const isPriceSource = !method || method === 'price';
+        let methodLabel: string | null = null;
+        if (method === 'margin' && val > 0) methodLabel = `${val % 1 === 0 ? val : val.toFixed(1)}% margin`;
+        else if (method === 'profit' && val > 0) methodLabel = `${formatCurrencyValue(val)} profit`;
+        else if (method === 'markup' && val > 0) methodLabel = `${val % 1 === 0 ? val : val.toFixed(1)}% markup`;
         return (
-          <EditableCell
-            value={metrics.price}
-            onSave={async value => handleSavePricingValue(product.id, 'price', value as number)}
-            type="number"
-            formatDisplay={formatCurrencyValue}
-            className="text-left justify-start font-medium"
-          />
+          <div className="flex flex-col items-start">
+            <div className="flex items-center gap-1">
+              {isPriceSource && <div className={`h-1.5 w-1.5 rounded-full shrink-0 ${metrics.profit >= 0 ? 'bg-green-500' : 'bg-red-500'}`} title="Pricing driver" />}
+              <EditableCell
+                value={metrics.price}
+                onSave={async value => handleSavePricingValue(product.id, 'price', value as number)}
+                type="number"
+                formatDisplay={formatCurrencyValue}
+                className="text-left justify-start font-medium"
+              />
+            </div>
+            {methodLabel && (
+              <span className="text-[10px] text-muted-foreground leading-none mt-0.5 pl-1">{methodLabel}</span>
+            )}
+          </div>
         );
       },
     },
@@ -353,14 +368,18 @@ export function ProductsTableView({
         // When method='profit', show pricingValue (user's desired profit) not the re-derived profit
         // (they diverge when product_cost=0, making the cell show wrong value after save)
         const profitValue = product.pricing_method === 'profit' ? metrics.pricingValue : metrics.profit;
+        const isSource = product.pricing_method === 'profit';
         return (
-          <EditableCell
-            value={profitValue}
-            onSave={async value => handleSavePricingValue(product.id, 'profit', value as number)}
-            type="number"
-            formatDisplay={v => <span className={Number(v) >= 0 ? 'text-green-600' : 'text-red-600'}>{formatCurrencyValue(v)}</span>}
-            className="text-left justify-start"
-          />
+          <div className="flex items-center gap-1">
+            {isSource && <div className={`h-1.5 w-1.5 rounded-full shrink-0 ${profitValue >= 0 ? 'bg-green-500' : 'bg-red-500'}`} title="Pricing driver" />}
+            <EditableCell
+              value={profitValue}
+              onSave={async value => handleSavePricingValue(product.id, 'profit', value as number)}
+              type="number"
+              formatDisplay={v => <span className={Number(v) >= 0 ? 'text-green-600' : 'text-red-600'}>{formatCurrencyValue(v)}</span>}
+              className="text-left justify-start"
+            />
+          </div>
         );
       },
     },
@@ -395,17 +414,10 @@ export function ProductsTableView({
           // (they diverge when product_cost=0, causing the cell to show 0% after save)
           marginValue = product.pricing_method === 'margin' ? metrics.pricingValue : metrics.margin;
         }
-        const dotColor =
-          marginValue >= 30 ? 'bg-green-500' :
-          marginValue >= 10 ? 'bg-amber-500' :
-          'bg-red-500';
+        const isMarginSource = !feeAwareMode && product.pricing_method === 'margin';
         return (
           <div className="flex items-center gap-1.5">
-            <div className={`h-2 w-2 rounded-full shrink-0 ${dotColor}`} title={
-              marginValue >= 30 ? 'Healthy margin' :
-              marginValue >= 10 ? 'Thin margin' :
-              'At risk'
-            } />
+            {isMarginSource && <div className={`h-1.5 w-1.5 rounded-full shrink-0 ${marginValue >= 0 ? 'bg-green-500' : 'bg-red-500'}`} title="Pricing driver" />}
             <EditableCell
               value={marginValue}
               onSave={async value => handleSavePricingValue(product.id, 'margin', value as number)}
@@ -426,14 +438,18 @@ export function ProductsTableView({
         const metrics = getCalculatedMetrics(product);
         // When method='markup', show pricingValue (user's desired markup) not re-derived markup
         const markupValue = product.pricing_method === 'markup' ? metrics.pricingValue : metrics.markup;
+        const isMarkupSource = product.pricing_method === 'markup';
         return (
-          <EditableCell
-            value={markupValue}
-            onSave={async value => handleSavePricingValue(product.id, 'markup', value as number)}
-            type="number"
-            formatDisplay={formatPercentage}
-            className="text-left justify-start text-purple-700"
-          />
+          <div className="flex items-center gap-1">
+            {isMarkupSource && <div className={`h-1.5 w-1.5 rounded-full shrink-0 ${markupValue >= 0 ? 'bg-green-500' : 'bg-red-500'}`} title="Pricing driver" />}
+            <EditableCell
+              value={markupValue}
+              onSave={async value => handleSavePricingValue(product.id, 'markup', value as number)}
+              type="number"
+              formatDisplay={formatPercentage}
+              className="text-left justify-start text-purple-700"
+            />
+          </div>
         );
       },
     },
