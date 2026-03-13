@@ -71,7 +71,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     <SidebarProvider defaultOpen={defaultOpen}>
       <TourProvider>
         <AppSidebar onSettingsOpen={() => setSettingsOpen(true)} />
-        <main className="flex flex-1 flex-col overflow-hidden">
+        <main className="flex flex-1 flex-col overflow-hidden h-svh">
           <div className="flex h-14 items-center gap-3 border-b border-border bg-background/90 backdrop-blur-sm px-5 sticky top-0 z-20">
             <SidebarTrigger className="text-muted-foreground hover:text-foreground transition-colors shrink-0" />
             <div id="header-title" className="flex-1 flex items-center min-w-0">
@@ -126,7 +126,7 @@ export function AppLayout({ children }: AppLayoutProps) {
             </div>
           )}
 
-          <div className="flex-1 overflow-auto">{children}</div>
+          <div className="flex-1 overflow-auto flex flex-col min-h-0">{children}</div>
         </main>
         <SettingsDialog
           open={settingsOpen}

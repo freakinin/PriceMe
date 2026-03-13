@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Settings2, BarChart2 } from 'lucide-react';
+import { Settings2, BarChart2, FileText } from 'lucide-react';
 import { useSidebar } from '@/components/ui/sidebar';
 import api from '@/lib/api';
 import { UpgradePrompt } from '@/components/subscription/UpgradePrompt';
@@ -80,6 +80,7 @@ export default function CreateProduct() {
 
   const [templates, setTemplates] = useState<any[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
+
 
   // Auto-start product form tour on first visit to Add Product (not edit)
   const { startProductTour } = useTour();
@@ -402,18 +403,27 @@ export default function CreateProduct() {
   const watchedName = watch('name');
 
   if (isLoadingProduct) {
-    return <div className="flex items-center justify-center h-[calc(100vh-4rem)]">Loading product data...</div>;
+    return <div className="flex items-center justify-center h-full">Loading product data...</div>;
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] overflow-hidden">
-      <div className="flex-1 overflow-y-auto p-6">
+    <div className="flex-1 flex flex-col overflow-hidden">
+
+
+      <div className="flex-1 overflow-y-auto lg:overflow-hidden lg:flex lg:flex-col">
 
         {/* Header Title Portal */}
         {headerTitleContainer && createPortal(
-          <h1 className="text-xl font-semibold">
-            {isEditMode ? `Edit ${watchedName || 'Product'}` : 'Add Product'}
-          </h1>,
+          <div className="min-w-0">
+            {isEditMode ? (
+              <>
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground leading-none mb-0.5">Editing</div>
+                <div className="text-base font-semibold truncate max-w-[220px] leading-tight">{watchedName || 'Product'}</div>
+              </>
+            ) : (
+              <h1 className="text-base font-semibold">Add Product</h1>
+            )}
+          </div>,
           headerTitleContainer
         )}
 
@@ -421,10 +431,10 @@ export default function CreateProduct() {
         {headerContainer && createPortal(
           <div className="flex items-center gap-2">
             <Select value={selectedTemplateId} onValueChange={handleLoadTemplate}>
-              <SelectTrigger className="w-[180px] h-9">
-                <SelectValue placeholder="Load Template..." />
+              <SelectTrigger className="hidden sm:flex h-8 w-8 p-0 justify-center [&>svg:last-child]:hidden" title="Load template">
+                <FileText className="h-4 w-4 shrink-0" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent align="end">
                 <SelectItem value="none">None (Clear)</SelectItem>
                 {templates.map((t) => (
                   <SelectItem key={t.id} value={t.id.toString()}>
@@ -471,114 +481,121 @@ export default function CreateProduct() {
         />
 
         <Form {...form}>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          <form onSubmit={handleSubmit(onSubmit)} className="lg:flex-1 lg:flex lg:flex-col min-h-0">
+            <div className="lg:flex-1 flex flex-col lg:flex-row lg:overflow-hidden min-h-0">
 
-            {/* Top Section */}
-            <div className="grid grid-cols-5 gap-4 items-end" data-tour="ptour-top-section">
-              <FormField control={control} name="name" render={({ field }) => (
-                <FormItem className="col-span-2">
-                  <FormLabel>Product Name *</FormLabel>
-                  <FormControl><Input placeholder="My Product" {...field} /></FormControl>
-                  <FormMessage />
-                </FormItem>
-              )} />
-              <FormField control={control} name="category_id" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Category</FormLabel>
-                  <FormControl>
-                    <CategorySelect
-                      value={field.value}
-                      onChange={field.onChange}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )} />
-              <FormField control={control} name="sku" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>SKU</FormLabel>
-                  <FormControl><Input placeholder="SKU-001" autoComplete="off" {...field} value={field.value || ''} /></FormControl>
-                  <FormMessage />
-                </FormItem>
-              )} />
-              <FormField control={control} name="batch_size" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Batch Size</FormLabel>
-                  <FormControl><Input type="number" min={1} {...field} onChange={e => field.onChange(parseInt(e.target.value) || 1)} /></FormControl>
-                  <FormMessage />
-                </FormItem>
-              )} />
-            </div>
+              {/* LEFT PANEL: product info + cost sections (scrollable) */}
+              <div className="flex-1 lg:overflow-y-auto px-6 pt-6 pb-2 space-y-6">
 
-            {/* 3-Column Grid: Materials, Labor, Other */}
-            <div className="grid grid-cols-3 gap-6">
+                {/* Top Section */}
+                <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 items-end" data-tour="ptour-top-section">
+                  <FormField control={control} name="name" render={({ field }) => (
+                    <FormItem className="col-span-2">
+                      <FormLabel>Product Name *</FormLabel>
+                      <FormControl><Input placeholder="My Product" {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={control} name="category_id" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Category</FormLabel>
+                      <FormControl>
+                        <CategorySelect
+                          value={field.value}
+                          onChange={field.onChange}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={control} name="sku" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>SKU</FormLabel>
+                      <FormControl><Input placeholder="SKU-001" autoComplete="off" {...field} value={field.value || ''} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={control} name="batch_size" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Batch Size</FormLabel>
+                      <FormControl><Input type="number" min={1} {...field} onChange={e => field.onChange(parseInt(e.target.value) || 1)} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                </div>
 
-              {/* Materials */}
-              <div data-tour="ptour-materials">
-                <MaterialsSection
-                  control={control}
-                  materials={materials || []}
-                  settings={settings}
-                  batchSize={batchSize}
+                {/* Cost sections — stacked */}
+                <div data-tour="ptour-materials">
+                  <MaterialsSection control={control} materials={materials || []} settings={settings} batchSize={batchSize} />
+                </div>
+
+                <div data-tour="ptour-labor">
+                  <LaborSection control={control} laborCosts={laborCosts || []} settings={settings} batchSize={batchSize} />
+                </div>
+
+                <div data-tour="ptour-other-costs">
+                  <OtherCostsSection control={control} otherCosts={otherCosts || []} settings={settings} batchSize={batchSize} />
+                </div>
+
+                {/* Pricing — mobile only (desktop shows it in the right panel) */}
+                <div className="lg:hidden" data-tour="ptour-cost-bar">
+                  <PriceCalculatorPanel
+                    totalCost={totalCostPerProduct}
+                    currency={settings.currency}
+                    initialMethod={(watch('pricing_method') as any) || 'price'}
+                    initialValue={watch('pricing_value') || watch('target_price') || undefined}
+                    onChange={(method, value, calculatedPrice) => {
+                      setValue('pricing_method', method);
+                      setValue('pricing_value', value);
+                      setValue('target_price', calculatedPrice);
+                    }}
+                  />
+                </div>
+
+              </div>
+
+              {/* RIGHT PANEL: pricing calculator (desktop only, always visible) */}
+              <div className="hidden lg:flex lg:flex-col w-80 xl:w-96 shrink-0 border-l overflow-y-auto p-6" data-tour="ptour-cost-bar">
+                <PriceCalculatorPanel
+                  totalCost={totalCostPerProduct}
+                  currency={settings.currency}
+                  initialMethod={(watch('pricing_method') as any) || 'price'}
+                  initialValue={watch('pricing_value') || watch('target_price') || undefined}
+                  onChange={(method, value, calculatedPrice) => {
+                    setValue('pricing_method', method);
+                    setValue('pricing_value', value);
+                    setValue('target_price', calculatedPrice);
+                  }}
                 />
               </div>
 
-              {/* Labor */}
-              <div data-tour="ptour-labor">
-                <LaborSection
-                  control={control}
-                  laborCosts={laborCosts || []}
-                  settings={settings}
-                  batchSize={batchSize}
-                />
-              </div>
-
-              {/* Other Costs */}
-              <div data-tour="ptour-other-costs">
-                <OtherCostsSection
-                  control={control}
-                  otherCosts={otherCosts || []}
-                  settings={settings}
-                  batchSize={batchSize}
-                />
-              </div>
-            </div>
-
-            {/* Pricing Panel */}
-            <div data-tour="ptour-cost-bar">
-              <PriceCalculatorPanel
-                totalCost={totalCostPerProduct}
-                currency={settings.currency}
-                initialMethod={(watch('pricing_method') as any) || 'price'}
-                initialValue={watch('pricing_value') || watch('target_price') || undefined}
-                onChange={(method, value, calculatedPrice) => {
-                  setValue('pricing_method', method);
-                  setValue('pricing_value', value);
-                  setValue('target_price', calculatedPrice);
-                }}
-              />
             </div>
           </form>
         </Form>
       </div>
 
-      {/* Bottom Bar */}
-      <div className="shrink-0 bg-background border-t px-6 py-2 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
-        <div className="flex items-center justify-between">
+      {/* Footer */}
+      <div className="shrink-0 bg-background border-t px-6 py-3 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
+        <div className="flex items-center justify-between gap-4">
 
-          {/* Left: Cost Breakdown */}
-          <div className="flex items-center gap-4 text-xs text-muted-foreground">
-            <span>Materials: <span className="font-medium text-foreground">{formatCurrency(totalMaterialsCost, settings.currency)}</span></span>
-            <span>Labor: <span className="font-medium text-foreground">{formatCurrency(totalLaborCost, settings.currency)}</span></span>
-            <span>Other: <span className="font-medium text-foreground">{formatCurrency(totalOtherCost, settings.currency)}</span></span>
-            <div className="h-4 w-px bg-border" />
-            <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
-              Total Cost: <span className="text-base font-bold text-primary normal-case tracking-normal">{formatCurrency(totalCostPerProduct, settings.currency)}</span>
-            </span>
+          {/* Left: cost summary */}
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="shrink-0">
+              <div className="text-[9px] uppercase tracking-wider text-muted-foreground leading-none mb-0.5">Total Cost</div>
+              <div className="text-sm font-bold text-primary">{formatCurrency(totalCostPerProduct, settings.currency)}</div>
+            </div>
+            <div className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground">
+              <span className="text-border">·</span>
+              <span>Mat <span className="font-medium text-foreground">{formatCurrency(totalMaterialsCost, settings.currency)}</span></span>
+              <span className="text-border">·</span>
+              <span>Labor <span className="font-medium text-foreground">{formatCurrency(totalLaborCost, settings.currency)}</span></span>
+              <span className="text-border">·</span>
+              <span>Other <span className="font-medium text-foreground">{formatCurrency(totalOtherCost, settings.currency)}</span></span>
+            </div>
           </div>
 
-          {/* Right: Buttons */}
-          <div className="flex gap-2">
+          {/* Right: buttons */}
+          <div className="flex gap-2 shrink-0">
             <Button type="button" variant="outline" size="sm" onClick={() => navigate('/products')}>Cancel</Button>
             <Button type="button" size="sm" onClick={handleSubmit(onSubmit, onError)}>{isEditMode ? 'Update Product' : 'Create Product'}</Button>
           </div>
