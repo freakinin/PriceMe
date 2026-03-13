@@ -79,6 +79,7 @@ export default function CreateProduct() {
 
   const [templates, setTemplates] = useState<any[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
+  const [activeTab, setActiveTab] = useState<'materials' | 'labor' | 'other'>('materials');
 
 
   // Auto-start product form tour on first visit to Add Product (not edit)
@@ -408,6 +409,32 @@ export default function CreateProduct() {
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
 
+      {/* Desktop Tab Bar — sticky below the app header */}
+      <div className="hidden lg:flex shrink-0 items-center gap-1 border-b bg-background px-6 py-1.5">
+        {([
+          { id: 'materials', label: 'Materials', count: materials?.length ?? 0 },
+          { id: 'labor',     label: 'Labor',     count: laborCosts?.length ?? 0 },
+          { id: 'other',     label: 'Other Costs', count: otherCosts?.length ?? 0 },
+        ] as const).map(({ id, label, count }) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setActiveTab(id)}
+            className={`px-3 py-1 rounded-md text-xs font-medium transition-colors flex items-center gap-1.5 ${
+              activeTab === id
+                ? 'bg-primary text-primary-foreground'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+            }`}
+          >
+            {label}
+            {count > 0 && (
+              <span className={`text-[10px] rounded-full px-1.5 leading-4 ${
+                activeTab === id ? 'bg-white/20 text-primary-foreground' : 'bg-muted text-muted-foreground'
+              }`}>{count}</span>
+            )}
+          </button>
+        ))}
+      </div>
 
       <div className="flex-1 overflow-y-auto lg:overflow-hidden lg:flex lg:flex-col">
 
@@ -523,16 +550,17 @@ export default function CreateProduct() {
                   )} />
                 </div>
 
-                {/* Cost sections — stacked */}
-                <div data-tour="ptour-materials">
+                {/* DESKTOP: one tab section at a time */}
+                <div className="hidden lg:block" data-tour="ptour-materials">
+                  {activeTab === 'materials' && <MaterialsSection control={control} materials={materials || []} settings={settings} batchSize={batchSize} />}
+                  {activeTab === 'labor'     && <LaborSection control={control} laborCosts={laborCosts || []} settings={settings} batchSize={batchSize} />}
+                  {activeTab === 'other'     && <OtherCostsSection control={control} otherCosts={otherCosts || []} settings={settings} batchSize={batchSize} />}
+                </div>
+
+                {/* MOBILE: all sections stacked */}
+                <div className="lg:hidden space-y-6">
                   <MaterialsSection control={control} materials={materials || []} settings={settings} batchSize={batchSize} />
-                </div>
-
-                <div data-tour="ptour-labor">
                   <LaborSection control={control} laborCosts={laborCosts || []} settings={settings} batchSize={batchSize} />
-                </div>
-
-                <div data-tour="ptour-other-costs">
                   <OtherCostsSection control={control} otherCosts={otherCosts || []} settings={settings} batchSize={batchSize} />
                 </div>
 
