@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 
@@ -13,6 +12,13 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { MarketAnalysisPanel } from '@/components/MarketAnalysisPanel';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useSettings } from '@/hooks/useSettings';
 import { getCurrencySymbol } from '@/utils/currency';
@@ -60,7 +66,6 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
   const { settings } = useSettings();
   const { toast } = useToast();
   const { updateProduct } = useProducts();
-  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState(() =>
     productId ? (productTabMemory[productId] || 'basic') : 'basic'
   );
@@ -68,6 +73,7 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
   // Variations State
   const [variants, setVariants] = useState<Variant[]>([]);
   const [isVariationsModalOpen, setIsVariationsModalOpen] = useState(false);
+  const [isMarketAnalysisOpen, setIsMarketAnalysisOpen] = useState(false);
 
   // Fetch full product details
   const { data: product, isLoading: isLoadingProduct } = useQuery({
@@ -99,6 +105,7 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
   const currentPrice = watch('target_price') || 0;
   const watchedName = watch('name');
   const watchedSku = watch('sku') || '';
+  const watchedDescription = watch('description');
 
   // Watch values
   const materials = watch('materials');
@@ -106,11 +113,27 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
   const otherCosts = watch('other_costs');
   const batchSize = watch('batch_size') || 1;
 
-  // Live cost calculation for variant modal
-  const totalCostPerProduct =
-    (materials?.reduce((sum, m) => sum + calculateMaterialCost(m, batchSize), 0) || 0) +
-    (laborCosts?.reduce((sum, l) => sum + calculateLaborCost(l, batchSize), 0) || 0) +
-    (otherCosts?.reduce((sum, o) => sum + calculateOtherCost(o, batchSize), 0) || 0);
+  // Live cost calculation (split by type for breakdown)
+  const materialsCost = materials?.reduce((sum, m) => sum + calculateMaterialCost(m, batchSize), 0) || 0;
+  const laborCostTotal = laborCosts?.reduce((sum, l) => sum + calculateLaborCost(l, batchSize), 0) || 0;
+  const otherCostTotal = otherCosts?.reduce((sum, o) => sum + calculateOtherCost(o, batchSize), 0) || 0;
+  const totalCostPerProduct = materialsCost + laborCostTotal + otherCostTotal;
+
+  // Live product snapshot from current (unsaved) form state for market analysis
+  const liveProduct = productId ? {
+    id: productId,
+    name: watchedName || product?.name || '',
+    target_price: currentPrice,
+    product_cost: totalCostPerProduct,
+    profit: currentPrice - totalCostPerProduct,
+    profit_margin: currentPrice > 0 ? ((currentPrice - totalCostPerProduct) / currentPrice) * 100 : 0,
+    materials: materials || [],
+    materials_total: materialsCost,
+    labor_total: laborCostTotal,
+    other_total: otherCostTotal,
+    category: product?.category || '',
+    status: product?.status || 'active',
+  } : null;
 
   // Restore tab when productId changes while pane is already mounted
   useEffect(() => {
@@ -262,11 +285,11 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
                   <Settings2 className="h-4 w-4" />
                 </Button>
 
-                {/* Market Analysis Button — navigates to full page */}
+                {/* Market Analysis Button — opens inline popup */}
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => { onOpenChange(false); navigate(`/market-analysis?productId=${productId}`); }}
+                  onClick={() => setIsMarketAnalysisOpen(true)}
                   className="h-9 w-9"
                   title="Competitor Analysis"
                 >
@@ -383,6 +406,26 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
         basePrice={currentPrice}
         baseSku={watchedSku}
       />
+
+      {/* Market Analysis Popup — shows live (unsaved) form state */}
+      <Dialog open={isMarketAnalysisOpen} onOpenChange={setIsMarketAnalysisOpen}>
+        <DialogContent className="max-w-[90vw] w-[90vw] h-[90vh] max-h-[90vh] flex flex-col p-0 gap-0">
+          <DialogHeader className="px-6 py-4 border-b flex-none">
+            <DialogTitle className="flex items-center gap-2">
+              <BarChart2 className="h-4 w-4" />
+              Competitor Analysis — {watchedName || product?.name}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 overflow-auto">
+            {liveProduct && (
+              <MarketAnalysisPanel
+                product={liveProduct}
+                currency={settings?.currency || 'USD'}
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

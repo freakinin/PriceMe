@@ -43,6 +43,10 @@ interface Product {
     materials?: any[];
     category?: string;
     status?: string;
+    // Pre-calculated cost breakdown (passed from live edit state)
+    materials_total?: number;
+    labor_total?: number;
+    other_total?: number;
 }
 
 interface MarketAnalysisPanelProps {
@@ -74,6 +78,68 @@ interface CompetitiveInsights {
     risks: string;
     action_items: string[];
     competitors_ref?: Record<string, string>; // shortName -> URL
+}
+
+function CostPieChart({
+    materialsTotal, laborTotal, otherTotal, productCost, currency
+}: {
+    materialsTotal: number; laborTotal: number; otherTotal: number;
+    productCost: number; currency: string;
+}) {
+    const items = [
+        { label: 'Materials', value: materialsTotal, fill: '#3b82f6' },
+        { label: 'Labor',     value: laborTotal,     fill: '#a855f7' },
+        { label: 'Other',     value: otherTotal,     fill: '#fb923c' },
+    ].filter(s => s.value > 0);
+
+    if (items.length === 0) return null;
+
+    const cx = 50, cy = 50, r = 42;
+    let cum = 0;
+    const slices = items.map(item => {
+        const pct = (item.value / productCost) * 100;
+        const startRad = (cum * 3.6 - 90) * (Math.PI / 180);
+        cum += pct;
+        const endRad = (cum * 3.6 - 90) * (Math.PI / 180);
+        return {
+            ...item, pct,
+            x1: cx + r * Math.cos(startRad), y1: cy + r * Math.sin(startRad),
+            x2: cx + r * Math.cos(endRad),   y2: cy + r * Math.sin(endRad),
+            largeArc: pct > 50 ? 1 : 0,
+        };
+    });
+
+    return (
+        <div className="flex items-center gap-3">
+            <svg viewBox="0 0 100 100" className="w-[72px] h-[72px] shrink-0">
+                {items.length === 1 ? (
+                    <circle cx={cx} cy={cy} r={r} fill={items[0].fill} />
+                ) : (
+                    slices.map((s, i) => (
+                        <path
+                            key={i}
+                            d={`M ${cx} ${cy} L ${s.x1} ${s.y1} A ${r} ${r} 0 ${s.largeArc} 1 ${s.x2} ${s.y2} Z`}
+                            fill={s.fill}
+                        />
+                    ))
+                )}
+            </svg>
+            <div className="flex-1 space-y-2 min-w-0">
+                {slices.map((s, i) => (
+                    <div key={i} className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                            <div className="w-2 h-2 rounded-sm shrink-0" style={{ backgroundColor: s.fill }} />
+                            <span className="text-[10px] text-muted-foreground">{s.label}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="text-[10px] text-muted-foreground">{s.pct.toFixed(0)}%</span>
+                            <span className="text-xs font-mono">{formatCurrency(s.value, currency)}</span>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
 }
 
 export function MarketAnalysisPanel({ product, currency }: MarketAnalysisPanelProps) {
@@ -395,76 +461,102 @@ export function MarketAnalysisPanel({ product, currency }: MarketAnalysisPanelPr
                         <Separator />
 
                         <div className="space-y-4">
-                            <div>
-                                <label className="text-[10px] font-semibold text-muted-foreground uppercase">Description</label>
-                                <p className="text-xs mt-1 leading-relaxed text-foreground/90 line-clamp-4 hover:line-clamp-none transition-all cursor-default">
-                                    {product.description || 'No description provided.'}
-                                </p>
+                            {/* Pricing Details */}
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-semibold text-muted-foreground uppercase flex items-center gap-1">
+                                    <DollarSign className="h-3 w-3" /> Pricing Details
+                                </label>
+                                <div className="bg-muted/30 rounded-lg p-3 space-y-2">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-xs text-muted-foreground">Your Price</span>
+                                        <span className="text-sm font-bold text-primary">{formatCurrency(currentPrice, currency)}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-xs text-muted-foreground">Total Cost</span>
+                                        <span className="text-xs font-mono">{formatCurrency(product.product_cost, currency)}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-xs text-muted-foreground">Profit / Unit</span>
+                                        <span className={`text-xs font-mono font-semibold ${(product.profit || 0) >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                                            {(product.profit || 0) >= 0 ? '+' : ''}{formatCurrency(product.profit || 0, currency)}
+                                        </span>
+                                    </div>
+                                    <div className="border-t border-border/50 pt-2 space-y-2">
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-xs text-muted-foreground">Margin</span>
+                                            <span className="text-xs font-semibold">{(product.profit_margin ?? 0).toFixed(1)}%</span>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-xs text-muted-foreground">Markup</span>
+                                            <span className="text-xs font-mono">
+                                                {product.product_cost > 0 ? (((currentPrice - product.product_cost) / product.product_cost) * 100).toFixed(0) : 0}%
+                                            </span>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-xs text-muted-foreground">Break-even</span>
+                                            <span className="text-xs font-mono text-amber-600">{formatCurrency(product.product_cost, currency)}</span>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
+                            {/* Margin Health */}
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-semibold text-muted-foreground uppercase flex items-center gap-1">
+                                    <TrendingUp className="h-3 w-3" /> Margin Health
+                                </label>
+                                {(() => {
+                                    const margin = product.profit_margin ?? 0;
+                                    const health = margin >= 40
+                                        ? { label: 'Healthy', barColor: 'bg-green-500', badgeClass: 'text-green-700 bg-green-100', hint: 'Great margins — you have room to discount or run sales.' }
+                                        : margin >= 20
+                                        ? { label: 'Moderate', barColor: 'bg-amber-500', badgeClass: 'text-amber-700 bg-amber-100', hint: 'Decent margins. Watch costs if competitors undercut you.' }
+                                        : margin > 0
+                                        ? { label: 'Thin', barColor: 'bg-orange-500', badgeClass: 'text-orange-700 bg-orange-100', hint: 'Low margin — consider raising price or reducing costs.' }
+                                        : { label: 'At Loss', barColor: 'bg-red-500', badgeClass: 'text-red-700 bg-red-100', hint: 'Price is below cost. Raise price or cut material spend.' };
+                                    return (
+                                        <div className="space-y-2">
+                                            <div className="flex items-center justify-between">
+                                                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${health.badgeClass}`}>{health.label}</span>
+                                                <span className="text-xs font-semibold">{margin.toFixed(0)}% margin</span>
+                                            </div>
+                                            <div className="h-2 rounded-full bg-muted overflow-hidden">
+                                                <div
+                                                    className={`h-full rounded-full transition-all ${health.barColor}`}
+                                                    style={{ width: `${Math.min(100, Math.max(0, margin))}%` }}
+                                                />
+                                            </div>
+                                            <p className="text-[10px] text-muted-foreground">{health.hint}</p>
+                                        </div>
+                                    );
+                                })()}
+                            </div>
+
+                            {/* Cost Breakdown Pie Chart */}
+                            {product.product_cost > 0 && (
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-semibold text-muted-foreground uppercase flex items-center gap-1">
+                                        <Layers className="h-3 w-3" /> Cost Breakdown
+                                    </label>
+                                    <CostPieChart
+                                        materialsTotal={product.materials_total ?? product.product_cost}
+                                        laborTotal={product.labor_total ?? 0}
+                                        otherTotal={product.other_total ?? 0}
+                                        productCost={product.product_cost}
+                                        currency={currency}
+                                    />
+                                </div>
+                            )}
+
+                            {/* Category (if set) */}
+                            {product.category && (
                                 <div>
                                     <label className="text-[10px] font-semibold text-muted-foreground uppercase flex items-center gap-1">
                                         <Tag className="h-3 w-3" /> Category
                                     </label>
-                                    <p className="text-xs font-medium mt-1">{product.category || 'Uncategorized'}</p>
+                                    <p className="text-xs font-medium mt-1">{product.category}</p>
                                 </div>
-                                <div>
-                                    <label className="text-[10px] font-semibold text-muted-foreground uppercase">Status</label>
-                                    <div className="mt-1">
-                                        <Badge
-                                            variant="secondary"
-                                            className={`font-normal text-[10px] h-5 px-1.5 capitalize ${product.status === 'on_sale' ? 'bg-green-100 text-green-800 hover:bg-green-200' :
-                                                product.status === 'in_progress' ? 'bg-amber-100 text-amber-800 hover:bg-amber-200' :
-                                                    product.status === 'draft' ? 'bg-slate-100 text-slate-800 hover:bg-slate-200' :
-                                                        ''
-                                                }`}
-                                        >
-                                            {product.status?.replace('_', ' ') || 'Draft'}
-                                        </Badge>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="text-[10px] font-semibold text-muted-foreground uppercase flex items-center gap-1">
-                                    <Layers className="h-3 w-3" /> Materials
-                                </label>
-                                {product.materials && product.materials.length > 0 ? (
-                                    <ul className="mt-1.5 space-y-1">
-                                        {product.materials.slice(0, 5).map((m: any, idx: number) => (
-                                            <li key={idx} className="text-xs flex justify-between">
-                                                <span className="text-muted-foreground truncate max-w-[180px]" title={m.name}>{m.name}</span>
-                                            </li>
-                                        ))}
-                                        {product.materials.length > 5 && (
-                                            <li className="text-[10px] text-muted-foreground italic pt-0.5">
-                                                + {product.materials.length - 5} more...
-                                            </li>
-                                        )}
-                                    </ul>
-                                ) : (
-                                    <p className="text-xs text-muted-foreground mt-1 italic">No materials listed</p>
-                                )}
-                            </div>
-
-                            <div>
-                                <label className="text-[10px] font-semibold text-muted-foreground uppercase flex items-center gap-1">
-                                    <DollarSign className="h-3 w-3" /> Cost & Profit
-                                </label>
-                                <div className="mt-1.5 bg-muted/40 rounded p-2 text-xs space-y-1.5">
-                                    <div className="flex justify-between">
-                                        <span className="text-muted-foreground">Total Cost</span>
-                                        <span className="font-mono">{formatCurrency(product.product_cost, currency)}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-muted-foreground">Projected Profit</span>
-                                        <span className={`font-mono ${(product.profit || 0) >= 0 ? 'text-green-600' : 'text-red-500'}`}>
-                                            {(product.profit || 0) >= 0 ? '+' : ''}{formatCurrency(product.profit || 0, currency)}
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
+                            )}
                         </div>
                     </div>
                 </div>

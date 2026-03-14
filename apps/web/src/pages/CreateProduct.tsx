@@ -17,6 +17,13 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Settings2, BarChart2, FileText } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { MarketAnalysisPanel } from '@/components/MarketAnalysisPanel';
 import { useSidebar } from '@/components/ui/sidebar';
 import api from '@/lib/api';
 import { UpgradePrompt } from '@/components/subscription/UpgradePrompt';
@@ -217,6 +224,7 @@ export default function CreateProduct() {
 
   const [variants, setVariants] = useState<Variant[]>([]);
   const [isVariationsModalOpen, setIsVariationsModalOpen] = useState(false);
+  const [isMarketAnalysisOpen, setIsMarketAnalysisOpen] = useState(false);
   const [upgradePrompt, setUpgradePrompt] = useState<{ open: boolean; limit: number }>({ open: false, limit: 0 });
 
   const [templates, setTemplates] = useState<any[]>([]);
@@ -563,6 +571,21 @@ export default function CreateProduct() {
   }, []);
 
   const watchedName = watch('name');
+  const watchedDescription = watch('description');
+
+  // Live product snapshot from current (unsaved) form state for market analysis
+  const liveProduct = isEditMode && editProductId ? {
+    id: Number(editProductId),
+    name: watchedName || '',
+    target_price: targetPrice,
+    product_cost: totalCostPerProduct,
+    profit: targetPrice - totalCostPerProduct,
+    profit_margin: targetPrice > 0 ? ((targetPrice - totalCostPerProduct) / targetPrice) * 100 : 0,
+    materials: materials || [],
+    materials_total: totalMaterialsCost,
+    labor_total: totalLaborCost,
+    other_total: totalOtherCost,
+  } : null;
 
   if (isLoadingProduct) {
     return <div className="flex items-center justify-center h-full">Loading product data...</div>;
@@ -622,7 +645,7 @@ export default function CreateProduct() {
                 variant="ghost"
                 size="icon"
                 className="h-9 w-9"
-                onClick={() => navigate(`/market-analysis?productId=${editProductId}`)}
+                onClick={() => setIsMarketAnalysisOpen(true)}
                 title="Competitor Analysis"
               >
                 <BarChart2 className="h-4 w-4" />
@@ -816,6 +839,26 @@ export default function CreateProduct() {
         currentLimit={upgradePrompt.limit}
         onViewPlans={() => openSettingsAt('subscription')}
       />
+
+      {/* Market Analysis Popup — shows live (unsaved) form state */}
+      <Dialog open={isMarketAnalysisOpen} onOpenChange={setIsMarketAnalysisOpen}>
+        <DialogContent className="max-w-[90vw] w-[90vw] h-[90vh] max-h-[90vh] flex flex-col p-0 gap-0">
+          <DialogHeader className="px-6 py-4 border-b flex-none">
+            <DialogTitle className="flex items-center gap-2">
+              <BarChart2 className="h-4 w-4" />
+              Competitor Analysis — {watchedName}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 overflow-auto">
+            {liveProduct && (
+              <MarketAnalysisPanel
+                product={liveProduct}
+                currency={settings?.currency || 'USD'}
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
