@@ -203,15 +203,24 @@ export function AppSidebar({ onSettingsOpen }: AppSidebarProps) {
           {/* ── User row ── */}
           <SidebarMenuItem>
             <div className="flex w-full items-center gap-2.5 px-2 py-1.5 group-data-[collapsible=icon]:justify-center">
-              <div
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold cursor-default select-none"
-                style={{
-                  background: 'hsl(18 88% 40% / 0.2)',
-                  color: 'hsl(18 88% 65%)',
-                }}
-              >
-                {initials}
-              </div>
+              {user?.avatar_url ? (
+                <img
+                  src={user.avatar_url}
+                  alt={user.name || user.email}
+                  className="h-8 w-8 shrink-0 rounded-full object-cover"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <div
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold cursor-default select-none"
+                  style={{
+                    background: 'hsl(18 88% 40% / 0.2)',
+                    color: 'hsl(18 88% 65%)',
+                  }}
+                >
+                  {initials}
+                </div>
+              )}
               {!isCollapsed && (
                 <>
                   <p className="flex-1 min-w-0 text-[11px] truncate" style={{ color: 'hsl(35 10% 60%)' }}>

@@ -1176,6 +1176,21 @@ export async function initializeDatabase() {
       console.log('Note: password_hash nullable migration:', e.message);
     }
 
+    // Migration: add avatar_url to users (for Google profile pictures)
+    try {
+      const col = await sql`
+        SELECT column_name FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'avatar_url'
+      `;
+      const rows = Array.isArray(col) ? col : (col as any).rows ?? [];
+      if (rows.length === 0) {
+        await sql`ALTER TABLE users ADD COLUMN avatar_url VARCHAR(512)`;
+        console.log('✅ Added avatar_url column to users');
+      }
+    } catch (e: any) {
+      console.log('Note: avatar_url migration:', e.message);
+    }
+
     console.log('✅ Database tables initialized successfully');
   } catch (error) {
     console.error('❌ Error initializing database:', error);

@@ -253,31 +253,33 @@ export const googleCallback = async (req: Request, res: Response) => {
       sub: string;
       email: string;
       name?: string;
+      picture?: string;
     }>({ url: 'https://www.googleapis.com/oauth2/v3/userinfo' });
-    const { sub: googleId, email, name } = userInfoResponse.data;
+    const { sub: googleId, email, name, picture } = userInfoResponse.data;
 
     if (!email) {
       return res.redirect(`${FRONTEND_URL}/login?error=google_no_email`);
     }
 
     // 1. Look up by google_id
-    let userResult = await db`SELECT id, email, name FROM users WHERE google_id = ${googleId}`;
+    let userResult = await db`SELECT id, email, name, avatar_url FROM users WHERE google_id = ${googleId}`;
     let users = Array.isArray(userResult) ? userResult : (userResult as any).rows ?? [];
 
     if (users.length === 0) {
       // 2. Look up by email (existing account without Google)
-      userResult = await db`SELECT id, email, name FROM users WHERE email = ${email}`;
+      userResult = await db`SELECT id, email, name, avatar_url FROM users WHERE email = ${email}`;
       users = Array.isArray(userResult) ? userResult : (userResult as any).rows ?? [];
 
       if (users.length > 0) {
-        // Link google_id to existing account
-        await db`UPDATE users SET google_id = ${googleId}, last_active_at = CURRENT_TIMESTAMP WHERE id = ${users[0].id}`;
+        // Link google_id to existing account and store avatar
+        await db`UPDATE users SET google_id = ${googleId}, avatar_url = ${picture || null}, last_active_at = CURRENT_TIMESTAMP WHERE id = ${users[0].id}`;
+        users[0].avatar_url = picture || null;
       } else {
         // 3. Create new user (no password)
         const newResult = await db`
-          INSERT INTO users (email, name, google_id, last_active_at)
-          VALUES (${email}, ${name || null}, ${googleId}, CURRENT_TIMESTAMP)
-          RETURNING id, email, name
+          INSERT INTO users (email, name, google_id, avatar_url, last_active_at)
+          VALUES (${email}, ${name || null}, ${googleId}, ${picture || null}, CURRENT_TIMESTAMP)
+          RETURNING id, email, name, avatar_url
         `;
         const newUsers = Array.isArray(newResult) ? newResult : (newResult as any).rows ?? [];
         try {
@@ -291,14 +293,16 @@ export const googleCallback = async (req: Request, res: Response) => {
         users = newUsers;
       }
     } else {
-      await db`UPDATE users SET last_active_at = CURRENT_TIMESTAMP WHERE id = ${users[0].id}`.catch(() => {});
+      // Update avatar_url on every login in case it changed
+      await db`UPDATE users SET avatar_url = ${picture || null}, last_active_at = CURRENT_TIMESTAMP WHERE id = ${users[0].id}`.catch(() => {});
+      users[0].avatar_url = picture || null;
     }
 
     const user = users[0];
     const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
     const params = new URLSearchParams({
       token,
-      user: JSON.stringify({ id: user.id, email: user.email, name: user.name }),
+      user: JSON.stringify({ id: user.id, email: user.email, name: user.name, avatar_url: user.avatar_url || null }),
     });
     return res.redirect(`${FRONTEND_URL}/auth/callback?${params.toString()}`);
   } catch (error: any) {
