@@ -1154,6 +1154,28 @@ export async function initializeDatabase() {
       console.log('Note: subscriptions.promo_code migration:', e.message);
     }
 
+    // Migration: add google_id to users (for Google OAuth)
+    try {
+      const col = await sql`
+        SELECT column_name FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'google_id'
+      `;
+      const rows = Array.isArray(col) ? col : (col as any).rows ?? [];
+      if (rows.length === 0) {
+        await sql`ALTER TABLE users ADD COLUMN google_id VARCHAR(255) UNIQUE`;
+        console.log('✅ Added google_id column to users');
+      }
+    } catch (e: any) {
+      console.log('Note: google_id migration:', e.message);
+    }
+
+    // Migration: make password_hash nullable (for Google-only OAuth users)
+    try {
+      await sql`ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL`;
+    } catch (e: any) {
+      console.log('Note: password_hash nullable migration:', e.message);
+    }
+
     console.log('✅ Database tables initialized successfully');
   } catch (error) {
     console.error('❌ Error initializing database:', error);

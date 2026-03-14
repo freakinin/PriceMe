@@ -1,9 +1,19 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { OAuth2Client } from 'google-auth-library';
 import { db } from '../utils/db.js';
 import { z } from 'zod';
 import { NotionSyncJob } from '../jobs/notionSync.js';
+
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+
+// Helpers read at call time (after dotenv has loaded)
+const getGoogleClient = () => new OAuth2Client(
+  process.env.GOOGLE_CLIENT_ID,
+  process.env.GOOGLE_CLIENT_SECRET,
+  process.env.GOOGLE_CALLBACK_URL || 'http://localhost:3001/api/auth/google/callback'
+);
 
 const VALID_PLANS = ['free', 'starter', 'growth', 'pro'] as const;
 
@@ -158,6 +168,14 @@ export const login = async (req: Request, res: Response) => {
 
     const user = users[0];
 
+    // Google-only accounts have no password
+    if (!user.password_hash) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'This account uses Google Sign-In. Please sign in with Google.',
+      });
+    }
+
     // Verify password
     const isValidPassword = await bcrypt.compare(password, user.password_hash);
 
@@ -206,6 +224,90 @@ export const login = async (req: Request, res: Response) => {
     });
   }
 };
+
+// ── Google OAuth ────────────────────────────────────────────────────────────
+
+export const googleAuth = (_req: Request, res: Response) => {
+  const client = getGoogleClient();
+  const url = client.generateAuthUrl({
+    access_type: 'online',
+    scope: ['openid', 'email', 'profile'],
+    prompt: 'select_account',
+  });
+  res.redirect(url);
+};
+
+export const googleCallback = async (req: Request, res: Response) => {
+  try {
+    const { code, error } = req.query;
+
+    if (error || !code) {
+      return res.redirect(`${FRONTEND_URL}/login?error=google_cancelled`);
+    }
+
+    const client = getGoogleClient();
+    const { tokens } = await client.getToken(code as string);
+    client.setCredentials(tokens);
+
+    const userInfoResponse = await client.request<{
+      sub: string;
+      email: string;
+      name?: string;
+    }>({ url: 'https://www.googleapis.com/oauth2/v3/userinfo' });
+    const { sub: googleId, email, name } = userInfoResponse.data;
+
+    if (!email) {
+      return res.redirect(`${FRONTEND_URL}/login?error=google_no_email`);
+    }
+
+    // 1. Look up by google_id
+    let userResult = await db`SELECT id, email, name FROM users WHERE google_id = ${googleId}`;
+    let users = Array.isArray(userResult) ? userResult : (userResult as any).rows ?? [];
+
+    if (users.length === 0) {
+      // 2. Look up by email (existing account without Google)
+      userResult = await db`SELECT id, email, name FROM users WHERE email = ${email}`;
+      users = Array.isArray(userResult) ? userResult : (userResult as any).rows ?? [];
+
+      if (users.length > 0) {
+        // Link google_id to existing account
+        await db`UPDATE users SET google_id = ${googleId}, last_active_at = CURRENT_TIMESTAMP WHERE id = ${users[0].id}`;
+      } else {
+        // 3. Create new user (no password)
+        const newResult = await db`
+          INSERT INTO users (email, name, google_id, last_active_at)
+          VALUES (${email}, ${name || null}, ${googleId}, CURRENT_TIMESTAMP)
+          RETURNING id, email, name
+        `;
+        const newUsers = Array.isArray(newResult) ? newResult : (newResult as any).rows ?? [];
+        try {
+          await db`
+            INSERT INTO subscriptions (user_id, plan, status)
+            VALUES (${newUsers[0].id}, 'free', 'active')
+            ON CONFLICT (user_id) DO NOTHING
+          `;
+        } catch (_: any) {}
+        NotionSyncJob.syncUser(newUsers[0].id).catch(() => {});
+        users = newUsers;
+      }
+    } else {
+      await db`UPDATE users SET last_active_at = CURRENT_TIMESTAMP WHERE id = ${users[0].id}`.catch(() => {});
+    }
+
+    const user = users[0];
+    const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
+    const params = new URLSearchParams({
+      token,
+      user: JSON.stringify({ id: user.id, email: user.email, name: user.name }),
+    });
+    return res.redirect(`${FRONTEND_URL}/auth/callback?${params.toString()}`);
+  } catch (error: any) {
+    console.error('Google OAuth callback error:', error);
+    return res.redirect(`${FRONTEND_URL}/login?error=google_failed`);
+  }
+};
+
+// ── Development-only password reset endpoint ─────────────────────────────────
 
 // Development-only password reset endpoint
 export const resetPassword = async (req: Request, res: Response) => {

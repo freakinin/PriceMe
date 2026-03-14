@@ -26,6 +26,7 @@ import MarketAnalysis from './pages/MarketAnalysis';
 import Coach from './pages/Coach';
 import Help from './pages/Help';
 import Onboarding from './pages/Onboarding';
+import GoogleAuthCallback from './pages/GoogleAuthCallback';
 import { useAuth } from './hooks/useAuth';
 import './index.css';
 
@@ -221,6 +222,9 @@ function App() {
             </ProtectedRoute>
           }
         />
+
+        {/* Google OAuth callback — no auth wrapper needed */}
+        <Route path="/auth/callback" element={<GoogleAuthCallback />} />
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
