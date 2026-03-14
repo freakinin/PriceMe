@@ -105,7 +105,7 @@ export default function EditProductPane({ productId, open, onOpenChange, onSucce
   const currentPrice = watch('target_price') || 0;
   const watchedName = watch('name');
   const watchedSku = watch('sku') || '';
-  const watchedDescription = watch('description');
+
 
   // Watch values
   const materials = watch('materials');

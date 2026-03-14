@@ -571,7 +571,7 @@ export default function CreateProduct() {
   }, []);
 
   const watchedName = watch('name');
-  const watchedDescription = watch('description');
+
 
   // Live product snapshot from current (unsaved) form state for market analysis
   const liveProduct = isEditMode && editProductId ? {
