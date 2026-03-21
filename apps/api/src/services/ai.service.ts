@@ -89,19 +89,44 @@ function buildGeneratorSystem(
 CONVERSATION RULES:
 - Ask ONE clarifying question at a time. Never ask multiple questions at once.
 - When a question has a small fixed set of answers, include "options" so the user can click instead of type.
-- After 5-7 exchanges you should have enough to generate a realistic draft. Do not over-ask.
 - CRITICAL: When the user sends a short reply (a number, a word, or a brief phrase), ALWAYS treat it as the direct answer to your most recent question. Never repeat a question they just answered. Example: you asked "How many do you make at a time?" and user replies "12" → batch_size is 12, move to the next question.
 - When generating a draft, use realistic market prices for common materials. ${unitNote}
 - Round quantities and costs to sensible values makers would recognize.
 - If competitor data is provided in [COMPETITOR RESEARCH], acknowledge it in your FIRST response ("I can see a competitor priced at $X — I'll use that as a reference") and actively use those prices when estimating material costs, labor, and especially target_price throughout the conversation.
 - If the user uploaded an image, use it to infer material types, complexity, and likely labor time — but still incorporate any competitor URL pricing alongside the image analysis.
-- When you have enough info, set isComplete to true and include productDraft. Include a warm one-sentence summary in message confirming what you built.
 - Keep all messages concise and friendly.
 
 ${hourlyRateSection}
 
 REQUIRED INFO TO COLLECT (ask in order, one at a time):
-${requiredSteps}`;
+${requiredSteps}
+
+═══════════════════════════════════════════
+COMPLETION RULES — NON-NEGOTIABLE:
+═══════════════════════════════════════════
+
+RULE 1 — MUTUAL EXCLUSION: isComplete and options are MUTUALLY EXCLUSIVE.
+  • If you are still asking a question → set isComplete: false. You MAY include options.
+  • If you are done → set isComplete: true. You MUST NOT include options.
+  • NEVER set isComplete: true AND options in the same response. This is always wrong.
+
+RULE 2 — ALL REQUIRED INFO FIRST: Only set isComplete: true after you have received the user's answer to EVERY item in the REQUIRED INFO list above. Do not skip steps. Do not generate a draft partway through the conversation.
+
+RULE 3 — REAL DRAFT DATA REQUIRED: When you set isComplete: true, productDraft MUST contain:
+  • At least 1 material with quantity > 0 and price_per_unit > 0
+  • At least 1 labor entry with time_minutes > 0 and hourly_rate > 0
+  • batch_size > 0
+  If any of these are missing, keep isComplete: false and continue asking.
+
+RULE 4 — ONE SHOT: Generate the draft exactly once. After the draft is complete (isComplete: true), do not send any more messages. The conversation ends there.
+
+CORRECT FLOW EXAMPLE:
+  Turn 1: AI asks about product → isComplete: false, options: [...]
+  Turn 2: User answers → AI asks about materials → isComplete: false, options: [...]
+  Turn 3: User answers → AI asks about batch size → isComplete: false, options: [1, 2, 5, 10, Other]
+  Turn 4: User answers → AI asks about labor time → isComplete: false, options: [...]
+  Turn 5: User answers → AI asks about category → isComplete: false, options: [...]
+  Turn 6: User answers → ALL info collected → isComplete: true, productDraft: { ... }, NO options`;
 }
 
 // Structured output schema for Gemini — guarantees valid JSON
@@ -595,7 +620,33 @@ ${historyText ? `CONVERSATION HISTORY:\n${historyText}\n` : ''}[USER]: ${userMes
             const chat = model.startChat({ history: geminiHistory });
             const result = await chat.sendMessage(userParts);
             const responseText = result.response.text();
-            return JSON.parse(responseText) as GeneratorResponse;
+            const parsed = JSON.parse(responseText) as GeneratorResponse;
+
+            // Guard 1: isComplete + options are mutually exclusive — AI asked AND finished simultaneously
+            if (parsed.isComplete && parsed.options) {
+                parsed.isComplete = false;
+            }
+
+            // Guard 2: isComplete with empty/incomplete draft — AI finished too early
+            if (parsed.isComplete && parsed.productDraft) {
+                const d = parsed.productDraft;
+                const hasRealMaterials = d.materials.length > 0 &&
+                    d.materials.some(m => (m.quantity ?? 0) > 0 && (m.price_per_unit ?? 0) > 0);
+                const hasRealLabor = d.labor_costs.length > 0 &&
+                    d.labor_costs.some(l => (l.time_minutes ?? 0) > 0 && (l.hourly_rate ?? 0) > 0);
+                const hasRealBatchSize = (d.batch_size ?? 0) > 0;
+                if (!hasRealMaterials || !hasRealLabor || !hasRealBatchSize) {
+                    parsed.isComplete = false;
+                    delete (parsed as any).productDraft;
+                }
+            }
+
+            // Guard 3: productDraft present but isComplete is false — strip the draft
+            if (!parsed.isComplete && parsed.productDraft) {
+                delete (parsed as any).productDraft;
+            }
+
+            return parsed;
         } catch (error: any) {
             console.error('Error in AI product generator chat:', error);
             return {

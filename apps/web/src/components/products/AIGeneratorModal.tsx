@@ -633,6 +633,10 @@ export function AIGeneratorModal({
                     (last, m, i) => (m.role === 'model' ? i : last),
                     -1
                   );
+                  const lastDraftMsgId = messages.reduce(
+                    (last, m) => (m.draft ? m.id : last),
+                    -1
+                  );
                   return messages.map((msg, idx) => {
                   const isLastModel = msg.role === 'model' && idx === lastModelIdx;
 
@@ -684,8 +688,8 @@ export function AIGeneratorModal({
                           />
                         )}
 
-                      {/* Draft preview card */}
-                      {msg.draft && (
+                      {/* Draft preview card — only show the most recent draft */}
+                      {msg.draft && msg.id === lastDraftMsgId && (
                         <ProductDraftCard
                           draft={msg.draft}
                           currency={currency}
