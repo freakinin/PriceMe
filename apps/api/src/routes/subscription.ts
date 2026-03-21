@@ -1,5 +1,5 @@
 import express from 'express';
-import { getSubscription, getPlans, assignPlan, getPromo } from '../controllers/subscriptionController.js';
+import { getSubscription, getPlans, assignPlan, getPromo, fixTrial } from '../controllers/subscriptionController.js';
 import { authenticate } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -12,5 +12,6 @@ router.use(authenticate);
 router.get('/', getSubscription);
 router.get('/plans', getPlans);
 router.post('/assign', assignPlan);
+router.post('/fix-trial', fixTrial);
 
 export default router;

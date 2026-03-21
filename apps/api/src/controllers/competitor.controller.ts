@@ -21,13 +21,17 @@ export const trackCompetitorProduct = async (req: Request, res: Response): Promi
         }
 
         // Check plan limit before running the (expensive) AI analysis
+        const { getUserSubscription, getEffectiveLimits: getLimits } = await import('../utils/subscription.js');
+        const sub = await getUserSubscription(userId);
+        const effectiveLimits = getLimits(sub);
         const limitCheck = await checkCompetitorLimit(userId);
         if (!limitCheck.allowed) {
+            console.warn(`Competitor track blocked — user ${userId} plan=${sub.plan} status=${sub.status} trial_ends_at=${sub.trial_ends_at} effective_limit=${effectiveLimits.competitors}`);
             return res.status(403).json({
                 status: 'error',
                 code: 'PLAN_LIMIT_REACHED',
                 message: `You've reached your plan limit of ${limitCheck.limit} tracked competitor products. Upgrade your plan to track more.`,
-                data: { limit: limitCheck.limit, current: limitCheck.current, resource: 'competitors' },
+                data: { limit: limitCheck.limit, current: limitCheck.current, resource: 'competitors', debug: { plan: sub.plan, status: sub.status, trial_ends_at: sub.trial_ends_at, effective_competitors_limit: effectiveLimits.competitors } },
             });
         }
 

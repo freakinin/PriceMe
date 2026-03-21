@@ -118,3 +118,22 @@ export const assignPlan = async (req: AuthRequest, res: Response) => {
 
   return res.json({ status: 'success', message: `Plan updated to ${plan}`, data: { plan } });
 };
+
+/**
+ * POST /api/subscription/fix-trial
+ * Clears expired trial state for the current user (dev/QA helper).
+ * Sets status='active' and trial_ends_at=NULL without changing the plan.
+ */
+export const fixTrial = async (req: AuthRequest, res: Response) => {
+  if (!req.userId) return res.status(401).json({ status: 'error', message: 'Unauthorized' });
+
+  const result = await db`
+    UPDATE subscriptions
+    SET status = 'active', trial_ends_at = NULL, updated_at = CURRENT_TIMESTAMP
+    WHERE user_id = ${req.userId}
+    RETURNING plan, status, trial_ends_at
+  `;
+  const rows = Array.isArray(result) ? result : (result as any).rows ?? [];
+
+  return res.json({ status: 'success', message: 'Trial state cleared', data: rows[0] ?? {} });
+};

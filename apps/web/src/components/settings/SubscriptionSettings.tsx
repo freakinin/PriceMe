@@ -125,6 +125,8 @@ export function SubscriptionSettings() {
   const handleSwitch = async (plan: PlanName) => {
     setSwitchingPlan(plan);
     try {
+      // Always clear stale trial state before switching — prevents expired trial_ends_at from locking the user on free
+      await api.post('/subscription/fix-trial').catch(() => {});
       await api.post('/subscription/assign', { plan });
       queryClient.invalidateQueries({ queryKey: ['subscription'] });
       queryClient.invalidateQueries({ queryKey: ['settings'] });
