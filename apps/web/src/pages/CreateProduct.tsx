@@ -579,18 +579,27 @@ export default function CreateProduct() {
 
         // Auto-track competitor URLs that were passed from the AI Generator
         if (newProductId && prefillCompetitorUrls.current && prefillCompetitorUrls.current.length > 0) {
-          // Run in background — doesn't block the save flow
+          // skipAnalysis=true — saves instantly without Gemini (avoids serverless timeout)
+          // User can trigger full analysis from the Competitors page
           Promise.allSettled(
             prefillCompetitorUrls.current!.map(url =>
-              api.post('/competitors/track', { url, linkedProductId: newProductId })
+              api.post('/competitors/track', { url, linkedProductId: newProductId, skipAnalysis: true })
             )
           ).then(results => {
             const succeeded = results.filter(r => r.status === 'fulfilled').length;
+            const failed = results.filter(r => r.status === 'rejected').length;
             if (succeeded > 0) {
               toast({
                 variant: 'success',
                 title: `${succeeded} competitor URL${succeeded > 1 ? 's' : ''} tracked`,
-                description: 'Check the Competitors page to view and analyze them.',
+                description: 'Go to Competitors to run AI analysis on them.',
+              });
+            }
+            if (failed > 0) {
+              toast({
+                variant: 'destructive',
+                title: 'Competitor tracking failed',
+                description: `${failed} URL${failed > 1 ? 's' : ''} could not be tracked. You may be at your plan limit.`,
               });
             }
           });

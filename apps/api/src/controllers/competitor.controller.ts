@@ -9,7 +9,7 @@ import { checkCompetitorLimit } from '../utils/subscription.js';
  */
 export const trackCompetitorProduct = async (req: Request, res: Response): Promise<Response | void> => {
     try {
-        const { url, linkedProductId } = req.body;
+        const { url, linkedProductId, skipAnalysis } = req.body;
         const userId = (req as any).userId;
 
         if (!url) {
@@ -34,6 +34,7 @@ export const trackCompetitorProduct = async (req: Request, res: Response): Promi
         console.log(`Starting tracking for URL: ${url} (User: ${userId})`);
 
         // 1. Use AI with Google Search Grounding to analyze URL directly
+        //    skipAnalysis=true skips Gemini (used for auto-tracking from AI Generator to avoid timeout)
         let analysis = {
             title: 'Unknown Product',
             price: 0,
@@ -42,25 +43,27 @@ export const trackCompetitorProduct = async (req: Request, res: Response): Promi
             quality_score: 0,
             image_quality_score: 0,
             description_score: 0,
-            ai_analysis_summary: 'AI Analysis failed. Please update details manually.',
+            ai_analysis_summary: skipAnalysis ? 'Pending analysis. Open Competitors to run AI analysis.' : 'AI Analysis failed. Please update details manually.',
         };
 
         try {
-            console.log('Sending URL to Gemini with Google Search Grounding...');
-            const aiResult = await AIService.analyzeProduct(url);
+            analysis.title = new URL(url).hostname.replace('www.', '');
+        } catch { /* noop */ }
 
-            // Log if AI returned 0 price
-            if (aiResult.price === 0) {
-                console.warn('AI returned 0 price. This might indicate the product is free or unlisted.');
-            }
-
-            analysis = { ...analysis, ...aiResult };
-        } catch (aiError: any) {
-            // AI analysis failed — continue with basic URL info so the URL is still tracked
-            console.warn('AI Analysis failed, saving basic competitor record:', aiError.message);
+        if (!skipAnalysis) {
             try {
-                analysis.title = new URL(url).hostname.replace('www.', '');
-            } catch { /* noop */ }
+                console.log('Sending URL to Gemini with Google Search Grounding...');
+                const aiResult = await AIService.analyzeProduct(url);
+
+                if (aiResult.price === 0) {
+                    console.warn('AI returned 0 price. This might indicate the product is free or unlisted.');
+                }
+
+                analysis = { ...analysis, ...aiResult };
+            } catch (aiError: any) {
+                // AI analysis failed — continue with basic URL info so the URL is still tracked
+                console.warn('AI Analysis failed, saving basic competitor record:', aiError.message);
+            }
         }
 
         // 3. Extract store name (competitor name) - simplistic approach for now

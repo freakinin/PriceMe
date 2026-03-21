@@ -408,6 +408,9 @@ export function AIGeneratorModal({
   const [imageMimeType, setImageMimeType] = useState<string | null>(null);
 
   const [competitorUrls, setCompetitorUrls] = useState<string[]>([]);
+  // Cached result of the first competitor URL analysis — re-sent on subsequent turns
+  // instead of re-analyzing the same URLs (expensive + slow)
+  const [cachedCompetitorContext, setCachedCompetitorContext] = useState<string | null>(null);
 
   const [multiSelectPending, setMultiSelectPending] = useState<string[]>([]);
   const [completedDraft, setCompletedDraft] = useState<ProductDraft | null>(null);
@@ -445,6 +448,7 @@ export function AIGeneratorModal({
     setImageBase64(null);
     setImageMimeType(null);
     setCompetitorUrls([]);
+    setCachedCompetitorContext(null);
     setMultiSelectPending([]);
     setCompletedDraft(null);
     if (textareaRef.current) {
@@ -529,12 +533,21 @@ export function AIGeneratorModal({
         body.contextImage = { base64: imageBase64, mimeType: imageMimeType };
       }
 
-      if (competitorUrls.length > 0) {
+      // Competitor context: use cached result if available, otherwise send raw URLs for first analysis
+      if (cachedCompetitorContext) {
+        body.competitorContext = cachedCompetitorContext;
+      } else if (competitorUrls.length > 0) {
         body.competitorUrls = competitorUrls;
       }
 
       const res = await api.post('/ai-generate/chat', body);
-      const { message, options, productDraft, isComplete } = res.data.data;
+      const { message, options, productDraft, isComplete, competitorContext: returnedContext } = res.data.data;
+
+      // Cache the competitor context returned from backend so we don't re-analyze on next turns
+      const effectiveContext = returnedContext ?? cachedCompetitorContext ?? null;
+      if (returnedContext && !cachedCompetitorContext) {
+        setCachedCompetitorContext(returnedContext);
+      }
 
       const aiMsg: LocalMessage = {
         id: Date.now() + 1,
@@ -546,9 +559,13 @@ export function AIGeneratorModal({
       };
 
       setMessages(prev => [...prev, aiMsg]);
+      // Store user message with competitor research injected — Gemini history must include it
+      const userHistoryContent = effectiveContext
+        ? `${text}\n\n[COMPETITOR RESEARCH]\n${effectiveContext}`
+        : text;
       setApiHistory(prev => [
         ...prev,
-        { role: 'user', content: text },
+        { role: 'user', content: userHistoryContent },
         { role: 'model', content: message },
       ]);
 

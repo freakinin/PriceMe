@@ -18,7 +18,10 @@ const chatRequestSchema = z.object({
       mimeType: z.string(),
     })
     .optional(),
+  // URLs to analyze fresh — used on first turn with competitor URLs
   competitorUrls: z.array(z.string().url()).max(5).optional(),
+  // Pre-computed context string — used on turns after the first analysis
+  competitorContext: z.string().max(8000).optional(),
   categories: z
     .array(z.object({ id: z.number(), name: z.string() }))
     .optional(),
@@ -52,11 +55,13 @@ export const generateProductChat = async (
       });
     }
 
-    const { history, userMessage, contextImage, competitorUrls, categories, laborHourlyCost, unitSystem } = parsed.data;
+    const { history, userMessage, contextImage, competitorUrls, competitorContext: preComputedContext, categories, laborHourlyCost, unitSystem } = parsed.data;
 
-    // Pre-analyze competitor URLs if provided
-    let competitorContext: string | undefined;
-    if (competitorUrls && competitorUrls.length > 0) {
+    // Build competitor context:
+    // - If a pre-computed context string is provided (subsequent turns), use it directly
+    // - If raw URLs are provided (first turn), analyze them now
+    let competitorContext: string | undefined = preComputedContext;
+    if (!competitorContext && competitorUrls && competitorUrls.length > 0) {
       const results = await Promise.allSettled(
         competitorUrls.map(url => AIService.analyzeProduct(url))
       );
@@ -82,7 +87,9 @@ export const generateProductChat = async (
       unitSystem,
     });
 
-    return res.json({ status: 'success', data: result });
+    // Return the competitorContext so the frontend can cache it and re-use on future turns
+    // (avoids re-analyzing the same URLs on every message)
+    return res.json({ status: 'success', data: { ...result, competitorContext } });
   } catch (error: any) {
     console.error('AI generate product chat error:', error);
     return res.status(500).json({
