@@ -264,6 +264,7 @@ export const googleCallback = async (req: Request, res: Response) => {
     // 1. Look up by google_id
     let userResult = await db`SELECT id, email, name, avatar_url FROM users WHERE google_id = ${googleId}`;
     let users = Array.isArray(userResult) ? userResult : (userResult as any).rows ?? [];
+    let isNewUser = false;
 
     if (users.length === 0) {
       // 2. Look up by email (existing account without Google)
@@ -291,6 +292,7 @@ export const googleCallback = async (req: Request, res: Response) => {
         } catch (_: any) {}
         NotionSyncJob.syncUser(newUsers[0].id).catch(() => {});
         users = newUsers;
+        isNewUser = true;
       }
     } else {
       // Update avatar_url on every login in case it changed
@@ -303,6 +305,7 @@ export const googleCallback = async (req: Request, res: Response) => {
     const params = new URLSearchParams({
       token,
       user: JSON.stringify({ id: user.id, email: user.email, name: user.name, avatar_url: user.avatar_url || null }),
+      ...(isNewUser ? { is_new: '1' } : {}),
     });
     return res.redirect(`${FRONTEND_URL}/auth/callback?${params.toString()}`);
   } catch (error: any) {

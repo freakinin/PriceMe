@@ -16,6 +16,10 @@ export default function GoogleAuthCallback() {
 
     localStorage.setItem('token', token);
 
+    if (params.get('is_new') === '1') {
+      localStorage.setItem('cravio_new_signup', '1');
+    }
+
     if (userRaw) {
       try {
         const user = JSON.parse(userRaw);

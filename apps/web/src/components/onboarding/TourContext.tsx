@@ -75,14 +75,15 @@ export function TourProvider({ children }: { children: ReactNode }) {
     begin(COACH_TOUR_STEPS);
   }, [begin]);
 
-  // ── Auto-start app tour for brand-new users ───────────────────────────────
+  // ── Auto-start app tour for brand-new users (signup only, not login) ────────
   useEffect(() => {
     if (
       settings &&
       settings.onboarding_completed === false &&
-      !sessionStorage.getItem(APP_SESSION_KEY)
+      localStorage.getItem('cravio_new_signup') === '1'
     ) {
       const t = setTimeout(() => {
+        localStorage.removeItem('cravio_new_signup');
         setActiveSteps(TOUR_STEPS);
         setCurrentStep(0);
         setIsActive(true);

@@ -60,7 +60,7 @@ export function AppSidebar({ onSettingsOpen }: AppSidebarProps) {
   return (
     <Sidebar collapsible="icon">
       {/* ── Logo ── */}
-      <SidebarHeader className="border-b border-sidebar-border px-3 py-4">
+      <SidebarHeader className="border-b border-sidebar-border px-3 py-4 group-data-[collapsible=icon]:px-2">
         <Link to="/" className={`flex items-center py-1 ${isCollapsed ? 'justify-center' : 'gap-2.5 px-2'}`}>
           <PulseIcon size={20} color="#c2410c" />
           {!isCollapsed && (
@@ -165,7 +165,7 @@ export function AppSidebar({ onSettingsOpen }: AppSidebarProps) {
       </SidebarContent>
 
       {/* ── Footer ── */}
-      <SidebarFooter className="border-t px-3 py-3" style={{ borderColor: 'hsl(25 18% 14%)' }}>
+      <SidebarFooter className="border-t px-3 py-3 group-data-[collapsible=icon]:px-2" style={{ borderColor: 'hsl(25 18% 14%)' }}>
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
@@ -202,7 +202,7 @@ export function AppSidebar({ onSettingsOpen }: AppSidebarProps) {
 
           {/* ── User row ── */}
           <SidebarMenuItem>
-            <div className="flex w-full items-center gap-2.5 px-2 py-1.5 group-data-[collapsible=icon]:justify-center">
+            <div className={`flex w-full items-center py-1.5 ${isCollapsed ? 'justify-center' : 'gap-2.5 px-2'}`}>
               {user?.avatar_url ? (
                 <img
                   src={user.avatar_url}
