@@ -1,5 +1,6 @@
 
 import { useState, useEffect, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { createPortal } from 'react-dom';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
@@ -215,6 +216,7 @@ function BatchInsightCard({ batchSize, pricePerUnit, costPerUnit, currency }: {
 
 export default function CreateProduct() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const location = useLocation();
   // Capture competitor URLs immediately — window.history.replaceState clears location.state later
   const prefillCompetitorUrls = useRef<string[] | undefined>(
@@ -589,6 +591,9 @@ export default function CreateProduct() {
             const succeeded = results.filter(r => r.status === 'fulfilled').length;
             const failed = results.filter(r => r.status === 'rejected').length;
             if (succeeded > 0) {
+              // Refresh products list (competitor count column) and usage counters
+              queryClient.invalidateQueries({ queryKey: ['products'] });
+              queryClient.invalidateQueries({ queryKey: ['subscription'] });
               toast({
                 variant: 'success',
                 title: `${succeeded} competitor URL${succeeded > 1 ? 's' : ''} tracked`,
