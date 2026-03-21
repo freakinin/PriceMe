@@ -31,7 +31,10 @@ export async function getUserSubscription(userId: number): Promise<UserSubscript
  * Treats expired trials as free (lazy enforcement — no cron job needed).
  */
 export function getEffectiveLimits(subscription: UserSubscription) {
-  if (subscription.trial_ends_at && new Date(subscription.trial_ends_at) < new Date()) {
+  // Expired trial only downgrades to free if the user is still on a trial status.
+  // If they've upgraded (status='active'), the paid plan limits apply regardless of trial_ends_at.
+  const isTrialing = subscription.status === 'trialing';
+  if (isTrialing && subscription.trial_ends_at && new Date(subscription.trial_ends_at) < new Date()) {
     return PLAN_LIMITS['free'];
   }
   const effectivePlan: PlanName =

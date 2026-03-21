@@ -110,7 +110,7 @@ export const assignPlan = async (req: AuthRequest, res: Response) => {
     INSERT INTO subscriptions (user_id, plan, status)
     VALUES (${userId}, ${plan}, 'active')
     ON CONFLICT (user_id) DO UPDATE
-      SET plan = ${plan}, status = 'active', updated_at = CURRENT_TIMESTAMP
+      SET plan = ${plan}, status = 'active', trial_ends_at = NULL, updated_at = CURRENT_TIMESTAMP
   `;
 
   // Sync updated plan to Notion (fire-and-forget)
