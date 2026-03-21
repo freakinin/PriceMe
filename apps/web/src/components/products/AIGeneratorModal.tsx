@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, Paperclip, Send, X, Globe, Zap, Info, Check, Bug } from 'lucide-react';
+import { Sparkles, Paperclip, Send, X, Globe, Zap, Info, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -472,19 +472,6 @@ export function AIGeneratorModal({
   // instead of re-analyzing the same URLs (expensive + slow)
   const [cachedCompetitorContext, setCachedCompetitorContext] = useState<string | null>(null);
 
-  // Debug panel
-  const [showDebug, setShowDebug] = useState(false);
-  const [debugLog, setDebugLog] = useState<Array<{
-    turn: number;
-    hadImage: boolean;
-    hadCompetitorUrls: boolean;
-    usedCachedContext: boolean;
-    competitorContextLength: number;
-    competitorContext: string | null;
-    historyLength: number;
-    sentBody: Record<string, any>;
-  }>>([]);
-
   const [multiSelectPending, setMultiSelectPending] = useState<string[]>([]);
   const [completedDraft, setCompletedDraft] = useState<ProductDraft | null>(null);
 
@@ -522,7 +509,6 @@ export function AIGeneratorModal({
     setImageMimeType(null);
     setCompetitorUrls([]);
     setCachedCompetitorContext(null);
-    setDebugLog([]);
     setMultiSelectPending([]);
     setCompletedDraft(null);
     if (textareaRef.current) {
@@ -614,17 +600,8 @@ export function AIGeneratorModal({
         body.competitorUrls = competitorUrls;
       }
 
-      // Capture what we're sending (for debug panel — strip base64 image to keep it readable)
-      const bodyForDebug = { ...body };
-      if (bodyForDebug.contextImage) bodyForDebug.contextImage = { mimeType: body.contextImage.mimeType, base64: '[base64 omitted]' };
-
       const res = await api.post('/ai-generate/chat', body);
-      const { message, options, productDraft, isComplete, competitorContext: returnedContext, debugInfo } = res.data.data;
-
-      // Append to debug log
-      if (debugInfo) {
-        setDebugLog(prev => [...prev, { ...debugInfo, turn: prev.length + 1, sentBody: bodyForDebug }]);
-      }
+      const { message, options, productDraft, isComplete, competitorContext: returnedContext } = res.data.data;
 
       // Cache the competitor context returned from backend so we don't re-analyze on next turns
       const effectiveContext = returnedContext ?? cachedCompetitorContext ?? null;
@@ -696,19 +673,11 @@ export function AIGeneratorModal({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-        <DialogContent className={cn("w-full h-[85vh] max-h-[85vh] flex flex-col p-0 gap-0", showDebug ? "max-w-5xl" : "max-w-2xl")}>
+        <DialogContent className="w-full h-[85vh] max-h-[85vh] flex flex-col p-0 gap-0 max-w-2xl">
           <DialogHeader className="px-5 py-4 border-b flex-shrink-0">
             <DialogTitle className="flex items-center gap-2 text-base">
               <Sparkles className="h-4 w-4 text-primary" />
               Generate Product with AI
-              <button
-                onClick={() => setShowDebug(d => !d)}
-                className={cn("ml-auto p-1 rounded text-xs flex items-center gap-1 font-normal", showDebug ? "text-amber-600 bg-amber-50" : "text-muted-foreground hover:text-foreground")}
-                title="Toggle debug panel"
-              >
-                <Bug className="h-3.5 w-3.5" />
-                Debug
-              </button>
             </DialogTitle>
           </DialogHeader>
 
@@ -956,62 +925,6 @@ export function AIGeneratorModal({
               </div>{/* end chat column */}
               </div>
 
-              {/* ── Debug panel ── */}
-              {showDebug && (
-                <div className="w-80 border-l bg-muted/30 flex flex-col min-h-0 text-xs overflow-hidden">
-                  <div className="px-3 py-2 border-b font-semibold text-muted-foreground uppercase tracking-wide flex-shrink-0">
-                    LLM Context Debug
-                  </div>
-                  <div className="flex-1 overflow-y-auto p-3 space-y-4">
-                    {debugLog.length === 0 ? (
-                      <p className="text-muted-foreground italic">Send a message to see what data the LLM receives.</p>
-                    ) : (
-                      debugLog.map((entry, i) => (
-                        <div key={i} className="space-y-2 border-b pb-3 last:border-0">
-                          <p className="font-semibold text-foreground">Turn {entry.turn}</p>
-
-                          <div className="flex gap-2 flex-wrap">
-                            <span className={cn("px-1.5 py-0.5 rounded", entry.hadImage ? "bg-blue-100 text-blue-700" : "bg-muted text-muted-foreground")}>
-                              {entry.hadImage ? "📷 Image" : "No image"}
-                            </span>
-                            <span className={cn("px-1.5 py-0.5 rounded", entry.hadCompetitorUrls ? "bg-green-100 text-green-700" : "bg-muted text-muted-foreground")}>
-                              {entry.hadCompetitorUrls ? "🔗 URLs sent" : "No URLs"}
-                            </span>
-                            <span className={cn("px-1.5 py-0.5 rounded", entry.usedCachedContext ? "bg-amber-100 text-amber-700" : "bg-muted text-muted-foreground")}>
-                              {entry.usedCachedContext ? "✓ Cached ctx" : "Fresh analysis"}
-                            </span>
-                          </div>
-
-                          <div>
-                            <p className="text-muted-foreground">History sent: <span className="text-foreground font-medium">{entry.historyLength} msgs</span></p>
-                            <p className="text-muted-foreground">Competitor ctx: <span className={cn("font-medium", entry.competitorContextLength > 0 ? "text-green-600" : "text-red-500")}>
-                              {entry.competitorContextLength > 0 ? `${entry.competitorContextLength} chars` : "NONE"}
-                            </span></p>
-                          </div>
-
-                          {entry.competitorContext && (
-                            <details className="mt-1">
-                              <summary className="cursor-pointer text-muted-foreground hover:text-foreground">Competitor context ▾</summary>
-                              <pre className="mt-1 whitespace-pre-wrap break-all bg-muted rounded p-2 text-[10px] leading-relaxed max-h-48 overflow-y-auto">
-                                {entry.competitorContext}
-                              </pre>
-                            </details>
-                          )}
-
-                          {entry.sentBody?.competitorUrls && (
-                            <div>
-                              <p className="text-muted-foreground">URLs sent to analyze:</p>
-                              {(entry.sentBody.competitorUrls as string[]).map((u, j) => (
-                                <p key={j} className="break-all text-blue-600">{u}</p>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              )}
             </div>
           )}
         </DialogContent>

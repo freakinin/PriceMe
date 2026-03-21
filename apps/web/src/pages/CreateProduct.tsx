@@ -299,8 +299,8 @@ export default function CreateProduct() {
     const defaultMethod = shippingMethods.find((m) => m.is_default);
     if (!defaultMethod) return;
     const current = form.getValues('other_costs');
-    if (current.length > 0) return; // Don't overwrite if costs already exist (e.g. template loaded)
-    form.setValue('other_costs', [{
+    if (current.some(o => o.is_shipping)) return; // Already has a shipping entry — don't add again
+    form.setValue('other_costs', [...current, {
       item: defaultMethod.name,
       quantity: 1,
       cost: defaultMethod.is_free_shipping ? 0 : defaultMethod.cost,
