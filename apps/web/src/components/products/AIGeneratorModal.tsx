@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Sparkles, Paperclip, Send, X, Globe, Zap, Info, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   Dialog,
   DialogContent,
@@ -200,106 +201,58 @@ function QuickReplyChips({
   );
 }
 
-// ---- Competitor URL Modal ----
+// ---- Competitor URL Popover Content ----
 
-function CompetitorUrlModal({
-  open,
-  onOpenChange,
+function UrlPopoverContent({
   urls,
   onAdd,
-  onRemove,
 }: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
   urls: string[];
   onAdd: (url: string) => void;
-  onRemove: (url: string) => void;
 }) {
-  const [inputValue, setInputValue] = useState('');
+  const [value, setValue] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const handleAdd = () => {
-    const url = inputValue.trim();
+    const url = value.trim();
     if (url.startsWith('http') && !urls.includes(url) && urls.length < 5) {
       onAdd(url);
-      setInputValue('');
+      setValue('');
+      inputRef.current?.focus();
     }
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-base">
-            <Globe className="h-4 w-4 text-primary" />
-            Competitor URLs
-          </DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Add competitor product URLs. The AI will analyze their pricing and materials and use it as context when generating your product.
-          </p>
-          <div className="flex gap-2">
-            <Input
-              placeholder="https://etsy.com/listing/..."
-              value={inputValue}
-              onChange={e => setInputValue(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  handleAdd();
-                }
-              }}
-              disabled={urls.length >= 5}
-            />
-            <Button
-              type="button"
-              onClick={handleAdd}
-              disabled={urls.length >= 5 || !inputValue.trim().startsWith('http')}
-            >
-              Add
-            </Button>
-          </div>
-
-          {urls.length > 0 ? (
-            <div className="space-y-1.5">
-              {urls.map(url => {
-                let hostname = url;
-                try { hostname = new URL(url).hostname; } catch { /* noop */ }
-                return (
-                  <div key={url} className="flex items-center gap-2 bg-muted/50 rounded-md px-3 py-2">
-                    <Globe className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium truncate">{hostname}</p>
-                      <p className="text-[10px] text-muted-foreground truncate">{url}</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => onRemove(url)}
-                      className="flex-shrink-0 text-muted-foreground hover:text-foreground"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                );
-              })}
-              <p className="text-[10px] text-muted-foreground text-center pt-1">
-                {urls.length}/5 URLs · Analyzed on your next message
-              </p>
-            </div>
-          ) : (
-            <div className="text-center py-3 text-sm text-muted-foreground">
-              No competitor URLs added yet
-            </div>
-          )}
-
-          <div className="flex justify-end pt-1">
-            <Button type="button" onClick={() => onOpenChange(false)}>
-              Done
-            </Button>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+    <div className="space-y-2">
+      <p className="text-xs font-medium text-foreground">Add competitor URL</p>
+      <div className="flex gap-1.5">
+        <Input
+          ref={inputRef}
+          placeholder="https://etsy.com/listing/..."
+          value={value}
+          onChange={e => setValue(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Enter') { e.preventDefault(); handleAdd(); }
+          }}
+          disabled={urls.length >= 5}
+          className="h-8 text-xs"
+        />
+        <Button
+          type="button"
+          size="sm"
+          onClick={handleAdd}
+          disabled={urls.length >= 5 || !value.trim().startsWith('http')}
+          className="h-8 px-3 flex-shrink-0"
+        >
+          Add
+        </Button>
+      </div>
+      {urls.length > 0 && (
+        <p className="text-[10px] text-muted-foreground">
+          {urls.length}/5 · Analyzed with your next message
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -455,7 +408,6 @@ export function AIGeneratorModal({
   const [imageMimeType, setImageMimeType] = useState<string | null>(null);
 
   const [competitorUrls, setCompetitorUrls] = useState<string[]>([]);
-  const [isUrlModalOpen, setIsUrlModalOpen] = useState(false);
 
   const [multiSelectPending, setMultiSelectPending] = useState<string[]>([]);
   const [completedDraft, setCompletedDraft] = useState<ProductDraft | null>(null);
@@ -493,7 +445,6 @@ export function AIGeneratorModal({
     setImageBase64(null);
     setImageMimeType(null);
     setCompetitorUrls([]);
-    setIsUrlModalOpen(false);
     setMultiSelectPending([]);
     setCompletedDraft(null);
     if (textareaRef.current) {
@@ -644,8 +595,7 @@ export function AIGeneratorModal({
   const hasContext = selectedImage !== null || competitorUrls.length > 0;
 
   return (
-    <>
-      <Dialog open={open} onOpenChange={handleClose}>
+    <Dialog open={open} onOpenChange={handleClose}>
         <DialogContent className="max-w-2xl w-full h-[85vh] max-h-[85vh] flex flex-col p-0 gap-0">
           <DialogHeader className="px-5 py-4 border-b flex-shrink-0">
             <DialogTitle className="flex items-center gap-2 text-base">
@@ -824,25 +774,35 @@ export function AIGeneratorModal({
                   </Button>
 
                   {/* Competitor URL button */}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    className={cn(
-                      'h-9 w-9 flex-shrink-0 self-end relative',
-                      competitorUrls.length > 0 && 'border-primary text-primary'
-                    )}
-                    onClick={() => setIsUrlModalOpen(true)}
-                    title="Add competitor URLs"
-                    disabled={isLoading}
-                  >
-                    <Globe className="h-4 w-4" />
-                    {competitorUrls.length > 0 && (
-                      <span className="absolute -top-1.5 -right-1.5 h-4 w-4 bg-primary text-primary-foreground text-[9px] font-bold rounded-full flex items-center justify-center">
-                        {competitorUrls.length}
-                      </span>
-                    )}
-                  </Button>
+                  {/* Competitor URL — Popover anchored to Globe button */}
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className={cn(
+                          'h-9 w-9 flex-shrink-0 self-end relative',
+                          competitorUrls.length > 0 && 'border-primary text-primary'
+                        )}
+                        title="Add competitor URL"
+                        disabled={isLoading}
+                      >
+                        <Globe className="h-4 w-4" />
+                        {competitorUrls.length > 0 && (
+                          <span className="absolute -top-1.5 -right-1.5 h-4 w-4 bg-primary text-primary-foreground text-[9px] font-bold rounded-full flex items-center justify-center">
+                            {competitorUrls.length}
+                          </span>
+                        )}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent side="top" align="start" className="w-80 p-3">
+                      <UrlPopoverContent
+                        urls={competitorUrls}
+                        onAdd={url => setCompetitorUrls(prev => [...prev, url])}
+                      />
+                    </PopoverContent>
+                  </Popover>
 
                   <textarea
                     ref={textareaRef}
@@ -883,15 +843,5 @@ export function AIGeneratorModal({
           )}
         </DialogContent>
       </Dialog>
-
-      {/* Competitor URL manager — rendered as sibling dialog to avoid nesting issues */}
-      <CompetitorUrlModal
-        open={isUrlModalOpen}
-        onOpenChange={setIsUrlModalOpen}
-        urls={competitorUrls}
-        onAdd={url => setCompetitorUrls(prev => [...prev, url])}
-        onRemove={url => setCompetitorUrls(prev => prev.filter(u => u !== url))}
-      />
-    </>
   );
 }

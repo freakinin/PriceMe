@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
@@ -216,6 +216,10 @@ function BatchInsightCard({ batchSize, pricePerUnit, costPerUnit, currency }: {
 export default function CreateProduct() {
   const navigate = useNavigate();
   const location = useLocation();
+  // Capture competitor URLs immediately — window.history.replaceState clears location.state later
+  const prefillCompetitorUrls = useRef<string[] | undefined>(
+    (location.state as any)?.competitorUrls
+  );
   const { id: editProductId } = useParams<{ id: string }>();
   const isEditMode = !!editProductId;
   const { setOpen } = useSidebar();
@@ -574,11 +578,10 @@ export default function CreateProduct() {
         const newProductId: number | undefined = createResult?.data?.id;
 
         // Auto-track competitor URLs that were passed from the AI Generator
-        const prefillCompetitorUrls = (location.state as any)?.competitorUrls as string[] | undefined;
-        if (newProductId && prefillCompetitorUrls && prefillCompetitorUrls.length > 0) {
+        if (newProductId && prefillCompetitorUrls.current && prefillCompetitorUrls.current.length > 0) {
           // Run in background — doesn't block the save flow
           Promise.allSettled(
-            prefillCompetitorUrls.map(url =>
+            prefillCompetitorUrls.current!.map(url =>
               api.post('/competitors/track', { url, linkedProductId: newProductId })
             )
           ).then(results => {

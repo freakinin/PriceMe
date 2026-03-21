@@ -93,8 +93,8 @@ CONVERSATION RULES:
 - CRITICAL: When the user sends a short reply (a number, a word, or a brief phrase), ALWAYS treat it as the direct answer to your most recent question. Never repeat a question they just answered. Example: you asked "How many do you make at a time?" and user replies "12" → batch_size is 12, move to the next question.
 - When generating a draft, use realistic market prices for common materials. ${unitNote}
 - Round quantities and costs to sensible values makers would recognize.
-- If competitor data is provided in [COMPETITOR RESEARCH], use those prices to inform the target_price suggestion.
-- If the user uploaded an image, use it to infer material types, complexity, and likely labor time.
+- If competitor data is provided in [COMPETITOR RESEARCH], acknowledge it in your FIRST response ("I can see a competitor priced at $X — I'll use that as a reference") and actively use those prices when estimating material costs, labor, and especially target_price throughout the conversation.
+- If the user uploaded an image, use it to infer material types, complexity, and likely labor time — but still incorporate any competitor URL pricing alongside the image analysis.
 - When you have enough info, set isComplete to true and include productDraft. Include a warm one-sentence summary in message confirming what you built.
 - Keep all messages concise and friendly.
 
