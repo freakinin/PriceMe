@@ -1,4 +1,4 @@
-import { Filter, Download, Plus, Search, Table2, LayoutGrid, Columns } from 'lucide-react';
+import { Filter, Download, Plus, Search, Table2, LayoutGrid, Columns, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -51,6 +51,7 @@ type Props = Pick<ProductsPageState,
   activeTab: 'table' | 'grid';
   onTabChange: (tab: 'table' | 'grid') => void;
   onNavigateNew: () => void;
+  onOpenAIGenerator: () => void;
   columnVisibility: Record<string, boolean>;
   onColumnVisibilityChange: (id: string, visible: boolean) => void;
 };
@@ -72,6 +73,7 @@ export function ProductsToolbar({
   activeTab,
   onTabChange,
   onNavigateNew,
+  onOpenAIGenerator,
   columnVisibility,
   onColumnVisibilityChange,
 }: Props) {
@@ -255,6 +257,10 @@ export function ProductsToolbar({
           </>
         )}
 
+        <Button variant="outline" onClick={onOpenAIGenerator} className="h-9 gap-1.5">
+          <Sparkles className="h-4 w-4 text-primary" />
+          Generate with AI
+        </Button>
         <Button onClick={onNavigateNew} className="h-9">
           <Plus className="h-4 w-4 mr-1" />
           New

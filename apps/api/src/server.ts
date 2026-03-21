@@ -92,8 +92,8 @@ app.use(cors({
   },
   credentials: true,
 }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Health check route
 app.get('/health', (_req, res) => {
@@ -131,6 +131,7 @@ import subscriptionRoutes from './routes/subscription.js';
 import profileRoutes from './routes/profile.js';
 import coachRoutes from './routes/coach.js';
 import supportRoutes from './routes/support.js';
+import aiGenerateRoutes from './routes/aiGenerate.js';
 import { PriceMonitorJob } from './jobs/priceMonitor.js';
 import { NotionSyncJob } from './jobs/notionSync.js';
 
@@ -140,6 +141,7 @@ app.use('/api/subscription', subscriptionRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/coach', coachRoutes);
 app.use('/api/support', supportRoutes);
+app.use('/api/ai-generate', aiGenerateRoutes);
 
 // API info route
 app.get('/api', (_req, res) => {

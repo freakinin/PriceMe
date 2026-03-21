@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@/components/ui/button';
@@ -215,6 +215,7 @@ function BatchInsightCard({ batchSize, pricePerUnit, costPerUnit, currency }: {
 
 export default function CreateProduct() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { id: editProductId } = useParams<{ id: string }>();
   const isEditMode = !!editProductId;
   const { setOpen } = useSidebar();
@@ -375,6 +376,54 @@ export default function CreateProduct() {
     fetchProduct();
   }, [editProductId, isEditMode]);
 
+  // Pre-fill from AI Generator — runs once on mount in create mode
+  useEffect(() => {
+    if (isEditMode) return;
+    const prefill = (location.state as any)?.prefill;
+    if (!prefill) return;
+
+    form.reset({
+      name: prefill.name || '',
+      sku: prefill.sku || '',
+      description: prefill.description || '',
+      category_id: prefill.category_id ?? null,
+      batch_size: prefill.batch_size || 1,
+      target_price: prefill.target_price || 0,
+      pricing_method: prefill.pricing_method || 'price',
+      pricing_value: prefill.pricing_value || prefill.target_price || 0,
+      materials: (prefill.materials || []).map((m: any) => ({
+        name: m.name,
+        quantity: Number(m.quantity) || 0,
+        unit: m.unit || 'pcs',
+        price_per_unit: Number(m.price_per_unit) || 0,
+        quantity_type: 'exact' as const,
+        quantity_percentage: undefined,
+        per_batch: m.per_batch ?? false,
+        units_made: Number(m.units_made) || 1,
+        user_material_id: undefined,
+        stock_level: undefined,
+      })),
+      labor_costs: (prefill.labor_costs || []).map((l: any) => ({
+        activity: l.activity,
+        time_minutes: Number(l.time_minutes) || 0,
+        hourly_rate: Number(l.hourly_rate) || 0,
+        per_batch: l.per_batch ?? false,
+      })),
+      other_costs: (prefill.other_costs || []).map((o: any) => ({
+        item: o.item,
+        quantity: Number(o.quantity) || 0,
+        cost: Number(o.cost) || 0,
+        per_batch: o.per_batch ?? false,
+        is_shipping: false,
+      })),
+      shipping_scenarios: [],
+    });
+
+    // Clear nav state so browser back/refresh doesn't re-apply prefill
+    window.history.replaceState({}, '', window.location.pathname);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const { reset, control, handleSubmit, watch, setValue } = form;
 
   const handleLoadTemplate = async (templateId: string) => {
@@ -521,7 +570,20 @@ export default function CreateProduct() {
         track({ event: 'product_updated' });
         toast({ variant: 'success', title: 'Success', description: 'Product updated successfully' });
       } else {
-        await createProduct(productData);
+        const createResult = await createProduct(productData);
+        const newProductId: number | undefined = createResult?.data?.id;
+
+        // Auto-track competitor URLs that were passed from the AI Generator
+        const prefillCompetitorUrls = (location.state as any)?.competitorUrls as string[] | undefined;
+        if (newProductId && prefillCompetitorUrls && prefillCompetitorUrls.length > 0) {
+          // Fire-and-forget — don't block the save flow
+          Promise.allSettled(
+            prefillCompetitorUrls.map(url =>
+              api.post('/competitors/track', { url, linkedProductId: newProductId })
+            )
+          ).catch(() => {/* silently ignore tracking errors */});
+        }
+
         track({
           event: 'product_created',
           has_materials: data.materials.length > 0,

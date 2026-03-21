@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Package, ShoppingBag } from 'lucide-react';
+import { AIGeneratorModal } from '@/components/products/AIGeneratorModal';
+import { useSubscription } from '@/hooks/useSubscription';
+import { useSettings } from '@/hooks/useSettings';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
@@ -26,11 +29,16 @@ export default function Products() {
   const state = useProductsPageState();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { subscription } = useSubscription();
+  const { settings } = useSettings();
 
   const [activeTab, setActiveTab] = useState<'table' | 'grid'>('table');
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [isAIModalOpen, setIsAIModalOpen] = useState(false);
   // Markup % hidden by default — accessible via Columns toggle
   const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>({ markup: false });
+
+  const aiGeneratorEnabled = subscription?.plan !== 'free';
 
   if (state.isLoading) {
     return (
@@ -72,6 +80,7 @@ export default function Products() {
         activeTab={activeTab}
         onTabChange={setActiveTab}
         onNavigateNew={() => navigate('/products/add')}
+        onOpenAIGenerator={() => setIsAIModalOpen(true)}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={(id, visible) => setColumnVisibility(prev => ({ ...prev, [id]: visible }))}
       />
@@ -251,6 +260,14 @@ export default function Products() {
         categories={state.categories}
       />
 
+      <AIGeneratorModal
+        open={isAIModalOpen}
+        onOpenChange={setIsAIModalOpen}
+        currency={settings.currency}
+        isEnabled={aiGeneratorEnabled}
+        laborHourlyCost={settings.labor_hourly_cost}
+        unitSystem={settings.unit_system}
+      />
     </div>
   );
 }

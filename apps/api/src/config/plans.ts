@@ -6,16 +6,17 @@ export interface PlanLimits {
   coachInsights: number;        // -1 = unlimited; 0 = no access
   coachChatPerDay: number;      // -1 = unlimited; 0 = no access
   coachReportsPerMonth: number; // -1 = unlimited; 0 = no access
+  aiGeneratorEnabled: boolean;  // whether AI Product Generator is accessible
 }
 
 // QA_MODE=true lowers free-tier limits so they're trivial to hit during testing.
 const QA_MODE = process.env.QA_MODE === 'true';
 
 export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
-  free:     { products: QA_MODE ? 3  : 5,  competitors: QA_MODE ? 1 : 1,  coachInsights: 3,  coachChatPerDay: 0,  coachReportsPerMonth: 0  },
-  starter:  { products: 10, competitors: 3,  coachInsights: 5,  coachChatPerDay: -1, coachReportsPerMonth: 2  },
-  growth:   { products: 30, competitors: 5,  coachInsights: -1, coachChatPerDay: -1, coachReportsPerMonth: -1 },
-  pro:      { products: -1, competitors: -1, coachInsights: -1, coachChatPerDay: -1, coachReportsPerMonth: -1 },
+  free:     { products: QA_MODE ? 3  : 5,  competitors: QA_MODE ? 1 : 1,  coachInsights: 3,  coachChatPerDay: 0,  coachReportsPerMonth: 0,  aiGeneratorEnabled: false },
+  starter:  { products: 10, competitors: 3,  coachInsights: 5,  coachChatPerDay: -1, coachReportsPerMonth: 2,  aiGeneratorEnabled: true  },
+  growth:   { products: 30, competitors: 5,  coachInsights: -1, coachChatPerDay: -1, coachReportsPerMonth: -1, aiGeneratorEnabled: true  },
+  pro:      { products: -1, competitors: -1, coachInsights: -1, coachChatPerDay: -1, coachReportsPerMonth: -1, aiGeneratorEnabled: true  },
 };
 
 export interface PlanDisplay {
