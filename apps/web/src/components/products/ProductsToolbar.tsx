@@ -10,15 +10,15 @@ import {
 } from '@/components/ui/select';
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { type ProductsPageState } from '@/hooks/useProductsPageState';
+import { ColumnOrderList } from './ColumnOrderList';
 
-const COLUMN_LABELS: Record<string, string> = {
+export const COLUMN_LABELS: Record<string, string> = {
   name: 'Name',
   category: 'Category',
   status: 'Status',
@@ -31,7 +31,7 @@ const COLUMN_LABELS: Record<string, string> = {
   actions: 'Actions',
 };
 
-const HIDEABLE_COLUMNS = ['name', 'category', 'status', 'sku', 'product_cost', 'price', 'profit', 'margin', 'markup', 'actions'];
+export const HIDEABLE_COLUMNS = ['name', 'category', 'status', 'sku', 'product_cost', 'price', 'profit', 'margin', 'markup', 'actions'];
 
 type Props = Pick<ProductsPageState,
   | 'products'
@@ -54,6 +54,8 @@ type Props = Pick<ProductsPageState,
   onOpenAIGenerator: () => void;
   columnVisibility: Record<string, boolean>;
   onColumnVisibilityChange: (id: string, visible: boolean) => void;
+  columnOrder: string[];
+  onColumnOrderChange: (order: string[]) => void;
 };
 
 export function ProductsToolbar({
@@ -76,6 +78,8 @@ export function ProductsToolbar({
   onOpenAIGenerator,
   columnVisibility,
   onColumnVisibilityChange,
+  columnOrder,
+  onColumnOrderChange,
 }: Props) {
   const hasProducts = products.length > 0;
 
@@ -234,18 +238,14 @@ export function ProductsToolbar({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-[200px]">
-                  <DropdownMenuLabel>Toggle columns</DropdownMenuLabel>
+                  <DropdownMenuLabel>Toggle &amp; reorder columns</DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  {HIDEABLE_COLUMNS.map(id => (
-                    <DropdownMenuCheckboxItem
-                      key={id}
-                      checked={columnVisibility[id] !== false}
-                      onSelect={e => e.preventDefault()}
-                      onCheckedChange={visible => onColumnVisibilityChange(id, visible)}
-                    >
-                      {COLUMN_LABELS[id] ?? id}
-                    </DropdownMenuCheckboxItem>
-                  ))}
+                  <ColumnOrderList
+                    columnOrder={columnOrder}
+                    columnVisibility={columnVisibility}
+                    onColumnOrderChange={onColumnOrderChange}
+                    onColumnVisibilityChange={onColumnVisibilityChange}
+                  />
                 </DropdownMenuContent>
               </DropdownMenu>
             )}

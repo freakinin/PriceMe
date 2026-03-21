@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Package, ShoppingBag } from 'lucide-react';
 import { AIGeneratorModal } from '@/components/products/AIGeneratorModal';
@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/select';
 import { BulkActionToolbar } from '@/components/BulkActionToolbar';
 import { useProductsPageState } from '@/hooks/useProductsPageState';
-import { ProductsToolbar } from '@/components/products/ProductsToolbar';
+import { ProductsToolbar, HIDEABLE_COLUMNS } from '@/components/products/ProductsToolbar';
 import { ProductsFilterChips } from '@/components/products/ProductsFilterChips';
 import { ProductsTableView } from '@/components/products/ProductsTableView';
 import { ProductsGridView } from '@/components/products/ProductsGridView';
@@ -35,8 +35,18 @@ export default function Products() {
   const [activeTab, setActiveTab] = useState<'table' | 'grid'>('table');
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
-  // Markup % hidden by default — accessible via Columns toggle
-  const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>({ markup: false });
+  // Markup % hidden by default — accessible via Columns toggle. Both persisted to localStorage.
+  const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>(() => {
+    try { return JSON.parse(localStorage.getItem('products:columnVisibility') ?? 'null') ?? { markup: false }; }
+    catch { return { markup: false }; }
+  });
+  const [columnOrder, setColumnOrder] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem('products:columnOrder') ?? 'null') ?? HIDEABLE_COLUMNS; }
+    catch { return HIDEABLE_COLUMNS; }
+  });
+
+  useEffect(() => { localStorage.setItem('products:columnVisibility', JSON.stringify(columnVisibility)); }, [columnVisibility]);
+  useEffect(() => { localStorage.setItem('products:columnOrder', JSON.stringify(columnOrder)); }, [columnOrder]);
 
   const aiGeneratorEnabled = subscription?.plan !== 'free';
 
@@ -83,6 +93,8 @@ export default function Products() {
         onOpenAIGenerator={() => setIsAIModalOpen(true)}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={(id, visible) => setColumnVisibility(prev => ({ ...prev, [id]: visible }))}
+        columnOrder={columnOrder}
+        onColumnOrderChange={setColumnOrder}
       />
 
       <ProductsFilterChips
@@ -168,6 +180,8 @@ export default function Products() {
           onSelectionChange={setSelectedIds}
           columnVisibility={columnVisibility}
           onColumnVisibilityChange={(id, visible) => setColumnVisibility(prev => ({ ...prev, [id]: visible }))}
+          columnOrder={columnOrder}
+          onColumnOrderChange={setColumnOrder}
           feeAwareMode={state.feeAwareMode}
           getFeeAwareMetrics={state.getFeeAwareMetrics}
         />

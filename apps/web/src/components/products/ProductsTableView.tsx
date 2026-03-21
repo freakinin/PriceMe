@@ -58,6 +58,8 @@ type Props = Pick<ProductsPageState,
   onSelectionChange: (ids: number[]) => void;
   columnVisibility: Record<string, boolean>;
   onColumnVisibilityChange: (id: string, visible: boolean) => void;
+  columnOrder: string[];
+  onColumnOrderChange: (order: string[]) => void;
   feeAwareMode?: boolean;
 };
 
@@ -92,6 +94,8 @@ export function ProductsTableView({
   onSelectionChange,
   columnVisibility,
   onColumnVisibilityChange,
+  columnOrder,
+  onColumnOrderChange,
   feeAwareMode = false,
 }: Props) {
   const navigate = useNavigate();
@@ -520,10 +524,14 @@ export function ProductsTableView({
         if (columnVisibility[id] !== visible) onColumnVisibilityChange(id, visible);
       });
     },
+    onColumnOrderChange: (updater: any) => {
+      const next = typeof updater === 'function' ? updater(columnOrder) : updater;
+      onColumnOrderChange(next);
+    },
     enableColumnResizing: true,
     columnResizeMode: 'onChange',
     onRowSelectionChange: setRowSelection,
-    state: { sorting, columnVisibility, rowSelection },
+    state: { sorting, columnVisibility, columnOrder, rowSelection },
   });
 
   if (products.length === 0) {
