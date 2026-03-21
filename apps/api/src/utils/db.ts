@@ -364,6 +364,39 @@ export async function initializeDatabase() {
       console.log('Note: Migration check for products platform/shipping columns:', error.message);
     }
 
+    // Add shipping_scenarios JSONB column to products (migration)
+    try {
+      const shippingScenariosExists = await sql`
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_name='products' AND column_name='shipping_scenarios'
+      `;
+      const shippingScenariosRows = Array.isArray(shippingScenariosExists) ? shippingScenariosExists : shippingScenariosExists.rows || [];
+      if (shippingScenariosRows.length === 0) {
+        console.log('Adding shipping_scenarios column to products table...');
+        await sql`ALTER TABLE products ADD COLUMN shipping_scenarios JSONB DEFAULT '[]'`;
+        console.log('✅ Added shipping_scenarios column');
+      }
+    } catch (error: any) {
+      console.log('Note: Migration check for products shipping_scenarios column:', error.message);
+    }
+
+    // Add is_shipping BOOLEAN column to other_costs (migration)
+    try {
+      const isShippingExists = await sql`
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_name='other_costs' AND column_name='is_shipping'
+      `;
+      const isShippingRows = Array.isArray(isShippingExists) ? isShippingExists : isShippingExists.rows || [];
+      if (isShippingRows.length === 0) {
+        console.log('Adding is_shipping column to other_costs table...');
+        await sql`ALTER TABLE other_costs ADD COLUMN is_shipping BOOLEAN DEFAULT FALSE`;
+        console.log('✅ Added is_shipping column');
+      }
+    } catch (error: any) {
+      console.log('Note: Migration check for other_costs is_shipping column:', error.message);
+    }
 
     // Create materials table
     await sql`

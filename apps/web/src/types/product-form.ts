@@ -28,6 +28,12 @@ export const otherCostItemSchema = z.object({
     quantity: z.number().min(0),
     cost: z.number().min(0),
     per_batch: z.boolean().default(false),
+    is_shipping: z.boolean().default(false),
+});
+
+export const shippingScenarioSchema = z.object({
+    name: z.string().min(1, 'Scenario name is required'),
+    cost: z.number().nonnegative(),
 });
 
 export const productSchema = z.object({
@@ -44,6 +50,7 @@ export const productSchema = z.object({
     materials: z.array(materialItemSchema),
     labor_costs: z.array(laborItemSchema),
     other_costs: z.array(otherCostItemSchema),
+    shipping_scenarios: z.array(shippingScenarioSchema).max(4).default([]),
 });
 
 export type ProductFormValues = z.infer<typeof productSchema>;
@@ -51,3 +58,4 @@ export type ProductFormValues = z.infer<typeof productSchema>;
 export type MaterialItem = z.infer<typeof materialItemSchema>;
 export type LaborItem = z.infer<typeof laborItemSchema>;
 export type OtherCostItem = z.infer<typeof otherCostItemSchema>;
+export type ShippingScenario = z.infer<typeof shippingScenarioSchema>;

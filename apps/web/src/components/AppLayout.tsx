@@ -36,7 +36,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   const location = useLocation();
   const pageTitle = getPageTitle(location.pathname);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [settingsSection, setSettingsSection] = useState<'subscription' | undefined>(undefined);
+  const [settingsSection, setSettingsSection] = useState<'subscription' | 'shipping' | 'financial' | 'platform-fees' | undefined>(undefined);
   const { isAtLimit, subscription } = useSubscription();
   const hasLimitReached = isAtLimit('products') || isAtLimit('competitors');
 
@@ -49,7 +49,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   // Listen for open-settings events dispatched by child pages (e.g. UpgradePrompt)
   useEffect(() => {
     const handler = (e: Event) => {
-      const section = (e as CustomEvent<{ section?: 'subscription' }>).detail?.section;
+      const section = (e as CustomEvent<{ section?: 'subscription' | 'shipping' | 'financial' | 'platform-fees' }>).detail?.section;
       setSettingsSection(section);
       setSettingsOpen(true);
     };

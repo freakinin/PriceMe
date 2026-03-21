@@ -26,13 +26,13 @@ export const createProduct = async (req: AuthRequest, res: Response) => {
 
     // Validate input
     const validatedData = createProductSchema.parse(req.body);
-    const { name, sku, status, description, category, category_id, batch_size, target_price, pricing_method, pricing_value, materials, labor_costs, other_costs, variants } = validatedData;
+    const { name, sku, status, description, category, category_id, batch_size, target_price, pricing_method, pricing_value, materials, labor_costs, other_costs, variants, shipping_scenarios } = validatedData;
 
     // Start transaction: Create product
     console.log('Inserting product with userId:', req.userId, 'and SKU:', sku);
     const productResult = await db`
-      INSERT INTO products (user_id, name, sku, status, description, category, category_id, batch_size, target_price, pricing_method, pricing_value)
-      VALUES (${req.userId}, ${name}, ${sku !== undefined ? sku : null}, ${status || 'draft'}, ${description || null}, ${category || null}, ${category_id || null}, ${batch_size || 1}, ${target_price || null}, ${pricing_method || null}, ${pricing_value || null})
+      INSERT INTO products (user_id, name, sku, status, description, category, category_id, batch_size, target_price, pricing_method, pricing_value, shipping_scenarios)
+      VALUES (${req.userId}, ${name}, ${sku !== undefined ? sku : null}, ${status || 'draft'}, ${description || null}, ${category || null}, ${category_id || null}, ${batch_size || 1}, ${target_price || null}, ${pricing_method || null}, ${pricing_value || null}, ${JSON.stringify(shipping_scenarios || [])})
       RETURNING id
     `;
 
@@ -88,8 +88,8 @@ export const createProduct = async (req: AuthRequest, res: Response) => {
       for (const cost of other_costs) {
         const totalCost = cost.quantity * cost.cost;
         await db`
-          INSERT INTO other_costs (product_id, item, quantity, cost, total_cost, per_unit)
-          VALUES (${productId}, ${cost.item}, ${cost.quantity}, ${cost.cost}, ${totalCost}, ${cost.per_unit ?? true})
+          INSERT INTO other_costs (product_id, item, quantity, cost, total_cost, per_unit, is_shipping)
+          VALUES (${productId}, ${cost.item}, ${cost.quantity}, ${cost.cost}, ${totalCost}, ${cost.per_unit ?? true}, ${cost.is_shipping ?? false})
         `;
       }
     }
@@ -236,7 +236,7 @@ export const calculateProductMetrics = async (product: any) => {
 
   // Get other costs
   const otherCostsResult = await db`
-    SELECT id, item, quantity, cost, total_cost, per_unit
+    SELECT id, item, quantity, cost, total_cost, per_unit, is_shipping
     FROM other_costs
     WHERE product_id = ${product.id}
   `;
@@ -358,9 +358,10 @@ export const getProduct = async (req: AuthRequest, res: Response) => {
 
     // Get product
     const productResult = await db`
-      SELECT p.id, p.name, p.sku, p.status, p.description, 
-             COALESCE(c.name, p.category) as category, 
-             p.category_id, p.batch_size, p.target_price, p.pricing_method, p.pricing_value, p.created_at, p.updated_at
+      SELECT p.id, p.name, p.sku, p.status, p.description,
+             COALESCE(c.name, p.category) as category,
+             p.category_id, p.batch_size, p.target_price, p.pricing_method, p.pricing_value,
+             p.shipping_scenarios, p.created_at, p.updated_at
       FROM products p
       LEFT JOIN categories c ON p.category_id = c.id
       WHERE p.id = ${productId} AND p.user_id = ${req.userId}
@@ -463,6 +464,7 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
     const hasLaborCosts = Array.isArray(req.body.labor_costs);
     const hasOtherCosts = Array.isArray(req.body.other_costs);
     const hasVariants = Array.isArray(req.body.variants);
+    const hasShippingScenarios = Array.isArray(req.body.shipping_scenarios);
 
     // Merge request body with current product data for partial updates
     const updateData: any = {
@@ -490,6 +492,9 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
     }
     if (hasVariants) {
       updateData.variants = req.body.variants;
+    }
+    if (hasShippingScenarios) {
+      updateData.shipping_scenarios = req.body.shipping_scenarios;
     }
 
     console.log('API received body:', JSON.stringify(req.body, null, 2));
@@ -520,6 +525,7 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
     const labor_costs = validatedData.labor_costs;
     const other_costs = validatedData.other_costs;
     const variants = validatedData.variants;
+    const shipping_scenarios = validatedData.shipping_scenarios;
 
     console.log('After validation - status:', status);
     console.log('After validation - validatedData:', JSON.stringify(validatedData, null, 2));
@@ -546,6 +552,7 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
     target_price = ${target_price || null},
     pricing_method = ${pricing_method || null},
     pricing_value = ${pricing_value || null},
+    shipping_scenarios = ${JSON.stringify(hasShippingScenarios ? (shipping_scenarios || []) : (currentProduct.shipping_scenarios || []))},
     updated_at = CURRENT_TIMESTAMP
           WHERE id = ${productId} AND user_id = ${req.userId}
     `;
@@ -601,8 +608,8 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
           for (const o of other_costs) {
             const totalCost = o.quantity * o.cost;
             await db`
-              INSERT INTO other_costs(product_id, item, quantity, cost, total_cost, per_unit)
-    VALUES(${productId}, ${o.item}, ${o.quantity}, ${o.cost}, ${totalCost}, ${o.per_unit ?? true})
+              INSERT INTO other_costs(product_id, item, quantity, cost, total_cost, per_unit, is_shipping)
+    VALUES(${productId}, ${o.item}, ${o.quantity}, ${o.cost}, ${totalCost}, ${o.per_unit ?? true}, ${o.is_shipping ?? false})
             `;
           }
         }

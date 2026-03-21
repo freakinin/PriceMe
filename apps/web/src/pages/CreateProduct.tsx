@@ -36,6 +36,7 @@ import { useToast } from '@/components/ui/use-toast';
 
 import { ProductVariationsModal, type Variant } from '@/components/products/ProductVariationsModal';
 import { useProducts } from '@/hooks/useProducts';
+import { useShippingMethods } from '@/hooks/useShippingMethods';
 import { CategorySelect } from '@/components/CategorySelect';
 import { track } from '@/lib/analytics';
 import { useTour, PRODUCT_TOUR_STORAGE_KEY } from '@/components/onboarding/TourContext';
@@ -50,6 +51,7 @@ import { MaterialsSection } from '@/components/products/forms/MaterialsSection';
 import { LaborSection } from '@/components/products/forms/LaborSection';
 import { OtherCostsSection } from '@/components/products/forms/OtherCostsSection';
 import { PriceCalculatorPanel } from '@/components/products/PriceCalculatorPanel';
+import { ShippingScenariosPanel } from '@/components/products/ShippingScenariosPanel';
 // Imported Utils
 import {
   calculateMaterialCost,
@@ -220,6 +222,7 @@ export default function CreateProduct() {
   const { toast } = useToast();
   const { subscription, invalidate: invalidateSubscription } = useSubscription();
   const { createProduct, updateProduct } = useProducts();
+  const { methods: shippingMethods } = useShippingMethods();
 
 
   const [variants, setVariants] = useState<Variant[]>([]);
@@ -279,8 +282,26 @@ export default function CreateProduct() {
       materials: [],
       labor_costs: [],
       other_costs: [],
+      shipping_scenarios: [],
     },
   });
+
+  // Auto-apply default shipping method as an Other Cost on new product creation
+  useEffect(() => {
+    if (isEditMode) return;
+    const defaultMethod = shippingMethods.find((m) => m.is_default);
+    if (!defaultMethod) return;
+    const current = form.getValues('other_costs');
+    if (current.length > 0) return; // Don't overwrite if costs already exist (e.g. template loaded)
+    form.setValue('other_costs', [{
+      item: defaultMethod.name,
+      quantity: 1,
+      cost: defaultMethod.is_free_shipping ? 0 : defaultMethod.cost,
+      per_batch: false,
+      is_shipping: true,
+    }]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shippingMethods, isEditMode]);
 
   // Fetch product data when in edit mode
   useEffect(() => {
@@ -322,7 +343,13 @@ export default function CreateProduct() {
               quantity: Number(o.quantity) || 0,
               cost: Number(o.cost) || 0,
               per_batch: !o.per_unit,
+              is_shipping: o.is_shipping || false,
             })),
+            shipping_scenarios: Array.isArray(p.shipping_scenarios)
+              ? p.shipping_scenarios
+              : (typeof p.shipping_scenarios === 'string'
+                  ? JSON.parse(p.shipping_scenarios)
+                  : []),
           });
           // Load variants
           if (p.variants && p.variants.length > 0) {
@@ -431,6 +458,7 @@ export default function CreateProduct() {
   const laborCosts = watch('labor_costs');
   const otherCosts = watch('other_costs');
   const targetPrice = watch('target_price') || 0;
+  const shippingScenarios = watch('shipping_scenarios') || [];
 
   // --- Calculations ---
 
@@ -439,6 +467,7 @@ export default function CreateProduct() {
   const totalMaterialsCost = materials?.reduce((sum, m) => sum + calculateMaterialCost(m, batchSize), 0) || 0;
   const totalLaborCost = laborCosts?.reduce((sum, l) => sum + calculateLaborCost(l, batchSize), 0) || 0;
   const totalOtherCost = otherCosts?.reduce((sum, o) => sum + calculateOtherCost(o, batchSize), 0) || 0;
+  const shippingCostInOtherCosts = otherCosts?.filter(o => o.is_shipping).reduce((sum, o) => sum + calculateOtherCost(o, batchSize), 0) || 0;
   const totalCostPerProduct = totalMaterialsCost + totalLaborCost + totalOtherCost;
 
 
@@ -472,7 +501,8 @@ export default function CreateProduct() {
           item: o.item,
           quantity: o.quantity,
           cost: o.cost,
-          per_unit: !o.per_batch
+          per_unit: !o.per_batch,
+          is_shipping: o.is_shipping || false,
         })),
         variants: variants.map(v => ({
           name: v.name,
@@ -483,6 +513,7 @@ export default function CreateProduct() {
           is_active: v.is_active,
           attributes: v.attributes
         })),
+        shipping_scenarios: data.shipping_scenarios || [],
       };
 
       if (isEditMode && editProductId) {
@@ -787,6 +818,17 @@ export default function CreateProduct() {
                   costPerUnit={totalCostPerProduct}
                   currency={settings.currency}
                 />
+                <div className="mt-4">
+                  <ShippingScenariosPanel
+                    scenarios={shippingScenarios}
+                    onChange={(s) => setValue('shipping_scenarios', s)}
+                    productCost={totalCostPerProduct}
+                    shippingCostInOtherCosts={shippingCostInOtherCosts}
+                    targetPrice={targetPrice}
+                    currency={settings.currency}
+                    shippingMethods={shippingMethods}
+                  />
+                </div>
               </div>
 
             </div>

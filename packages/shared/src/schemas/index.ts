@@ -112,6 +112,7 @@ export const createOtherCostSchema = z.object({
   quantity: z.number().nonnegative(),
   cost: z.number().nonnegative(),
   per_unit: z.boolean().default(true),
+  is_shipping: z.boolean().default(false),
 });
 
 export const updateOtherCostSchema = createOtherCostSchema.partial();
@@ -166,6 +167,10 @@ export const createProductSchema = z.object({
   labor_costs: z.array(createLaborSchema).optional(),
   other_costs: z.array(createOtherCostSchema).optional(),
   variants: z.array(createVariantSchema).optional(),
+  shipping_scenarios: z.array(z.object({
+    name: z.string().min(1),
+    cost: z.preprocess(numericPreprocess, z.number().nonnegative()),
+  })).max(4).optional().default([]),
 });
 
 export const updateProductSchema = createProductSchema.partial();
