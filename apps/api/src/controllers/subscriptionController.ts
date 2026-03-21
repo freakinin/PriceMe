@@ -106,15 +106,20 @@ export const assignPlan = async (req: AuthRequest, res: Response) => {
     return res.status(400).json({ status: 'error', message: `Invalid plan. Must be one of: ${validPlans.join(', ')}` });
   }
 
-  await db`
-    INSERT INTO subscriptions (user_id, plan, status)
-    VALUES (${userId}, ${plan}, 'active')
-    ON CONFLICT (user_id) DO UPDATE
-      SET plan = ${plan}, status = 'active', trial_ends_at = NULL, updated_at = CURRENT_TIMESTAMP
-  `;
+  try {
+    await db`
+      INSERT INTO subscriptions (user_id, plan, status)
+      VALUES (${userId}, ${plan}, 'active')
+      ON CONFLICT (user_id) DO UPDATE
+        SET plan = ${plan}, status = 'active', trial_ends_at = NULL, updated_at = CURRENT_TIMESTAMP
+    `;
+  } catch (dbErr: any) {
+    console.error('assignPlan DB error:', dbErr);
+    return res.status(500).json({ status: 'error', message: `DB error: ${dbErr.message}` });
+  }
 
-  // Sync updated plan to Notion (fire-and-forget)
-  NotionSyncJob.syncUser(userId).catch(() => {});
+  // Sync updated plan to Notion (fire-and-forget — must never block or throw)
+  try { NotionSyncJob.syncUser(userId).catch(() => {}); } catch { /* noop */ }
 
   return res.json({ status: 'success', message: `Plan updated to ${plan}`, data: { plan } });
 };

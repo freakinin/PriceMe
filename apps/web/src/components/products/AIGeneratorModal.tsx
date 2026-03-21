@@ -4,6 +4,7 @@ import { Sparkles, Paperclip, Send, X, Globe, Zap, Info, Check, Bug } from 'luci
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Dialog,
   DialogContent,
@@ -28,7 +29,7 @@ import api from '@/lib/api';
 type MessageRole = 'user' | 'model';
 
 interface ChatOptions {
-  type: 'single' | 'multi';
+  type: 'single' | 'multi' | 'dropdown';
   choices: string[];
 }
 
@@ -120,7 +121,7 @@ function QuickReplyChips({
   const handleOtherSubmit = () => {
     const val = otherValue.trim();
     if (!val) return;
-    if (options.type === 'single') {
+    if (options.type === 'single' || options.type === 'dropdown') {
       onSingleSelect(val);
     } else {
       onToggleMulti(val);
@@ -129,6 +130,64 @@ function QuickReplyChips({
     }
   };
 
+  // ---- Dropdown variant ----
+  if (options.type === 'dropdown') {
+    const hasOther = options.choices.some(isOtherChoice);
+    const displayChoices = options.choices.filter(c => !isOtherChoice(c));
+
+    if (showOtherInput) {
+      return (
+        <div className="flex gap-2 mt-2 pl-1">
+          <input
+            ref={otherInputRef}
+            type="text"
+            value={otherValue}
+            onChange={e => setOtherValue(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') { e.preventDefault(); handleOtherSubmit(); }
+              if (e.key === 'Escape') { setShowOtherInput(false); }
+            }}
+            placeholder="Type your answer..."
+            className="flex-1 h-8 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          />
+          <button
+            type="button"
+            onClick={handleOtherSubmit}
+            disabled={!otherValue.trim()}
+            className="flex items-center gap-1 px-3 h-8 rounded-md text-sm font-medium bg-primary text-primary-foreground disabled:opacity-50 hover:bg-primary/90"
+          >
+            <Send className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <div className="mt-2 pl-1 w-56">
+        <Select
+          onValueChange={val => {
+            if (isOtherChoice(val)) {
+              setShowOtherInput(true);
+            } else {
+              onSingleSelect(val);
+            }
+          }}
+        >
+          <SelectTrigger className="h-8 text-sm">
+            <SelectValue placeholder="Select..." />
+          </SelectTrigger>
+          <SelectContent>
+            {displayChoices.map(c => (
+              <SelectItem key={c} value={c}>{c}</SelectItem>
+            ))}
+            {hasOther && <SelectItem value="Other">Other...</SelectItem>}
+          </SelectContent>
+        </Select>
+      </div>
+    );
+  }
+
+  // ---- Chip variants (single / multi) ----
   return (
     <div className="flex flex-wrap gap-2 mt-2 pl-1 items-center">
       {options.choices.map(choice => {
@@ -206,9 +265,11 @@ function QuickReplyChips({
 function UrlPopoverContent({
   urls,
   onAdd,
+  onClose,
 }: {
   urls: string[];
   onAdd: (url: string) => void;
+  onClose: () => void;
 }) {
   const [value, setValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -217,14 +278,13 @@ function UrlPopoverContent({
     const url = value.trim();
     if (url.startsWith('http') && !urls.includes(url) && urls.length < 5) {
       onAdd(url);
-      setValue('');
-      inputRef.current?.focus();
+      onClose();
     }
   };
 
   return (
     <div className="space-y-2">
-      <p className="text-xs font-medium text-foreground">Add competitor URL</p>
+      <p className="text-xs text-muted-foreground">Paste a competitor listing URL</p>
       <div className="flex gap-1.5">
         <Input
           ref={inputRef}
@@ -235,11 +295,12 @@ function UrlPopoverContent({
             if (e.key === 'Enter') { e.preventDefault(); handleAdd(); }
           }}
           disabled={urls.length >= 5}
-          className="h-8 text-xs"
+          className="h-8 text-sm font-normal"
         />
         <Button
           type="button"
           size="sm"
+          variant="outline"
           onClick={handleAdd}
           disabled={urls.length >= 5 || !value.trim().startsWith('http')}
           className="h-8 px-3 flex-shrink-0"
@@ -248,9 +309,7 @@ function UrlPopoverContent({
         </Button>
       </div>
       {urls.length > 0 && (
-        <p className="text-[10px] text-muted-foreground">
-          {urls.length}/5 · Analyzed with your next message
-        </p>
+        <p className="text-[10px] text-muted-foreground">{urls.length}/5 added</p>
       )}
     </div>
   );
@@ -408,6 +467,7 @@ export function AIGeneratorModal({
   const [imageMimeType, setImageMimeType] = useState<string | null>(null);
 
   const [competitorUrls, setCompetitorUrls] = useState<string[]>([]);
+  const [urlPopoverOpen, setUrlPopoverOpen] = useState(false);
   // Cached result of the first competitor URL analysis — re-sent on subsequent turns
   // instead of re-analyzing the same URLs (expensive + slow)
   const [cachedCompetitorContext, setCachedCompetitorContext] = useState<string | null>(null);
@@ -829,7 +889,7 @@ export function AIGeneratorModal({
 
                   {/* Competitor URL button */}
                   {/* Competitor URL — Popover anchored to Globe button */}
-                  <Popover>
+                  <Popover open={urlPopoverOpen} onOpenChange={setUrlPopoverOpen}>
                     <PopoverTrigger asChild>
                       <Button
                         type="button"
@@ -850,10 +910,11 @@ export function AIGeneratorModal({
                         )}
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent side="top" align="start" className="w-80 p-3">
+                    <PopoverContent side="top" align="start" className="w-96 p-3">
                       <UrlPopoverContent
                         urls={competitorUrls}
                         onAdd={url => setCompetitorUrls(prev => [...prev, url])}
+                        onClose={() => setUrlPopoverOpen(false)}
                       />
                     </PopoverContent>
                   </Popover>

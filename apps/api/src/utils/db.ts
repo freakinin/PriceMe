@@ -1006,13 +1006,18 @@ export async function initializeDatabase() {
     }
 
     // Migration: rename plan keys 'pro'→'growth' and 'business'→'pro'
+    // IMPORTANT: Only run if old 'business' rows still exist — otherwise this would
+    // incorrectly downgrade legitimate 'pro' users to 'growth' on every server restart.
     try {
-      // Drop the old CHECK constraint (auto-named by Postgres)
       await sql`ALTER TABLE subscriptions DROP CONSTRAINT IF EXISTS subscriptions_plan_check`;
-      // Rename data — order matters: rename 'pro' first so 'business'→'pro' doesn't collide
-      await sql`UPDATE subscriptions SET plan = 'growth' WHERE plan = 'pro'`;
-      await sql`UPDATE subscriptions SET plan = 'pro'    WHERE plan = 'business'`;
-      // Re-add constraint with new allowed values
+      const hasOld = await sql`SELECT EXISTS(SELECT 1 FROM subscriptions WHERE plan = 'business') AS has_old`;
+      const hasOldRows = Array.isArray(hasOld) ? hasOld : (hasOld as any).rows ?? [];
+      if (hasOldRows[0]?.has_old) {
+        await sql`UPDATE subscriptions SET plan = 'growth' WHERE plan = 'pro'`;
+        await sql`UPDATE subscriptions SET plan = 'pro'    WHERE plan = 'business'`;
+      }
+      // Re-add constraint with new allowed values (safe to run every time — IF NOT EXISTS equivalent)
+      await sql`ALTER TABLE subscriptions DROP CONSTRAINT IF EXISTS subscriptions_plan_check`;
       await sql`
         ALTER TABLE subscriptions
         ADD CONSTRAINT subscriptions_plan_check

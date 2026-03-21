@@ -5,7 +5,7 @@ export type { PlanName, PlanLimits };
 export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
   free:     { products: 5,  competitors: 1,  coachInsights: 3,  coachChatPerDay: 0,  coachReportsPerMonth: 0  },
   starter:  { products: 10, competitors: 3,  coachInsights: 5,  coachChatPerDay: -1, coachReportsPerMonth: 2  },
-  growth:   { products: 30, competitors: 5,  coachInsights: -1, coachChatPerDay: -1, coachReportsPerMonth: -1 },
+  growth:   { products: 30, competitors: 50, coachInsights: -1, coachChatPerDay: -1, coachReportsPerMonth: -1 },
   pro:      { products: -1, competitors: -1, coachInsights: -1, coachChatPerDay: -1, coachReportsPerMonth: -1 },
 };
 

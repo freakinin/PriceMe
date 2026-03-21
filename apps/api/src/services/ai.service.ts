@@ -43,7 +43,7 @@ export interface GeneratorResponse {
     message: string;
     isComplete: boolean;
     options?: {
-        type: 'single' | 'multi';
+        type: 'single' | 'multi' | 'dropdown';
         choices: string[];
     };
     productDraft?: GeneratorProductDraft;
@@ -71,16 +71,15 @@ function buildGeneratorSystem(
         ? `HOURLY RATE: The user's hourly rate is already set to $${laborHourlyCost}/hr in their settings. Use this for all labor costs automatically. Do NOT ask for their hourly rate — skip that step.`
         : `HOURLY RATE: Ask the user for their hourly rate — offer options: [$10/hr, $15/hr, $20/hr, $25/hr, $30/hr, Other]`;
 
-    const laborSteps = `4. Labor — ask about each activity separately. Common activities (ask only if relevant to the product type):
-   - Preparation/setup (measuring, cutting material to size, preparing tools)
-   - Main production (assembly, sewing, welding, casting, throwing on wheel, etc.)
-   - Decoration/finishing (painting, sanding, glazing, embroidering, etc.) — skip if not applicable
+    const laborSteps = `4. Labor — ask about each activity separately. Common activities (only ask what's relevant):
+   - Preparation/setup (measuring, cutting to size, preparing tools)
+   - Main production (assembly, sewing, casting, throwing, welding, etc.)
+   - Decoration/finishing (painting, sanding, glazing, embroidering) — skip if not applicable
    - Packaging (boxing, wrapping, labelling)
-   For EACH activity ask: "How long does [activity] take PER UNIT (per finished item, not the whole batch)?"
-   Use chip options in minutes: [5 min, 10 min, 15 min, 20 min, 30 min, 45 min, 60 min, 90 min, Other]
+   For EACH activity ask: "How long does [activity] take PER UNIT?"
+   Use type "dropdown" with choices: ["5 min", "10 min", "15 min", "30 min", "45 min", "60 min", "90 min", "Other"]
    Generate one labor_costs entry per activity. Aim for 2–4 entries total.
-   CRITICAL: These times are PER UNIT. If the user gives a total batch time, divide by batch_size.
-   Example: user says "it takes me 1 hour to make 10" → time_minutes = 6 (60 ÷ 10) per unit.`;
+   CRITICAL: Times are PER UNIT (per finished item). If user gives batch total, divide by batch_size before recording.`;
 
     const requiredSteps = hasKnownRate
         ? `1. What the product is (initial description)
@@ -99,7 +98,9 @@ ${laborSteps}
 
 CONVERSATION RULES:
 - Ask ONE clarifying question at a time. Never ask multiple questions at once.
-- When a question has a small fixed set of answers, include "options" so the user can click instead of type.
+- When a question has a small fixed set of answers (≤5 choices), use type "single" chip buttons.
+- When the list is longer (6+ choices, or time/quantity values), use type "dropdown" — it shows as a select menu.
+- Use type "multi" only when the user can pick multiple items simultaneously.
 - CRITICAL: When the user sends a short reply (a number, a word, or a brief phrase), ALWAYS treat it as the direct answer to your most recent question. Never repeat a question they just answered. Example: you asked "How many do you make at a time?" and user replies "12" → batch_size is 12, move to the next question.
 - When generating a draft, use realistic market prices for common materials. ${unitNote}
 - Round quantities and costs to sensible values makers would recognize.
@@ -150,7 +151,7 @@ const GENERATOR_RESPONSE_SCHEMA = {
         options: {
             type: 'object',
             properties: {
-                type: { type: 'string', enum: ['single', 'multi'] },
+                type: { type: 'string', enum: ['single', 'multi', 'dropdown'] },
                 choices: { type: 'array', items: { type: 'string' } },
             },
             required: ['type', 'choices'],
