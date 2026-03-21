@@ -271,6 +271,9 @@ export const calculateProductMetrics = async (product: any) => {
     materials,
     labor_costs: laborCosts,
     other_costs: otherCosts,
+    materials_total: totalMaterialsCost,
+    labor_total: totalLaborCostPerProduct,
+    other_total: totalOtherCostsPerProduct,
   };
 };
 

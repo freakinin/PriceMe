@@ -62,8 +62,9 @@ export function useProducts() {
             const response = await api.put(`/products/${id}`, data);
             return response.data;
         },
-        onSuccess: () => {
+        onSuccess: (_data, { id }) => {
             queryClient.invalidateQueries({ queryKey: ['products'] });
+            queryClient.invalidateQueries({ queryKey: ['product', id] });
         },
     });
 

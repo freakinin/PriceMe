@@ -11,7 +11,8 @@ import { Edit } from 'lucide-react';
 
 export default function MarketAnalysis() {
     const [searchParams] = useSearchParams();
-    const productId = searchParams.get('productId');
+    const productIdStr = searchParams.get('productId');
+    const productId = productIdStr ? parseInt(productIdStr) : null;
     const navigate = useNavigate();
 
     const [headerActionsContainer, setHeaderActionsContainer] = useState<HTMLElement | null>(null);
