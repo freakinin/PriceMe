@@ -87,9 +87,19 @@ export const generateProductChat = async (
       unitSystem,
     });
 
+    // Debug info — helps diagnose what the AI actually received
+    const debugInfo = {
+      hadImage: !!contextImage,
+      hadCompetitorUrls: (competitorUrls?.length ?? 0) > 0,
+      usedCachedContext: !!preComputedContext,
+      competitorContextLength: competitorContext?.length ?? 0,
+      competitorContext: competitorContext ?? null,
+      historyLength: history.length,
+    };
+
     // Return the competitorContext so the frontend can cache it and re-use on future turns
     // (avoids re-analyzing the same URLs on every message)
-    return res.json({ status: 'success', data: { ...result, competitorContext } });
+    return res.json({ status: 'success', data: { ...result, competitorContext, debugInfo } });
   } catch (error: any) {
     console.error('AI generate product chat error:', error);
     return res.status(500).json({
