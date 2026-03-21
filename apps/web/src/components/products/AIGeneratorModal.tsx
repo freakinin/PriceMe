@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, Paperclip, Send, X, Link, Zap, Info, Check } from 'lucide-react';
+import { Sparkles, Paperclip, Send, X, Globe, Zap, Info, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -77,7 +77,7 @@ interface HistoryEntry {
   content: string;
 }
 
-// ---- Sub-components ----
+// ---- QuickReplyChips ----
 
 function QuickReplyChips({
   options,
@@ -92,103 +92,212 @@ function QuickReplyChips({
   onToggleMulti: (choice: string) => void;
   onConfirmMulti: () => void;
 }) {
+  const [showOtherInput, setShowOtherInput] = useState(false);
+  const [otherValue, setOtherValue] = useState('');
+  const otherInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (showOtherInput) {
+      setTimeout(() => otherInputRef.current?.focus(), 50);
+    }
+  }, [showOtherInput]);
+
+  const isOtherChoice = (choice: string) =>
+    choice === 'Other' || choice.toLowerCase().startsWith('other');
+
+  const handleChipClick = (choice: string) => {
+    if (isOtherChoice(choice)) {
+      setShowOtherInput(true);
+      setOtherValue('');
+    } else if (options.type === 'single') {
+      onSingleSelect(choice);
+    } else {
+      onToggleMulti(choice);
+    }
+  };
+
+  const handleOtherSubmit = () => {
+    const val = otherValue.trim();
+    if (!val) return;
+    if (options.type === 'single') {
+      onSingleSelect(val);
+    } else {
+      onToggleMulti(val);
+      setShowOtherInput(false);
+      setOtherValue('');
+    }
+  };
+
   return (
-    <div className="flex flex-wrap gap-2 mt-2 pl-1">
+    <div className="flex flex-wrap gap-2 mt-2 pl-1 items-center">
       {options.choices.map(choice => {
+        const isOther = isOtherChoice(choice);
         const isSelected = multiSelectPending.includes(choice);
         return (
           <button
             key={choice}
             type="button"
-            onClick={() =>
-              options.type === 'single' ? onSingleSelect(choice) : onToggleMulti(choice)
-            }
+            onClick={() => handleChipClick(choice)}
             className={cn(
               'px-3 py-1.5 rounded-full text-sm border transition-colors',
               isSelected
                 ? 'bg-primary text-primary-foreground border-primary'
-                : 'bg-background text-foreground border-warm-200 hover:border-primary hover:text-primary'
+                : 'bg-background text-foreground border-warm-200 hover:border-primary hover:text-primary',
+              isOther && showOtherInput && 'border-primary text-primary'
             )}
           >
-            {choice}
+            {isOther ? 'Other...' : choice}
           </button>
         );
       })}
-      {options.type === 'multi' && multiSelectPending.length > 0 && (
+
+      {/* Confirm button for multi-select — visually distinct (green) */}
+      {options.type === 'multi' && multiSelectPending.length > 0 && !showOtherInput && (
         <>
           <div className="w-px h-5 bg-warm-200 self-center mx-1 flex-shrink-0" />
           <button
             type="button"
             onClick={onConfirmMulti}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-md text-sm font-semibold bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 flex-shrink-0"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-md text-sm font-semibold bg-emerald-600 text-white shadow-sm hover:bg-emerald-700 flex-shrink-0"
           >
             <Check className="h-3.5 w-3.5" />
             Confirm ({multiSelectPending.length})
           </button>
         </>
       )}
-    </div>
-  );
-}
 
-function CompetitorUrlInput({
-  urls,
-  urlInputValue,
-  onInputChange,
-  onAdd,
-  onRemove,
-}: {
-  urls: string[];
-  urlInputValue: string;
-  onInputChange: (v: string) => void;
-  onAdd: () => void;
-  onRemove: (url: string) => void;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <div className="flex gap-2">
-        <Input
-          placeholder="Paste competitor URL (optional)..."
-          value={urlInputValue}
-          onChange={e => onInputChange(e.target.value)}
-          onKeyDown={e => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              onAdd();
-            }
-          }}
-          className="h-8 text-xs flex-1"
-        />
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          onClick={onAdd}
-          className="h-8 px-3 text-xs"
-        >
-          Add
-        </Button>
-      </div>
-      {urls.length > 0 && (
-        <div className="space-y-1">
-          {urls.map(url => (
-            <div key={url} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <Link className="h-3 w-3 flex-shrink-0" />
-              <span className="truncate flex-1 max-w-[320px]">{url}</span>
-              <button
-                type="button"
-                onClick={() => onRemove(url)}
-                className="ml-auto flex-shrink-0 hover:text-foreground"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </div>
-          ))}
+      {/* Inline "Other" text input */}
+      {showOtherInput && (
+        <div className="w-full flex gap-2 mt-1">
+          <input
+            ref={otherInputRef}
+            type="text"
+            value={otherValue}
+            onChange={e => setOtherValue(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                handleOtherSubmit();
+              }
+              if (e.key === 'Escape') {
+                setShowOtherInput(false);
+              }
+            }}
+            placeholder="Type your answer..."
+            className="flex-1 h-8 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          />
+          <button
+            type="button"
+            onClick={handleOtherSubmit}
+            disabled={!otherValue.trim()}
+            className="flex items-center gap-1 px-3 h-8 rounded-md text-sm font-medium bg-primary text-primary-foreground disabled:opacity-50 hover:bg-primary/90"
+          >
+            <Send className="h-3.5 w-3.5" />
+          </button>
         </div>
       )}
     </div>
   );
 }
+
+// ---- Competitor URL Modal ----
+
+function CompetitorUrlModal({
+  open,
+  onOpenChange,
+  urls,
+  onAdd,
+  onRemove,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  urls: string[];
+  onAdd: (url: string) => void;
+  onRemove: (url: string) => void;
+}) {
+  const [inputValue, setInputValue] = useState('');
+
+  const handleAdd = () => {
+    const url = inputValue.trim();
+    if (url.startsWith('http') && !urls.includes(url) && urls.length < 5) {
+      onAdd(url);
+      setInputValue('');
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-base">
+            <Globe className="h-4 w-4 text-primary" />
+            Competitor URLs
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Add competitor product URLs. The AI will analyze their pricing and materials and use it as context when generating your product.
+          </p>
+          <div className="flex gap-2">
+            <Input
+              placeholder="https://etsy.com/listing/..."
+              value={inputValue}
+              onChange={e => setInputValue(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleAdd();
+                }
+              }}
+              disabled={urls.length >= 5}
+            />
+            <Button
+              type="button"
+              onClick={handleAdd}
+              disabled={urls.length >= 5 || !inputValue.trim().startsWith('http')}
+            >
+              Add
+            </Button>
+          </div>
+
+          {urls.length > 0 ? (
+            <div className="space-y-1.5">
+              {urls.map(url => {
+                let hostname = url;
+                try { hostname = new URL(url).hostname; } catch { /* noop */ }
+                return (
+                  <div key={url} className="flex items-center gap-2 bg-muted/50 rounded-md px-3 py-2">
+                    <Globe className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium truncate">{hostname}</p>
+                      <p className="text-[10px] text-muted-foreground truncate">{url}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => onRemove(url)}
+                      className="flex-shrink-0 text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                );
+              })}
+              <p className="text-[10px] text-muted-foreground text-center pt-1">
+                {urls.length}/5 URLs · Analyzed on your next message
+              </p>
+            </div>
+          ) : (
+            <div className="text-center py-3 text-sm text-muted-foreground">
+              No competitor URLs added yet
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ---- Cost Tooltip ----
 
 function CostSectionTooltip({
   label,
@@ -216,6 +325,8 @@ function CostSectionTooltip({
     </TooltipProvider>
   );
 }
+
+// ---- Draft Preview Card ----
 
 function ProductDraftCard({
   draft,
@@ -265,37 +376,22 @@ function ProductDraftCard({
 
       <div className="grid grid-cols-3 gap-2 text-xs">
         <div>
-          <div className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">
-            Materials
-          </div>
-          <CostSectionTooltip
-            label={formatCurrency(matTotal, currency)}
-            items={materialLines}
-          />
+          <div className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Materials</div>
+          <CostSectionTooltip label={formatCurrency(matTotal, currency)} items={materialLines} />
           <div className="text-[10px] text-muted-foreground mt-0.5">
             {draft.materials.length} item{draft.materials.length !== 1 ? 's' : ''}
           </div>
         </div>
         <div>
-          <div className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">
-            Labor
-          </div>
-          <CostSectionTooltip
-            label={formatCurrency(laborTotal, currency)}
-            items={laborLines}
-          />
+          <div className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Labor</div>
+          <CostSectionTooltip label={formatCurrency(laborTotal, currency)} items={laborLines} />
           <div className="text-[10px] text-muted-foreground mt-0.5">
             {draft.labor_costs.length} task{draft.labor_costs.length !== 1 ? 's' : ''}
           </div>
         </div>
         <div>
-          <div className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">
-            Other
-          </div>
-          <CostSectionTooltip
-            label={formatCurrency(otherTotal, currency)}
-            items={otherLines}
-          />
+          <div className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Other</div>
+          <CostSectionTooltip label={formatCurrency(otherTotal, currency)} items={otherLines} />
           <div className="text-[10px] text-muted-foreground mt-0.5">
             {draft.other_costs.length} item{draft.other_costs.length !== 1 ? 's' : ''}
           </div>
@@ -353,7 +449,7 @@ export function AIGeneratorModal({
   const [imageMimeType, setImageMimeType] = useState<string | null>(null);
 
   const [competitorUrls, setCompetitorUrls] = useState<string[]>([]);
-  const [urlInputValue, setUrlInputValue] = useState('');
+  const [isUrlModalOpen, setIsUrlModalOpen] = useState(false);
 
   const [multiSelectPending, setMultiSelectPending] = useState<string[]>([]);
   const [completedDraft, setCompletedDraft] = useState<ProductDraft | null>(null);
@@ -391,10 +487,9 @@ export function AIGeneratorModal({
     setImageBase64(null);
     setImageMimeType(null);
     setCompetitorUrls([]);
-    setUrlInputValue('');
+    setIsUrlModalOpen(false);
     setMultiSelectPending([]);
     setCompletedDraft(null);
-    // Reset textarea height
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
@@ -409,7 +504,6 @@ export function AIGeneratorModal({
     const el = textareaRef.current;
     if (!el) return;
     el.style.height = 'auto';
-    // ~24px per row, max 4 rows = 96px
     el.style.height = Math.min(el.scrollHeight, 96) + 'px';
   };
 
@@ -437,18 +531,6 @@ export function AIGeneratorModal({
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const addCompetitorUrl = () => {
-    const url = urlInputValue.trim();
-    if (
-      url.startsWith('http') &&
-      !competitorUrls.includes(url) &&
-      competitorUrls.length < 5
-    ) {
-      setCompetitorUrls(prev => [...prev, url]);
-      setUrlInputValue('');
-    }
-  };
-
   const sendMessage = async (textOverride?: string) => {
     const text = (textOverride ?? input).trim();
     if (!text || isLoading) return;
@@ -473,7 +555,6 @@ export function AIGeneratorModal({
     setIsLoading(true);
     setError(null);
 
-    // Reset textarea height after clearing input
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
@@ -533,7 +614,7 @@ export function AIGeneratorModal({
     if (!completedDraft) return;
     let draft = { ...completedDraft };
 
-    // If AI suggested a new category (category_name set, no category_id), create it now
+    // Create new category if AI suggested one that doesn't exist yet
     if (draft.category_name && !draft.category_id) {
       try {
         const result = await createCategory({ name: draft.category_name });
@@ -554,198 +635,253 @@ export function AIGeneratorModal({
     });
   };
 
+  const hasContext = selectedImage !== null || competitorUrls.length > 0;
+
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-2xl w-full h-[85vh] max-h-[85vh] flex flex-col p-0 gap-0">
-        <DialogHeader className="px-5 py-4 border-b flex-shrink-0">
-          <DialogTitle className="flex items-center gap-2 text-base">
-            <Sparkles className="h-4 w-4 text-primary" />
-            Generate Product with AI
-          </DialogTitle>
-        </DialogHeader>
+    <>
+      <Dialog open={open} onOpenChange={handleClose}>
+        <DialogContent className="max-w-2xl w-full h-[85vh] max-h-[85vh] flex flex-col p-0 gap-0">
+          <DialogHeader className="px-5 py-4 border-b flex-shrink-0">
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <Sparkles className="h-4 w-4 text-primary" />
+              Generate Product with AI
+            </DialogTitle>
+          </DialogHeader>
 
-        {!isEnabled ? (
-          /* Plan gate — soft block for free users */
-          <div className="flex-1 flex flex-col items-center justify-center gap-4 p-8 text-center">
-            <Zap className="h-10 w-10 text-muted-foreground" />
-            <div className="space-y-1">
-              <p className="font-medium">Starter Plan Required</p>
-              <p className="text-sm text-muted-foreground">
-                AI Product Generator is available on Starter plan and above. Upgrade to let AI build
-                your full product cost breakdown in minutes.
-              </p>
+          {!isEnabled ? (
+            /* Plan gate */
+            <div className="flex-1 flex flex-col items-center justify-center gap-4 p-8 text-center">
+              <Zap className="h-10 w-10 text-muted-foreground" />
+              <div className="space-y-1">
+                <p className="font-medium">Starter Plan Required</p>
+                <p className="text-sm text-muted-foreground">
+                  AI Product Generator is available on Starter plan and above. Upgrade to let AI build
+                  your full product cost breakdown in minutes.
+                </p>
+              </div>
+              <Button
+                onClick={() => {
+                  handleClose();
+                  openSettingsAt('subscription');
+                }}
+              >
+                View Plans
+              </Button>
             </div>
-            <Button
-              onClick={() => {
-                handleClose();
-                openSettingsAt('subscription');
-              }}
-            >
-              View Plans
-            </Button>
-          </div>
-        ) : (
-          <>
-            {/* Messages area */}
-            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3 min-h-0">
-              {messages.map((msg, idx) => {
-                const isLastModel =
-                  msg.role === 'model' &&
-                  idx === messages.findLastIndex(m => m.role === 'model');
+          ) : (
+            <>
+              {/* Messages area */}
+              <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3 min-h-0">
+                {messages.map((msg, idx) => {
+                  const isLastModel =
+                    msg.role === 'model' &&
+                    idx === messages.findLastIndex(m => m.role === 'model');
 
-                return (
-                  <div key={msg.id}>
-                    <div
-                      className={cn(
-                        'flex',
-                        msg.role === 'user' ? 'justify-end' : 'justify-start'
-                      )}
-                    >
+                  return (
+                    <div key={msg.id}>
                       <div
                         className={cn(
-                          'max-w-[82%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed',
-                          msg.role === 'user'
-                            ? 'bg-primary text-primary-foreground rounded-tr-sm'
-                            : 'bg-muted text-foreground rounded-tl-sm'
+                          'flex',
+                          msg.role === 'user' ? 'justify-end' : 'justify-start'
                         )}
                       >
-                        {msg.content.split('\n').map((line, i, arr) => (
-                          <span key={i}>
-                            {line}
-                            {i < arr.length - 1 && <br />}
-                          </span>
-                        ))}
+                        <div
+                          className={cn(
+                            'max-w-[82%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed',
+                            msg.role === 'user'
+                              ? 'bg-primary text-primary-foreground rounded-tr-sm'
+                              : 'bg-muted text-foreground rounded-tl-sm'
+                          )}
+                        >
+                          {msg.content.split('\n').map((line, i, arr) => (
+                            <span key={i}>
+                              {line}
+                              {i < arr.length - 1 && <br />}
+                            </span>
+                          ))}
+                        </div>
                       </div>
-                    </div>
 
-                    {/* Quick-reply chips — only on last AI message, before user responds */}
-                    {msg.role === 'model' &&
-                      isLastModel &&
-                      msg.options &&
-                      !msg.optionsUsed &&
-                      !isLoading && (
-                        <QuickReplyChips
-                          options={msg.options}
-                          onSingleSelect={choice => sendMessage(choice)}
-                          multiSelectPending={multiSelectPending}
-                          onToggleMulti={choice =>
-                            setMultiSelectPending(prev =>
-                              prev.includes(choice)
-                                ? prev.filter(c => c !== choice)
-                                : [...prev, choice]
-                            )
-                          }
-                          onConfirmMulti={() => {
-                            sendMessage(multiSelectPending.join(', '));
-                          }}
+                      {/* Quick-reply chips — only on last AI message, before user responds */}
+                      {msg.role === 'model' &&
+                        isLastModel &&
+                        msg.options &&
+                        !msg.optionsUsed &&
+                        !isLoading && (
+                          <QuickReplyChips
+                            options={msg.options}
+                            onSingleSelect={choice => sendMessage(choice)}
+                            multiSelectPending={multiSelectPending}
+                            onToggleMulti={choice =>
+                              setMultiSelectPending(prev =>
+                                prev.includes(choice)
+                                  ? prev.filter(c => c !== choice)
+                                  : [...prev, choice]
+                              )
+                            }
+                            onConfirmMulti={() => {
+                              sendMessage(multiSelectPending.join(', '));
+                            }}
+                          />
+                        )}
+
+                      {/* Draft preview card */}
+                      {msg.draft && (
+                        <ProductDraftCard
+                          draft={msg.draft}
+                          currency={currency}
+                          onUse={handleUseProduct}
                         />
                       )}
+                    </div>
+                  );
+                })}
 
-                    {/* Draft preview card */}
-                    {msg.draft && (
-                      <ProductDraftCard
-                        draft={msg.draft}
-                        currency={currency}
-                        onUse={handleUseProduct}
-                      />
-                    )}
-                  </div>
-                );
-              })}
+                {isLoading && <ChatThinkingBubble />}
 
-              {isLoading && <ChatThinkingBubble />}
+                {error && (
+                  <p className="text-xs text-destructive text-center py-1">{error}</p>
+                )}
 
-              {error && (
-                <p className="text-xs text-destructive text-center py-1">{error}</p>
-              )}
-
-              <div ref={bottomRef} />
-            </div>
-
-            {/* Input area */}
-            <div className="border-t px-5 py-3 flex-shrink-0 space-y-2.5">
-              {/* Image preview */}
-              {selectedImage && (
-                <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 rounded-md px-2.5 py-1.5">
-                  <Paperclip className="h-3 w-3 flex-shrink-0" />
-                  <span className="truncate flex-1">{selectedImage.name}</span>
-                  <button
-                    type="button"
-                    onClick={removeImage}
-                    className="flex-shrink-0 hover:text-foreground"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              )}
-
-              {/* Competitor URLs */}
-              <CompetitorUrlInput
-                urls={competitorUrls}
-                urlInputValue={urlInputValue}
-                onInputChange={setUrlInputValue}
-                onAdd={addCompetitorUrl}
-                onRemove={url => setCompetitorUrls(prev => prev.filter(u => u !== url))}
-              />
-
-              {/* Text input row */}
-              <div className="flex gap-2 items-end">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  className="hidden"
-                  onChange={handleImageSelect}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  className="h-9 w-9 flex-shrink-0 self-end"
-                  onClick={() => fileInputRef.current?.click()}
-                  title="Attach product photo"
-                  disabled={isLoading}
-                >
-                  <Paperclip className="h-4 w-4" />
-                </Button>
-                <textarea
-                  ref={textareaRef}
-                  value={input}
-                  onChange={e => {
-                    setInput(e.target.value);
-                    autoResizeTextarea();
-                  }}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      sendMessage();
-                    }
-                  }}
-                  placeholder="Describe your product or answer the question above..."
-                  rows={1}
-                  disabled={isLoading}
-                  className={cn(
-                    'flex-1 resize-none rounded-md border border-input bg-background px-3 py-2 text-sm',
-                    'placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2',
-                    'focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50',
-                    'min-h-[36px] overflow-y-auto'
-                  )}
-                  style={{ height: '36px' }}
-                />
-                <Button
-                  type="button"
-                  size="icon"
-                  className="h-9 w-9 flex-shrink-0 self-end"
-                  onClick={() => sendMessage()}
-                  disabled={!input.trim() || isLoading}
-                >
-                  <Send className="h-4 w-4" />
-                </Button>
+                <div ref={bottomRef} />
               </div>
-            </div>
-          </>
-        )}
-      </DialogContent>
-    </Dialog>
+
+              {/* Input area */}
+              <div className="border-t px-5 py-3 flex-shrink-0 space-y-2">
+                {/* Context attachments bar — shows when image or URLs are attached */}
+                {hasContext && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {selectedImage && (
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/60 rounded-full px-2.5 py-1">
+                        <Paperclip className="h-3 w-3 flex-shrink-0" />
+                        <span className="truncate max-w-[140px]">{selectedImage.name}</span>
+                        <button
+                          type="button"
+                          onClick={removeImage}
+                          className="ml-0.5 hover:text-foreground flex-shrink-0"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    )}
+                    {competitorUrls.map(url => {
+                      let hostname = url;
+                      try { hostname = new URL(url).hostname; } catch { /* noop */ }
+                      return (
+                        <div
+                          key={url}
+                          className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/60 rounded-full px-2.5 py-1"
+                        >
+                          <Globe className="h-3 w-3 flex-shrink-0" />
+                          <span className="truncate max-w-[140px]">{hostname}</span>
+                          <button
+                            type="button"
+                            onClick={() => setCompetitorUrls(prev => prev.filter(u => u !== url))}
+                            className="ml-0.5 hover:text-foreground flex-shrink-0"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Text input row */}
+                <div className="flex gap-2 items-end">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    onChange={handleImageSelect}
+                  />
+
+                  {/* Image attach button */}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className={cn(
+                      'h-9 w-9 flex-shrink-0 self-end',
+                      selectedImage && 'border-primary text-primary'
+                    )}
+                    onClick={() => fileInputRef.current?.click()}
+                    title="Attach product photo"
+                    disabled={isLoading}
+                  >
+                    <Paperclip className="h-4 w-4" />
+                  </Button>
+
+                  {/* Competitor URL button */}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className={cn(
+                      'h-9 w-9 flex-shrink-0 self-end relative',
+                      competitorUrls.length > 0 && 'border-primary text-primary'
+                    )}
+                    onClick={() => setIsUrlModalOpen(true)}
+                    title="Add competitor URLs"
+                    disabled={isLoading}
+                  >
+                    <Globe className="h-4 w-4" />
+                    {competitorUrls.length > 0 && (
+                      <span className="absolute -top-1.5 -right-1.5 h-4 w-4 bg-primary text-primary-foreground text-[9px] font-bold rounded-full flex items-center justify-center">
+                        {competitorUrls.length}
+                      </span>
+                    )}
+                  </Button>
+
+                  <textarea
+                    ref={textareaRef}
+                    value={input}
+                    onChange={e => {
+                      setInput(e.target.value);
+                      autoResizeTextarea();
+                    }}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        sendMessage();
+                      }
+                    }}
+                    placeholder="Describe your product or answer the question above..."
+                    rows={1}
+                    disabled={isLoading}
+                    className={cn(
+                      'flex-1 resize-none rounded-md border border-input bg-background px-3 py-2 text-sm',
+                      'placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2',
+                      'focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50',
+                      'min-h-[36px] overflow-y-auto'
+                    )}
+                    style={{ height: '36px' }}
+                  />
+                  <Button
+                    type="button"
+                    size="icon"
+                    className="h-9 w-9 flex-shrink-0 self-end"
+                    onClick={() => sendMessage()}
+                    disabled={!input.trim() || isLoading}
+                  >
+                    <Send className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Competitor URL manager — rendered as sibling dialog to avoid nesting issues */}
+      <CompetitorUrlModal
+        open={isUrlModalOpen}
+        onOpenChange={setIsUrlModalOpen}
+        urls={competitorUrls}
+        onAdd={url => setCompetitorUrls(prev => [...prev, url])}
+        onRemove={url => setCompetitorUrls(prev => prev.filter(u => u !== url))}
+      />
+    </>
   );
 }
