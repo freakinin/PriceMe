@@ -291,7 +291,8 @@ export const getProducts = async (req: AuthRequest, res: Response) => {
         p.id, p.name, p.sku, p.status, p.batch_size, p.target_price, p.pricing_method, p.pricing_value, p.created_at, p.updated_at, 
         COALESCE(c.name, p.category) as category, 
         p.category_id,
-        (SELECT COUNT(*)::int FROM tracked_products tp WHERE tp.linked_product_id = p.id) as competitor_count
+        (SELECT COUNT(*)::int FROM tracked_products tp WHERE tp.linked_product_id = p.id) as competitor_count,
+        (SELECT AVG(tp.current_price) FROM tracked_products tp WHERE tp.linked_product_id = p.id AND tp.current_price IS NOT NULL) as avg_competitor_price
       FROM products p
       LEFT JOIN categories c ON p.category_id = c.id
       WHERE p.user_id = ${req.userId}

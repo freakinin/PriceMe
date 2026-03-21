@@ -27,6 +27,7 @@ export interface Product {
     category_id: number | null;
     category?: string;
     competitor_count?: number;
+    avg_competitor_price?: number | null;
     // Platform & shipping (Phase: fees feature)
     platform_fee_profile_id?: number | null;
     shipping_cost?: number | null;

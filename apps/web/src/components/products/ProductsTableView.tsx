@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Loader2 } from 'lucide-react';
+import { Plus, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Loader2, TrendingUp, TrendingDown } from 'lucide-react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -224,6 +224,34 @@ export function ProductsTableView({
             onClick={e => { e.stopPropagation(); navigate(`/market-analysis?productId=${product.id}`); }}>
             {count} {count === 1 ? 'Product' : 'Products'}
           </Badge>
+        );
+      },
+    },
+    {
+      accessorKey: 'market_position',
+      header: 'Market Position',
+      size: 140, minSize: 120, maxSize: 180,
+      cell: ({ row }) => {
+        const product = row.original;
+        const count = Number(product.competitor_count || 0);
+        const avgCompetitorPrice = product.avg_competitor_price ? Number(product.avg_competitor_price) : null;
+        const myPrice = getCalculatedMetrics(product).price;
+        if (!avgCompetitorPrice || count === 0 || !myPrice) {
+          return <span className="text-muted-foreground text-xs">—</span>;
+        }
+        const priceDiff = myPrice - avgCompetitorPrice;
+        const isHigher = priceDiff > 0;
+        const diffPercentage = (Math.abs(priceDiff) / avgCompetitorPrice) * 100;
+        return (
+          <div className="flex flex-col items-start">
+            <span className={`flex items-center gap-0.5 font-medium text-sm ${isHigher ? 'text-red-600' : 'text-green-600'}`}>
+              {isHigher ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+              {isHigher ? '+' : '-'}{diffPercentage.toFixed(0)}%
+            </span>
+            <span className="text-[10px] text-muted-foreground leading-none mt-0.5">
+              {count} competitor{count !== 1 ? 's' : ''}
+            </span>
+          </div>
         );
       },
     },
