@@ -1,284 +1,232 @@
-# PriceMe Project Plan
+# PriceMe — Product Roadmap
 
-## Future Features 🚀
+## What We're Building
 
-### High Priority (Next Up)
+PriceMe is a pricing and profitability tool for small product-based businesses — makers, crafters, and independent sellers on Etsy, Shopify, and beyond. We help them understand exactly what their products cost, what they should charge, and whether their business is actually making money.
 
-1. **Billing & Subscription — Phase 2 (Stripe)**
-   - Stripe Checkout for upgrading plans (Starter / Pro / Business)
-   - Stripe Billing Portal for self-service downgrades & cancellations
-   - Webhook handler to sync plan/status on Stripe lifecycle events
-   - Annual billing option (Starter $10/mo billed $120/yr)
-   - Note: DB schema is already Stripe-ready (stripe_subscription_id, stripe_customer_id, period dates)
+---
 
-2. **Integration Features**
-   - Etsy integration
-   - Shopify integration
-   - CSV Import
+## Up Next 🚀
 
-3. **Advanced Analytics**
-   - Cost trend analysis over time
-   - Profit margin trends
-   - Material cost analysis
-   - Labor cost analysis
-   - Revenue forecasting
+### High Priority
 
-4. **Product Categories**
-   - Category management
-   - Filter by category
-   - Category-based analytics
+**1. Stripe Billing (Subscription Phase 2)**
+Users can currently switch plans in the app, but payment isn't wired up yet. This adds real card payments via Stripe:
+- Checkout flow for upgrading to Starter / Growth / Pro
+- Self-service billing portal (manage card, view invoices, cancel)
+- Webhook handling so plan changes and renewals sync automatically
+- Annual billing option with a discount
+- DB schema is already Stripe-ready (stripe_subscription_id, stripe_customer_id columns exist)
 
-5. **Export Functionality**
-   - Export cost breakdowns as PDF
+**2. Platform Integrations**
+Reduce manual data entry by connecting to where sellers actually sell:
+- Etsy integration — auto-import orders and competitor listings
+- Shopify integration — sync products and pull in sales data
+- CSV import — bulk upload products, materials, or sales history
+
+**3. Advanced Analytics**
+Turn the data we already have into better business decisions:
+- Revenue and profit trend charts over time
+- Material cost trend analysis
+- Break-even analysis at the business level (not just per product)
+- Revenue forecasting based on current pricing and volume
+
+**4. Business Finance & Overhead Tracker**
+Most sellers focus on per-product margins but never account for the fixed costs of running their business — studio rent, software, electricity, equipment. This feature adds:
+- Fixed and variable overhead tracking (monthly or annual)
+- Capital expense amortisation (e.g. a laser cutter spread over 3 years)
+- True cost per unit after overhead allocation
+- Monthly P&L view: gross profit vs net profit
+- Break-even volume (how many units to cover all costs)
+- New `business_expenses` table planned: `id, user_id, name, category, amount, frequency, useful_life_months`
+
+**5. Export to PDF**
+Export a product's full cost breakdown and pricing analysis as a shareable PDF — useful for wholesale pricing conversations, grant applications, or personal records.
+
+---
 
 ### Medium Priority
 
-6. **Inventory Tracking**
-   - Stock levels per product
-   - Low stock alerts
-   - Inventory history
-   - Stock adjustments
+**6. Inventory Tracking**
+- Stock level management per product (separate from batch/made)
+- Low stock alerts with configurable thresholds
+- Stock adjustment history
 
-7. **Material Library Enhancements**
-   - Material cost history
-   - Price alerts for materials
-   - Supplier management
-   - Material usage analytics
+**7. Pricing Strategies**
+- Save multiple pricing scenarios per product (e.g. retail vs wholesale vs market-stall price)
+- Dynamic pricing suggestions based on cost changes
+- Discount scenario modeller
 
-8. **Pricing Strategies**
-   - Multiple pricing methods per product
-   - A/B testing for pricing
-   - Competitor price tracking
-   - Dynamic pricing suggestions
+**8. Reporting**
+- Custom report builder
+- Scheduled reports emailed to you
+- Templates for common reports (monthly P&L, top products by margin, etc.)
 
-9. **Reporting**
-    - Custom report builder
-    - Scheduled reports
-    - Email reports
-    - Report templates
-
-10. **Product Comparison**
-    - Side-by-side product comparison
-    - Cost breakdown comparison
-    - Profitability comparison
-
-### Low Priority / Future Enhancements
-
-11. **Multi-currency Support**
-    - Currency conversion
-    - Multi-currency pricing
-    - Exchange rate tracking
-
-12. **Collaboration Features**
-    - Team accounts
-    - Role-based access control
-    - Shared product libraries
-    - Comments and notes on products
-
-13. **Mobile App**
-    - React Native mobile app
-    - Quick product creation on mobile
-    - Barcode scanning for materials
-
-14. **Advanced Search**
-    - Full-text search
-    - Search history
-    - Saved searches
-    - Search filters presets
-
-15. **Notifications**
-    - Low stock alerts
-    - Price change notifications
-    - Material price alerts
-    - System notifications
-
-16. **Data Visualization**
-    - Charts and graphs for analytics
-    - Profit trends visualization
-    - Cost breakdown pie charts
-    - Revenue forecasting charts
-
-17. **Backup & Restore**
-    - Data export/import
-    - Backup scheduling
-    - Data recovery
-    - Version history
-
-18. **Business Finance & Overhead Tracker** *(planned — see description below)*
+**9. Product Comparison**
+- Side-by-side comparison of two or more products
+- Cost breakdown diff
+- Margin and profitability comparison
 
 ---
 
-## Planned Feature: Business Finance & Overhead Tracker
+### Lower Priority / Future
 
-> **Purpose:** Give sellers a complete picture of their business profitability — not just per-product margins, but true take-home profit after real-world business costs.
+**10. Multi-currency Support**
+- Display prices in a secondary currency
+- Exchange rate tracking
+- Multi-currency sales recording
 
-### What it covers
+**11. Team & Collaboration**
+- Multiple users on one account
+- Role-based access (view-only, editor, admin)
+- Comments and notes on products
 
-- **Fixed overhead expenses** — recurring costs that exist regardless of sales: rent/studio space, machinery, electricity, internet, software subscriptions, accountant, insurance, computer/equipment depreciation
-- **Variable business costs** — costs that scale with production: packaging supplies, transaction fees per platform (separate from the existing fee-aware mode), delivery runs
-- **Capital expenses** — one-time equipment purchases (laser cutter, 3D printer, sewing machine) amortised over their useful life to give a realistic per-unit overhead contribution
+**12. Mobile App**
+- React Native app for iOS and Android
+- Quick sale recording from your phone
+- Barcode scanning for materials
 
-### Key outputs
+**13. Advanced Search**
+- Full-text search across product descriptions and notes
+- Saved search filters
+- Search history
 
-- **True cost per unit** — current product cost (materials + labour + other) PLUS allocated overhead share based on batch volume / production hours
-- **Break-even volume** — how many units need to sell per month to cover all fixed costs at the current price
-- **Monthly cashflow view** — income (from sales) vs outgoings (overhead + COGS), with trend chart
-- **Business P&L summary** — gross profit vs net profit after overhead, per month/quarter/year
-- **Overhead allocation rate** — auto-calculated overhead per production hour or per unit, which feeds back into product cost calculations
+**14. Notifications**
+- Price change alerts for tracked competitors
+- Low stock reminders
+- Material cost increase warnings
 
-### Implementation notes (for later)
-
-- New `business_expenses` table: `id, user_id, name, category (fixed|variable|capital), amount, frequency (monthly|annual|one_off), useful_life_months (for capital), created_at`
-- New `BusinessFinance` page in the sidebar
-- Settings to set monthly production hours (for overhead-per-hour rate)
-- Optional: flag products to include/exclude overhead allocation (e.g. exclude a side-project product from main overhead pool)
-- Connects to the existing sales data to populate actual income figures in the cashflow view
+**15. Backup & Data Export**
+- Full account data export (JSON or CSV)
+- Backup scheduling
+- Data recovery tools
 
 ---
 
-## Completed Features ✅
+## Already Shipped ✅
 
-### Recently Completed
+### Core Platform
 
-- ✅ **Pricing UX Redesign** (`feat/pricing-ux-redesign`)
-  - Per-product inline pricing calculator with 4 methods: Set Price, Profit $, Margin %, Markup %
-  - Real-time price/profit/margin/markup display in both Table and Grid views
-  - Optimistic cache updates (no refresh needed) via `queryClient.setQueryData`
-  - Fixed NaN display: added `Number()` coercions to guard against PostgreSQL NUMERIC string values
-  - Fixed stale metric display: `getCalculatedMetrics` now returns raw `pricingValue` so "Desired Margin/Profit/Markup" always shows what the user set, even for zero-cost products
-  - Fee-aware mode: platform fee profiles applied to profit/margin columns in both views
+- ✅ **Authentication** — sign up, log in, JWT-based sessions, protected routes
+- ✅ **Post-signup onboarding** — guided wizard that sets up the AI Coach profile immediately after registration
+- ✅ **Home dashboard** — customisable widget layout with stats, charts, coach insights, activity feed, and quick actions; date-range filtering; after-tax toggle; drag-to-reorder layout
 
-- ✅ **Subscription & Usage Plans — Phase 1**
-  - 4-tier plan system: Free (10 products / 2 competitors), Starter ($12/mo), Pro ($19/mo), Business ($49/mo unlimited)
-  - `subscriptions` DB table with Stripe-ready columns (nullable until Phase 2)
-  - Hard limit enforcement: product creation and competitor tracking gated at API level (HTTP 403 `PLAN_LIMIT_REACHED`)
-  - Settings → Subscription: plan comparison grid, usage bars, self-service plan switching
-  - Settings → Usage: usage-only view with near-limit upgrade prompt
-  - Header warning indicator when any limit is reached
-  - Near-limit toast (80%+) and at-limit toast after successful creates, with "Upgrade" action
-  - Upgrade prompt dialog on hard limit hit, links to Subscription settings
-  - Signup page redesigned as marketing landing with hero, pricing grid, and sign-up form
-  - QA mode (`QA_MODE=true`): Free tier reduced to 4 products / 1 competitor for easy testing
-  - Bug fix: orphaned `tracked_products` from deleted products no longer inflate competitor usage count; FK changed to `ON DELETE CASCADE`
-  - See plan spec in `.claude/plans/shimmering-marinating-cosmos.md`
+### Product Management
 
-- ✅ **Bulk Operations** (Edit, Delete, Update Pricing)
-- ✅ **Export to CSV/Excel**
-- ✅ **Home Dashboard UI Overhaul** (Modern charts, cards, recent activity, alerts)
-- ✅ **Product Variants** (Cartesian generator, cost/price overrides, stock)
-- ✅ New single-screen Add Product UI (replaced multi-step wizard)
-- ✅ On Sale page improvements (Made/Investment columns, profit toggle)
-- ✅ Materials library enhancements (Add Stock, weighted average, filters)
-- ✅ Percentage-based quantity for consumable materials
-- ✅ Labor hourly cost defaults from settings
-- ✅ Edit Material Dialog improvements (popup, better layout, consumable flag)
-- ✅ Batch size validation fixes
-- ✅ Real-time profit/margin/markup indicators in Add Product
-- ✅ **Bug Fixes & Refinements**
-  - Resolved category persistence issues in product editing.
-  - Fixed "400 Bad Request" errors for zero-value numeric fields.
-  - Standardized success toast notifications across the application.
+- ✅ **Create & edit products** — single-screen form with materials, labour, other costs, and live pricing calculator
+- ✅ **Products list** — table and grid views, advanced filtering, global search, sortable and hideable columns with drag-to-reorder
+- ✅ **Bulk operations** — bulk delete, bulk status change, bulk category reassign
+- ✅ **Product status workflow** — Draft → In Progress → On Sale → Inactive
+- ✅ **Inline pricing** — update price and pricing method directly from the product list; profit/margin/markup update in real time
+- ✅ **Fee-aware pricing** — toggle to see profit and margin after platform fees
+- ✅ **Market Position column** — shows at-a-glance whether a product is priced below, at, or above the market
 
-### Core Features
+### Cost Tracking
 
-- ✅ **Authentication System**
-  - User registration and login
-  - JWT-based authentication
-  - Protected routes
+- ✅ **Materials costs** — exact quantity or percentage-based (consumables), per item or per batch
+- ✅ **Labour costs** — activity-based time tracking with configurable hourly rate
+- ✅ **Other costs** — packaging, shipping supplies, fees, etc.
+- ✅ **Batch size management** — all costs roll up correctly across any batch size
 
-- ✅ **User Settings**
-  - Currency selection
-  - Custom unit management
-  - Tax percentage settings
-  - Default labor hourly cost
+### Pricing Calculator
 
-- ✅ **Product Management**
-  - Create products (single-screen UI with all fields visible)
-  - Edit products
-  - Delete products
-  - Product status workflow (draft → in_progress → on_sale → inactive)
-  - Batch size management (renamed to "Made")
-  - Real-time profit/margin/markup indicators
+- ✅ **Four pricing methods** — Set Price, Target Profit $, Target Margin %, Markup %
+- ✅ **Real-time indicators** — profit, margin, and markup update as you type
+- ✅ **Break-even chart** — units needed to cover batch cost at current price
+- ✅ **Shipping scenarios** — model different shipping costs and their impact
 
-- ✅ **Cost Tracking**
-  - Materials tracking with user library
-  - Percentage-based quantity for consumable materials (per item or per batch)
-  - Labor costs tracking with default hourly rate from settings
-  - Other costs tracking
-  - Real-time cost calculations
-  - Dynamic profit/margin/markup indicators
+### Product Variants
 
-- ✅ **Pricing & Calculations**
-  - Target price setting
-  - Pricing methods (Markup %, Markup $, Final Price)
-  - Automatic profit calculation
-  - Automatic margin calculation
-  - Cost breakdown visualization
+- ✅ Cartesian variant generator (e.g. 3 sizes × 3 colours = 9 variants)
+- ✅ Per-variant price override, SKU, and stock level
+- ✅ Variants shown as expandable rows in the product list
 
-- ✅ **Product List & Management**
-  - Advanced filtering (contains, equals, not contains, starts with, ends with)
-  - Global search
-  - Column visibility toggle
-  - Sortable columns
-  - Inline editing
+### Product Templates
 
-- ✅ **Materials Library**
-  - User material library
-  - Reusable materials across products
-  - Material management page
-  - Add Stock functionality with weighted average cost calculation
-  - Inline category editing
-  - Out of stock filter toggle
-  - Stock level tracking with reorder points
-  - Last purchased date and price tracking
-  - Investment tracking (total cost)
-  - Consumable material flag (percentage-based materials)
+- ✅ Save any product's cost structure as a named template
+- ✅ Load a template when creating a product to pre-fill all costs
+- ✅ Manage (rename, delete) templates from settings
 
-- ✅ **On Sale Page**
-  - Dedicated page for products on sale
-  - Sales tracking (migrated to Database) with legacy localStorage support
-  - Revenue, profit, and margin analytics
-  - Stock calculation (Made - Sold)
-  - Investment column (total cost to produce)
-  - Profit calculation toggle (Real Profit vs Sold Profit)
-  - Real Profit: Revenue - Total Investment (all items made)
-  - Sold Profit: Revenue - COGS (only sold items)
+### Materials Library
 
-- ✅ **Sales Transactions**
-  - Replace localStorage-based sales with a proper DB system
-  - Record actual sale prices, discounts, and platforms
-  - Historical sales data and analytics
-  - See: `docs/specs/sales-transactions.md`
+- ✅ Central reusable library of materials
+- ✅ Weighted average cost calculation when restocking
+- ✅ Stock tracking with configurable reorder points
+- ✅ Low stock alerts on dashboard
+- ✅ Consumable flag for percentage-based materials
+- ✅ Inline category editing
 
-- ✅ **Home Dashboard**
-  - Overview analytics
-  - Quick actions
-  - Recent products
-  - Status breakdown
+### Sales Tracking
 
-- ✅ **Roadmap**
-  - Feature voting system
-  - Upvote/downvote functionality
-  - Feature search
+- ✅ Record sales with actual price, quantity, platform, discount, and date
+- ✅ Real Profit vs Sold Profit toggle
+- ✅ After-tax profit toggle
+- ✅ Sales history per product
+- ✅ Legacy localStorage sales data migrated to database
 
-- ✅ **Product Templates**
-  - Save product configurations as templates
-  - Quick product creation from templates
-  - Template management from create screen and DB
-  - See: `docs/specs/product-templates.md`
+### On Sale Page
 
-- ✅ **Product Variants**
-  - Product variants support
-  - Variant-specific pricing
-  - Variant stock tracking
-  - See: `docs/specs/product-variants.md`
+- ✅ Table and grid views for active listings
+- ✅ Analytics cards: revenue, profit, units sold, investment
+- ✅ Fee-aware revenue estimates
+- ✅ Suggested products ready to list
 
-- ✅ **Production Deployment**
-  - Separated Frontend (web) and Backend (api) Vercel projects
-  - Configured CORS, SPA Routing, and API rewrites
-  - Production Database (Neon) connection verified
-  - Auth flow (JWT) fixed for production environment
+### Categories & Suppliers
 
-### Small things to fix
+- ✅ Full category management (create, rename, delete, bulk operations)
+- ✅ Supplier directory with contact details linked to materials
 
-- [x] SKU auto generated even though typed when creating a product
+### Market Analysis & Competitor Tracking
+
+- ✅ Add competitor listings per product
+- ✅ Average competitor price and market position column on products list
+- ✅ Automated 24-hour price monitoring
+- ✅ AI-generated recommendations via Google Gemini
+- ✅ Price history per competitor
+
+### AI Coach
+
+- ✅ Business health score widget
+- ✅ Personalised pricing insights based on your product data
+- ✅ Chat interface for natural-language pricing questions
+- ✅ Report generation
+- ✅ Growth chart widget
+- ✅ Plan-based usage limits
+
+### AI Product Generator
+
+- ✅ Describe a product in plain language; AI suggests materials, labour, costs, and a price
+- ✅ Per-activity labour breakdown
+- ✅ Default shipping scenarios pre-filled
+- ✅ Available on Starter plan and above
+
+### Subscription & Plans
+
+- ✅ Four plan tiers: Free, Starter, Growth, Pro
+- ✅ Usage limits enforced in the app and at the API level
+- ✅ In-app plan switcher
+- ✅ Trial support with expiry banner
+- ✅ Near-limit warnings (at 80%) and at-limit upgrade prompts
+- ✅ Usage dashboard in Settings
+- ✅ QA mode for testing different plan limits
+
+### Settings
+
+- ✅ Currency, tax rate, default labour rate
+- ✅ Platform fee profiles (Etsy, Shopify, etc.)
+- ✅ Shipping templates
+- ✅ Custom measurement units
+- ✅ Account profile management
+
+### Roadmap Page
+
+- ✅ Feature voting — upvote and downvote planned features
+- ✅ Community feedback visible to all users
+
+### Infrastructure & Quality
+
+- ✅ Vercel deployment (frontend as SPA, API as separate service)
+- ✅ PostgreSQL database (Neon) with inline migrations
+- ✅ PostHog analytics integration
+- ✅ Production and QA environment modes
+- ✅ Signup page redesigned as marketing landing with hero and pricing grid

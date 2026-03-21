@@ -1,41 +1,72 @@
-# Home Page Specification
+# Home — Dashboard
 
-## Overview
-Dashboard-style overview page showing key metrics, quick actions, and recent products.
+## What It Does
 
-## Features
+The Home page is your business command center. At a glance you can see how your product catalog is performing, spot pricing opportunities, and jump to the things you do most often. Every widget is optional — you can hide the ones you don't use and reorder the rest to match how you work.
 
-### Analytics Cards
-- **Total Products**: Shows total product count with "on sale" count
-- **Potential Revenue**: Calculated from all products' target prices and batch sizes
-- **Potential Profit**: Revenue minus costs, with average margin display
-- **Total Cost**: Combined cost of all products
+---
 
-### Quick Actions
-- Create New Product (navigates to `/products/add`)
-- View All Products (navigates to `/products`)
-- View On Sale Products (navigates to `/on-sale`)
-- Manage Materials (navigates to `/materials`)
+## Key Metrics (Stats Bar)
 
-### Product Status Overview
-Visual breakdown showing:
-- Draft products (not yet priced)
-- In Progress products
-- On Sale products
+Four headline numbers sit at the top of the page:
 
-### Recent Products Table
-- Shows 5 most recently updated products
-- Displays: Name, Status, Price, Cost, Profit, Margin
-- Clickable rows navigate to Products page
-- Empty state with call-to-action if no products exist
+| Card | What It Shows |
+|------|--------------|
+| **Total Products** | How many products you have, with a breakdown by status |
+| **Potential Revenue** | If you sold every item in your current batch, this is what you'd bring in |
+| **Potential Profit** | Revenue minus total costs — what you'd actually pocket |
+| **Total Investment** | What you've already spent producing your current stock |
 
-## Data Requirements
-- Fetches all products from `/api/products`
-- Calculates analytics from product data
-- Uses user settings for currency formatting
+All money figures respect your chosen currency and, if enabled, can be shown after-tax.
 
-## UI Components
-- ShadCN Card components for analytics
-- ShadCN Table for recent products
-- Responsive grid layout (1 col mobile, 2 col tablet, 4 col desktop)
-- Loading skeletons during data fetch
+---
+
+## Dashboard Widgets
+
+The dashboard is split into two columns. You can show or hide any widget, and drag them into whatever order makes sense for you.
+
+### Left Column
+- **Recent Sales Summary** — revenue and units sold for the selected period
+- **Coach Insights Feed** — the latest AI-generated pricing tips from your Coach
+- **Recent Activity** — a running log of product edits, sales, and status changes
+
+### Right Column
+- **Product Status** — a donut chart splitting your products into Draft / In Progress / On Sale / Inactive
+- **Quick Actions** — one-click shortcuts: Add Product, Manage Materials, View On Sale
+- **Top Categories** — which product categories are biggest by volume
+- **Low Stock Alerts** — materials that have dropped below their reorder point
+
+---
+
+## Filtering & Comparison
+
+A date-range bar lets you scope all figures to the last 7 days, 30 days, 3 months, 1 year, or all time.
+
+An **After-Tax** toggle (shown if you've set a tax rate in Settings) switches all profit figures to show take-home amounts.
+
+---
+
+## Layout Customisation
+
+Click **Edit Layout** to enter arrangement mode:
+- Toggle any widget on or off
+- Drag widgets to reorder them
+- Click **Reset** to return to the default layout
+
+Your layout is saved automatically.
+
+---
+
+## First-Time Experience
+
+If your account has no products yet, the dashboard shows a welcome prompt with a single "Create your first product" call to action rather than empty charts.
+
+If you signed up but haven't set up your AI Coach profile yet, a dismissible banner invites you to do so. It disappears once your profile is complete.
+
+---
+
+## What's Next
+
+- Charts that track revenue, profit, and margin trends over time
+- Break-even analysis at the business level (how many units this month to cover overheads)
+- Sales-channel performance comparison (Etsy vs Shopify vs Direct)

@@ -1,41 +1,80 @@
-# Settings Page Specification
+# Settings
 
-## Overview
-User settings management page for currency, units, tax, and labor costs.
+## What It Does
 
-## Features
+Settings lets you configure the defaults and preferences that apply across your entire account. It opens as a dialog from anywhere in the app. Changes save immediately.
 
-### Currency Settings
-- Currency selection dropdown
-- Supported currencies: USD, EUR, GBP, etc.
-- Applied across all pages for price display
+Settings are organised into three sections: **My Business**, **Selling**, and **Account**.
 
-### Unit Management
-- List of available units
-- Add custom units
-- Remove units (with validation if in use)
-- Default units: ml, L, g, kg, oz, lb, pcs, etc.
+---
 
-### Tax Settings
-- Tax percentage input
-- Applied to calculations (if configured)
+## My Business
 
-### Labor Cost Settings
-- Default hourly labor cost
-- Used as default in product creation
+### Financial
+Core money settings that affect calculations across every product:
 
-### Revenue Goal
-- Optional revenue goal setting
-- For future analytics/forecasting
+- **Currency** — the currency symbol used everywhere in the app (USD, EUR, GBP, AUD, CAD, and more)
+- **Tax rate** — your income tax or GST/VAT rate as a percentage. When set, an "After Tax" toggle appears on the Dashboard and On Sale page to show take-home profit
+- **Default hourly labour rate** — pre-fills the labour rate field whenever you add a labour cost to a product
 
-## Data Requirements
-- Fetches settings from `/api/settings`
-- Updates via `/api/settings` (PUT)
-- Settings linked to user account
+### Measurements
+- **Unit system** — switch between metric (g, ml, cm) and imperial (oz, fl oz, in) as your default
 
-## UI Components
-- ShadCN Form components
-- Input fields for each setting
-- Dropdown for currency selection
-- Save button with loading state
-- Success/error toast notifications
+---
+
+## Selling
+
+### Platform Fees
+Create fee profiles for each sales channel you use. A profile captures:
+
+- **Platform name** — e.g. Etsy, Shopify, Amazon, Not on Marketplace
+- **Transaction fee %** — the platform's cut of each sale
+- **Payment processing fee %** — card/payment processor fee
+- **Listing fee** — flat fee per listing (if applicable)
+
+Once profiles are set up, you can enable **Fee-Aware mode** on the Products and On Sale pages to see profit and margin figures after fees are deducted.
+
+### Shipping
+Create named shipping templates (e.g. "Standard Tracked", "International Priority") with their costs. These pre-populate the shipping scenario fields on the product pricing screen.
+
+---
+
+## Account
+
+### Profile
+Update your account details:
+- Name
+- Email address
+- Password (change requires current password)
+
+### Subscription
+Your current plan, usage summary, and options to change your plan.
+
+- Shows plan name (Free / Starter / Growth / Pro)
+- Usage bars for Products, Competitors, Coach Insights, and Chat
+- **Upgrade** or **Downgrade** plan buttons
+- If you're on a trial, a banner shows how many days remain
+
+See the subscription feature spec for full details.
+
+### Usage
+A dedicated view of your current usage limits in detail:
+- Products used vs limit
+- Competitors tracked vs limit
+- Coach insights generated vs limit
+- Chat messages sent today vs daily limit
+
+A prompt to upgrade appears when any limit reaches 80%.
+
+### Billing *(coming soon)*
+Stripe-powered billing portal for viewing invoices, updating payment method, and managing subscription renewal.
+
+---
+
+## Units Management
+
+A dedicated section within My Business > Measurements lets you manage the list of units available across the app:
+
+- View all default units
+- **Add** custom units (e.g. "sheet", "spool", "yard")
+- **Remove** units you don't use (prevented if the unit is currently in use by a material)

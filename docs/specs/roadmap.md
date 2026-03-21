@@ -1,51 +1,39 @@
-# Roadmap Page Specification
+# Roadmap — Feature Voting
 
-## Overview
+## What It Does
 
-Feature voting and roadmap management page where users can view and vote on planned features.
+The Roadmap page shows what's planned for PriceMe and lets you vote on which features matter most to you. It's a direct feedback channel between users and the product team.
 
-## Features
+---
 
-### Feature List
+## Feature Cards
 
-- Displays all roadmap features
-- Card-based UI layout
-- Each feature shows:
-  - Name
-  - Description
-  - Upvote count
-  - Downvote count
-  - User's current vote (if any)
+Each planned feature is shown as a card with:
 
-### Voting System
+- **Feature name** — what it does in plain language
+- **Description** — a short explanation of the problem it solves
+- **Vote count** — total upvotes and downvotes from all users
+- **Your vote** — whether you've upvoted or downvoted this feature
 
-- Upvote button (thumbs up)
-- Downvote button (thumbs down)
-- One vote per user per feature
-- Changing vote updates the previous vote
-- Optimistic UI updates
-- Vote counts update in real-time
+---
 
-### Search Functionality
+## Voting
 
-- Search box to filter features by name/description
-- Real-time filtering
+- **Upvote** to signal this feature would be valuable to you
+- **Downvote** if you think it's not a priority or not something you'd use
+- You can change your vote at any time
+- Vote totals update in real time
 
-### Empty State
+Your votes directly influence which features get prioritised in the development roadmap.
 
-- Message when no features exist
-- Placeholder for future feature requests
+---
 
-## Data Requirements
+## Search
 
-- Fetches features from `/api/roadmap`
-- Votes via `/api/roadmap/:featureId/vote` (POST)
-- Includes user's vote status in response
+A search bar at the top filters the feature list by name and description as you type, making it easy to find specific features you're interested in.
 
-## UI Components
+---
 
-- Card-based layout
-- ShadCN Card components
-- Button components for voting
-- Search Input component
-- Responsive grid layout
+## Empty State
+
+If no features are listed yet, a placeholder message explains that more features will be added as the product evolves.

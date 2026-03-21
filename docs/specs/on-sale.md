@@ -1,68 +1,101 @@
-# On Sale Page Specification
+# On Sale — Sales Tracking
 
-## Overview
+## What It Does
 
-Dedicated page for products with "On Sale" status, focused on sales metrics and analytics.
+The On Sale page focuses on your active listings. It pulls together all your products with an "On Sale" status and gives you a real picture of how they're performing — not just what you hoped to make, but what you're actually earning, after fees, after tax.
 
-## Features
+---
 
-### Analytics Cards
+## Views
 
-- **Total Revenue**: Sum of (Qty Sold × Price) for all on-sale products
-- **Total Profit**: Revenue minus costs (based on selected profit mode)
-- **Products Sold**: Total quantity sold across all products
-- **Total Investment**: Sum of (Made × Cost Per Product) - total spent to produce
-- Average margin displayed in Products Sold card
+Toggle between:
+- **Table view** — compact rows for managing many products at once
+- **Grid view** — larger cards showing key figures at a glance
 
-### Product Table
+---
 
-- Displays only products with status "on_sale"
-- Columns: Name, Price, Sold, Made (Batch Size), Stock, Investment, Revenue, Profit, Margin
-- Sortable columns
-- Resizable columns
-- "Made" column is editable (batch size)
+## Analytics Cards
 
-### Editable Fields
+Four headline metrics sit above the product list:
 
-- **Qty Sold**: Editable, stored in local storage (to be migrated to sales transactions)
-- **Made (Batch Size)**: Editable, saved to database
-- Visual highlighting for editable cells (blue background, border)
+| Card | What It Shows |
+|------|--------------|
+| **Revenue** | Total actual revenue from recorded sales (optionally shown net of estimated platform fees) |
+| **Profit** | Revenue minus cost of goods sold, with optional after-tax view |
+| **Units Sold** | Total quantity sold across all on-sale products, with average margin |
+| **Total Investment** | Total cost of everything you've produced (Made × cost per unit) |
 
-### Calculations
+**Fee-Aware mode** — if you've set up platform fee profiles in Settings, the Revenue card also shows an estimated net figure after fees.
 
-- **Stock**: Made - Sold
-- **Investment**: Made × Product Cost per unit (total spent to produce)
-- **Revenue**: Qty Sold × Target Price
-- **Profit**:
-  - **Real Profit Mode** (default): Revenue - Investment (all items made)
-  - **Sold Profit Mode**: Revenue - COGS (only sold items)
-- **Margin**: (Profit / Revenue) × 100
+---
 
-### Profit Calculation Toggle
+## Product Table Columns
 
-- Toggle button next to search box
-- **Real Profit**: Shows actual profit considering total investment (all items produced)
-- **Sold Profit**: Shows profit on sold items only (traditional COGS)
-- Tooltip explains each mode
-- Updates Profit and Margin columns in real-time
+| Column | Description |
+|--------|-------------|
+| **Name** | Product name |
+| **Price** | Your selling price |
+| **Made** | Batch size (editable inline) |
+| **Sold** | Total units sold (from recorded sales transactions) |
+| **Stock** | Remaining stock: Made minus Sold |
+| **Investment** | Total cost of everything made |
+| **Revenue** | Actual revenue from all sales |
+| **Profit** | Revenue minus costs (see profit mode toggle below) |
+| **Margin %** | Profit as a percentage of revenue |
 
-### Global Search
+---
 
-- Search by product name or SKU
-- Real-time filtering
+## Recording a Sale
 
-## Data Requirements
+Click **Record Sale** on any product to log a new transaction. The sale dialog captures:
 
-- Fetches products from `/api/products`
-- Filters client-side for "on_sale" status
-- Updates batch_size via `/api/products/:id` (PUT)
-- Qty Sold stored in browser local storage (temporary, to be migrated to sales transactions table)
-- Profit calculation mode stored in component state (defaults to Real Profit)
+- **Quantity** sold
+- **Unit price** (defaults to your set price, but can be different — e.g. a discount)
+- **Sale date** (defaults to today; you can backdate)
+- **Platform** — Etsy, Shopify, Direct, Amazon, eBay, or Other
+- **Discount** — either as a flat amount or a percentage
+- **Notes** — any free-form context about this sale
 
-## UI Components
+The dialog shows a live calculation: subtotal, discount, total revenue, cost, and profit.
 
-- TanStack Table for data display
-- Analytics cards with icons and color coding
-- EditableCell component for inline editing
-- ShadCN components: Card, Table, Input, Button
-- Responsive grid layout for analytics
+Once saved, all analytics and totals on the page update immediately.
+
+---
+
+## Profit Mode Toggle
+
+A toggle above the table switches between two ways of measuring profit:
+
+| Mode | What It Measures |
+|------|-----------------|
+| **Sold Profit** | Revenue minus cost of items sold only (traditional COGS view) |
+| **Real Profit** | Revenue minus your total investment — i.e. the cost of everything you made, whether it's sold yet or not |
+
+Real Profit gives you the honest picture of what you've actually made after accounting for unsold stock.
+
+---
+
+## After-Tax Toggle
+
+If you've set a tax rate in Settings, an **After Tax** toggle shows net profit figures with your income tax deducted. This is especially useful at end-of-year time.
+
+---
+
+## Suggested Products
+
+Below the main table, PriceMe may suggest products currently in "In Progress" status that look ready to list — based on having a complete cost structure and a set price. One click moves them to On Sale.
+
+---
+
+## Sales History (per product)
+
+From any product row you can drill into its full sales history, showing every transaction recorded, with the ability to edit or delete individual sales.
+
+---
+
+## What's Next
+
+- Sales import from CSV
+- Platform integrations (auto-import Etsy and Shopify orders)
+- Revenue and profit trend charts over time
+- Refund / return recording
