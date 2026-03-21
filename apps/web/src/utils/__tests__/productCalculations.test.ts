@@ -159,6 +159,7 @@ describe('calculateOtherCost', () => {
         quantity: 2,
         cost: 0.5,
         per_batch: false,
+        is_shipping: false,
       },
       1,
     );
@@ -173,6 +174,7 @@ describe('calculateOtherCost', () => {
         quantity: 1,
         cost: 1.0,
         per_batch: true,
+        is_shipping: false,
       },
       10,
     );
@@ -186,6 +188,7 @@ describe('calculateOtherCost', () => {
         quantity: 0,
         cost: 5,
         per_batch: false,
+        is_shipping: false,
       },
       1,
     );

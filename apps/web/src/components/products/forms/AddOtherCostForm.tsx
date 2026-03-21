@@ -25,7 +25,8 @@ export function AddOtherCostForm({ onAdd, settings }: AddOtherCostFormProps) {
             item,
             quantity: parseFloat(quantity) || 1,
             cost: parseFloat(cost) || 0,
-            per_batch: perBatch
+            per_batch: perBatch,
+            is_shipping: false,
         });
         setItem('');
         setQuantity('1');
