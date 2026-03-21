@@ -56,8 +56,11 @@ export const trackCompetitorProduct = async (req: Request, res: Response): Promi
 
             analysis = { ...analysis, ...aiResult };
         } catch (aiError: any) {
-            console.warn('AI Analysis failed:', aiError.message);
-            return res.status(400).json({ error: `AI Analysis failed: ${aiError.message}` });
+            // AI analysis failed — continue with basic URL info so the URL is still tracked
+            console.warn('AI Analysis failed, saving basic competitor record:', aiError.message);
+            try {
+                analysis.title = new URL(url).hostname.replace('www.', '');
+            } catch { /* noop */ }
         }
 
         // 3. Extract store name (competitor name) - simplistic approach for now

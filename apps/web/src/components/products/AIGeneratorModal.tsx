@@ -291,6 +291,12 @@ function CompetitorUrlModal({
               No competitor URLs added yet
             </div>
           )}
+
+          <div className="flex justify-end pt-1">
+            <Button type="button" onClick={() => onOpenChange(false)}>
+              Done
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
@@ -672,10 +678,13 @@ export function AIGeneratorModal({
             <>
               {/* Messages area */}
               <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3 min-h-0">
-                {messages.map((msg, idx) => {
-                  const isLastModel =
-                    msg.role === 'model' &&
-                    idx === messages.findLastIndex(m => m.role === 'model');
+                {(() => {
+                  const lastModelIdx = messages.reduce(
+                    (last, m, i) => (m.role === 'model' ? i : last),
+                    -1
+                  );
+                  return messages.map((msg, idx) => {
+                  const isLastModel = msg.role === 'model' && idx === lastModelIdx;
 
                   return (
                     <div key={msg.id}>
@@ -735,7 +744,8 @@ export function AIGeneratorModal({
                       )}
                     </div>
                   );
-                })}
+                });
+                })()}
 
                 {isLoading && <ChatThinkingBubble />}
 

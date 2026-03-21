@@ -576,12 +576,21 @@ export default function CreateProduct() {
         // Auto-track competitor URLs that were passed from the AI Generator
         const prefillCompetitorUrls = (location.state as any)?.competitorUrls as string[] | undefined;
         if (newProductId && prefillCompetitorUrls && prefillCompetitorUrls.length > 0) {
-          // Fire-and-forget — don't block the save flow
+          // Run in background — doesn't block the save flow
           Promise.allSettled(
             prefillCompetitorUrls.map(url =>
               api.post('/competitors/track', { url, linkedProductId: newProductId })
             )
-          ).catch(() => {/* silently ignore tracking errors */});
+          ).then(results => {
+            const succeeded = results.filter(r => r.status === 'fulfilled').length;
+            if (succeeded > 0) {
+              toast({
+                variant: 'success',
+                title: `${succeeded} competitor URL${succeeded > 1 ? 's' : ''} tracked`,
+                description: 'Check the Competitors page to view and analyze them.',
+              });
+            }
+          });
         }
 
         track({
